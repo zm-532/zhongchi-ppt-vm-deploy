@@ -18,8 +18,10 @@ from .document_analysis import extract_text
 logger = logging.getLogger(__name__)
 
 # 案例库路径
-CASE_LIBRARY_DIR = Path("D:/中驰股份/code/data/case_library")
-SR_PPT_SPLIT_DIR = Path("D:/中驰股份/SR智能PPT拆分")
+CODE_DIR = Path(__file__).resolve().parents[3]
+WORKSPACE_DIR = CODE_DIR.parent
+CASE_LIBRARY_DIR = Path(os.environ.get("ZHONGCHI_CASE_LIBRARY_DIR", CODE_DIR / "data" / "case_library"))
+SR_PPT_SPLIT_DIR = Path(os.environ.get("ZHONGCHI_SR_PPT_SPLIT_DIR", WORKSPACE_DIR / "SR智能PPT拆分"))
 CASES_INDEX_PATH = CASE_LIBRARY_DIR / "cases_index.json"
 
 # 项目类型关键词

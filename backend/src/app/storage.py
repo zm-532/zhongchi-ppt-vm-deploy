@@ -432,7 +432,7 @@ class JsonStore:
         project_id: int,
         confirmed_project_type: str,
         template_selection: dict[str, Any],
-        confirmed_case_id: int | None,
+        confirmed_case_id: str | int | None,
         notes: str,
     ) -> dict[str, Any] | None:
         state = self.load()
@@ -468,6 +468,12 @@ class JsonStore:
         if project.get("classification_status") != "reviewed":
             return None
 
+        # 生成前清空旧结果，避免失败后仍下载旧文件
+        project["final_ppt_path"] = ""
+        for module in project["modules"]:
+            module["chapter_ppt_path"] = ""
+            module["error_message"] = ""
+
         self._set_project_status(project, "生成中")
         for module in project["modules"]:
             module_id = module["module_id"]
@@ -496,9 +502,25 @@ class JsonStore:
                 module["error_message"] = str(exc)
             self.save(state)
             return project
+
+        # 判断是否选择了案例（M5 是否参与）
+        confirmed_case_id = project.get("case_selection", {}).get("confirmed_case_id")
+        raw_case_id = confirmed_case_id
+        has_case = raw_case_id is not None and str(raw_case_id).strip() not in ("", "null", "None", "__none__")
+
         for module in project["modules"]:
-            self._set_module_status(module, "rendered")
-            module["chapter_ppt_path"] = str(chapter_paths[module["module_id"]])
+            module_id = module["module_id"]
+            if module_id == "M5":
+                if not has_case:
+                    # 未选择案例，M5 跳过
+                    self._set_module_status(module, "skipped")
+                    module["chapter_ppt_path"] = ""
+                else:
+                    self._set_module_status(module, "rendered")
+                    module["chapter_ppt_path"] = str(chapter_paths["M5"])
+            else:
+                self._set_module_status(module, "rendered")
+                module["chapter_ppt_path"] = str(chapter_paths[module["module_id"]])
         project["final_ppt_path"] = str(final_path)
         self._set_project_status(project, "合并中")
         self._set_project_status(project, "完成")
@@ -555,6 +577,12 @@ class JsonStore:
         self._set_project_status(project, "章节渲染中" if approved else "待确认")
         project["review"] = {"approved": approved, "notes": notes}
         if approved:
+            # 生成前清空旧结果
+            project["final_ppt_path"] = ""
+            for module in project["modules"]:
+                module["chapter_ppt_path"] = ""
+                module["error_message"] = ""
+
             for module in project["modules"]:
                 if module["status"] == "outlined":
                     self._set_module_status(module, "reviewed")
@@ -567,9 +595,23 @@ class JsonStore:
                     module["error_message"] = str(exc)
                 self.save(state)
                 return project
+
+            confirmed_case_id = project.get("case_selection", {}).get("confirmed_case_id")
+            raw_case_id = confirmed_case_id
+            has_case = raw_case_id is not None and str(raw_case_id).strip() not in ("", "null", "None", "__none__")
+
             for module in project["modules"]:
-                self._set_module_status(module, "rendered")
-                module["chapter_ppt_path"] = str(chapter_paths[module["module_id"]])
+                module_id = module["module_id"]
+                if module_id == "M5":
+                    if not has_case:
+                        self._set_module_status(module, "skipped")
+                        module["chapter_ppt_path"] = ""
+                    else:
+                        self._set_module_status(module, "rendered")
+                        module["chapter_ppt_path"] = str(chapter_paths["M5"])
+                else:
+                    self._set_module_status(module, "rendered")
+                    module["chapter_ppt_path"] = str(chapter_paths[module["module_id"]])
             project["final_ppt_path"] = str(final_path)
             self._set_project_status(project, "合并中")
             self._set_project_status(project, "完成")

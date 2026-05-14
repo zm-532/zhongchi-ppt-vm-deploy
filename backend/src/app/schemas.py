@@ -71,5 +71,5 @@ class ClassificationResult(BaseModel):
 class ClassificationReviewRequest(BaseModel):
     confirmed_project_type: str
     template_selection: dict[str, Any] = Field(default_factory=dict)
-    confirmed_case_id: int | None = None
+    confirmed_case_id: str | int | None = None
     notes: str = ""

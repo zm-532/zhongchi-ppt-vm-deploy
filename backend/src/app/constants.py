@@ -1,3 +1,6 @@
+import os
+from pathlib import Path
+
 ALLOWED_MODULE_IDS = ("M1", "M2", "M5", "M6")
 
 PROJECT_TYPES = ("highway", "railway", "metro", "existing_rail_transit")
@@ -26,7 +29,10 @@ ALLOWED_EXTENSIONS = {
     ".dxf",
 }
 
-PPT_TEMPLATE_ROOT = r"D:\中驰股份\code\ppt_engine\templates\solution_fixed_modules"
+PPT_TEMPLATE_ROOT = os.environ.get(
+    "ZHONGCHI_PPT_TEMPLATE_ROOT",
+    str(Path(__file__).resolve().parents[3] / "ppt_engine" / "templates" / "solution_fixed_modules"),
+)
 
 M1_M2_TEMPLATE_FILENAMES = {
     "highway": "公路全封闭声屏障（M1_&_M2）.pptx",
