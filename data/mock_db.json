@@ -1,7 +1,7 @@
 {
   "counters": {
-    "project_id": 21,
-    "file_id": 45,
+    "project_id": 31,
+    "file_id": 65,
     "case_id": 1
   },
   "projects": [
@@ -3333,6 +3333,2700 @@
           }
         ]
       }
+    },
+    {
+      "project_name": "审查复现",
+      "project_location": "南京",
+      "owner_unit": "某建设单位",
+      "product_line": "轨交既有线改造",
+      "project_fields": {},
+      "project_id": 21,
+      "task_status": "失败",
+      "status_history": [
+        "待生成",
+        "模块解析中",
+        "素材匹配中",
+        "章节生成中",
+        "待确认",
+        "章节渲染中",
+        "失败"
+      ],
+      "modules": [
+        {
+          "module_id": "M1",
+          "status": "failed",
+          "status_history": [
+            "pending",
+            "uploaded",
+            "parsed",
+            "matched",
+            "outlined",
+            "reviewed",
+            "failed"
+          ],
+          "uploaded_file_ids": [
+            45
+          ],
+          "matched_asset_ids": [
+            101
+          ],
+          "outline": {
+            "slides": [
+              {
+                "module_id": "M1",
+                "page_number": 1,
+                "page_title": "行业背景与技术标准",
+                "core_insight": "行业背景与技术标准章节使用 Mock 大纲，等待人工确认。",
+                "bullet_points": [
+                  "[待补充：项目关键信息]",
+                  "[待补充：模块材料摘要]",
+                  "[待补充：推荐素材确认]"
+                ],
+                "asset_ids": [
+                  101
+                ],
+                "case_ids": [],
+                "visual_suggestion": "使用中驰蓝白模板占位页",
+                "missing_fields": [
+                  "项目关键信息",
+                  "模块材料摘要",
+                  "推荐素材确认"
+                ]
+              }
+            ]
+          },
+          "chapter_ppt_path": "",
+          "error_message": "cannot import name 'MODULE_ORDER' from 'ppt_engine.renderer' (D:\\中驰股份\\code\\ppt_engine\\ppt_engine\\renderer.py)"
+        },
+        {
+          "module_id": "M2",
+          "status": "failed",
+          "status_history": [
+            "pending",
+            "uploaded",
+            "parsed",
+            "matched",
+            "outlined",
+            "reviewed",
+            "failed"
+          ],
+          "uploaded_file_ids": [
+            46
+          ],
+          "matched_asset_ids": [
+            201
+          ],
+          "outline": {
+            "slides": [
+              {
+                "module_id": "M2",
+                "page_number": 1,
+                "page_title": "项目概况与现场挑战",
+                "core_insight": "项目概况与现场挑战章节使用 Mock 大纲，等待人工确认。",
+                "bullet_points": [
+                  "[待补充：项目关键信息]",
+                  "[待补充：模块材料摘要]",
+                  "[待补充：推荐素材确认]"
+                ],
+                "asset_ids": [
+                  201
+                ],
+                "case_ids": [],
+                "visual_suggestion": "使用中驰蓝白模板占位页",
+                "missing_fields": [
+                  "项目关键信息",
+                  "模块材料摘要",
+                  "推荐素材确认"
+                ]
+              }
+            ]
+          },
+          "chapter_ppt_path": "",
+          "error_message": "cannot import name 'MODULE_ORDER' from 'ppt_engine.renderer' (D:\\中驰股份\\code\\ppt_engine\\ppt_engine\\renderer.py)"
+        },
+        {
+          "module_id": "M5",
+          "status": "failed",
+          "status_history": [
+            "pending",
+            "uploaded",
+            "parsed",
+            "matched",
+            "outlined",
+            "reviewed",
+            "failed"
+          ],
+          "uploaded_file_ids": [
+            47
+          ],
+          "matched_asset_ids": [
+            501
+          ],
+          "outline": {
+            "slides": [
+              {
+                "module_id": "M5",
+                "page_number": 1,
+                "page_title": "同类型案例匹配",
+                "core_insight": "同类型案例匹配章节使用 Mock 大纲，等待人工确认。",
+                "bullet_points": [
+                  "[待补充：项目关键信息]",
+                  "[待补充：模块材料摘要]",
+                  "[待补充：推荐素材确认]"
+                ],
+                "asset_ids": [
+                  501
+                ],
+                "case_ids": [
+                  1
+                ],
+                "visual_suggestion": "使用中驰蓝白模板占位页",
+                "missing_fields": [
+                  "项目关键信息",
+                  "模块材料摘要",
+                  "推荐素材确认"
+                ]
+              }
+            ]
+          },
+          "chapter_ppt_path": "",
+          "error_message": "cannot import name 'MODULE_ORDER' from 'ppt_engine.renderer' (D:\\中驰股份\\code\\ppt_engine\\ppt_engine\\renderer.py)"
+        },
+        {
+          "module_id": "M6",
+          "status": "failed",
+          "status_history": [
+            "pending",
+            "uploaded",
+            "parsed",
+            "matched",
+            "outlined",
+            "reviewed",
+            "failed"
+          ],
+          "uploaded_file_ids": [
+            48
+          ],
+          "matched_asset_ids": [
+            601
+          ],
+          "outline": {
+            "slides": [
+              {
+                "module_id": "M6",
+                "page_number": 1,
+                "page_title": "企业背书与荣誉",
+                "core_insight": "企业背书与荣誉章节使用 Mock 大纲，等待人工确认。",
+                "bullet_points": [
+                  "[待补充：项目关键信息]",
+                  "[待补充：模块材料摘要]",
+                  "[待补充：推荐素材确认]"
+                ],
+                "asset_ids": [
+                  601
+                ],
+                "case_ids": [],
+                "visual_suggestion": "使用中驰蓝白模板占位页",
+                "missing_fields": [
+                  "项目关键信息",
+                  "模块材料摘要",
+                  "推荐素材确认"
+                ]
+              }
+            ]
+          },
+          "chapter_ppt_path": "",
+          "error_message": "cannot import name 'MODULE_ORDER' from 'ppt_engine.renderer' (D:\\中驰股份\\code\\ppt_engine\\ppt_engine\\renderer.py)"
+        }
+      ],
+      "final_ppt_path": "",
+      "detected_project_type": null,
+      "confirmed_project_type": null,
+      "classification_status": "pending",
+      "template_selection": {},
+      "case_selection": {},
+      "review": {
+        "approved": true,
+        "notes": "review"
+      }
+    },
+    {
+      "project_name": "test",
+      "project_location": "test",
+      "owner_unit": "test",
+      "product_line": "公路全封闭",
+      "project_fields": {},
+      "project_id": 22,
+      "task_status": "完成",
+      "status_history": [
+        "待生成",
+        "待分析",
+        "资料解析中",
+        "类型识别中",
+        "案例匹配中",
+        "待确认",
+        "生成中",
+        "合并中",
+        "完成",
+        "生成中",
+        "合并中",
+        "完成"
+      ],
+      "modules": [
+        {
+          "module_id": "M1",
+          "status": "rendered",
+          "status_history": [
+            "pending",
+            "outlined",
+            "rendered",
+            "outlined",
+            "rendered"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {
+            "slides": [
+              {
+                "module_id": "M1",
+                "page_number": 1,
+                "page_title": "行业背景与技术标准",
+                "core_insight": "行业背景与技术标准按确认后的项目类型、模板和案例进入 Demo 生成。",
+                "bullet_points": [
+                  "[待补充：项目关键信息]",
+                  "[待补充：模板字段]",
+                  "[待补充：案例确认]"
+                ],
+                "asset_ids": [],
+                "case_ids": [],
+                "visual_suggestion": "使用确认后的固化模板和占位字段",
+                "missing_fields": [
+                  "项目关键信息",
+                  "模板字段",
+                  "案例确认"
+                ]
+              }
+            ]
+          },
+          "chapter_ppt_path": "D:\\中驰股份\\code\\data\\outputs\\project_22\\chapters\\M1_M2_行业背景与技术标准.pptx",
+          "error_message": ""
+        },
+        {
+          "module_id": "M2",
+          "status": "rendered",
+          "status_history": [
+            "pending",
+            "outlined",
+            "rendered",
+            "outlined",
+            "rendered"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {
+            "slides": [
+              {
+                "module_id": "M2",
+                "page_number": 1,
+                "page_title": "项目概况与现场挑战",
+                "core_insight": "项目概况与现场挑战按确认后的项目类型、模板和案例进入 Demo 生成。",
+                "bullet_points": [
+                  "[待补充：项目关键信息]",
+                  "[待补充：模板字段]",
+                  "[待补充：案例确认]"
+                ],
+                "asset_ids": [],
+                "case_ids": [],
+                "visual_suggestion": "使用确认后的固化模板和占位字段",
+                "missing_fields": [
+                  "项目关键信息",
+                  "模板字段",
+                  "案例确认"
+                ]
+              }
+            ]
+          },
+          "chapter_ppt_path": "D:\\中驰股份\\code\\data\\outputs\\project_22\\chapters\\M1_M2_行业背景与技术标准.pptx",
+          "error_message": ""
+        },
+        {
+          "module_id": "M5",
+          "status": "rendered",
+          "status_history": [
+            "pending",
+            "outlined",
+            "rendered",
+            "outlined",
+            "rendered"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {
+            "slides": [
+              {
+                "module_id": "M5",
+                "page_number": 1,
+                "page_title": "同类型案例匹配",
+                "core_insight": "同类型案例匹配按确认后的项目类型、模板和案例进入 Demo 生成。",
+                "bullet_points": [
+                  "[待补充：项目关键信息]",
+                  "[待补充：模板字段]",
+                  "[待补充：案例确认]"
+                ],
+                "asset_ids": [],
+                "case_ids": [],
+                "visual_suggestion": "使用确认后的固化模板和占位字段",
+                "missing_fields": [
+                  "项目关键信息",
+                  "模板字段",
+                  "案例确认"
+                ]
+              }
+            ]
+          },
+          "chapter_ppt_path": "D:\\中驰股份\\code\\data\\outputs\\project_22\\chapters\\M5_同类型案例匹配.pptx",
+          "error_message": ""
+        },
+        {
+          "module_id": "M6",
+          "status": "rendered",
+          "status_history": [
+            "pending",
+            "outlined",
+            "rendered",
+            "outlined",
+            "rendered"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {
+            "slides": [
+              {
+                "module_id": "M6",
+                "page_number": 1,
+                "page_title": "企业背书与荣誉",
+                "core_insight": "企业背书与荣誉按确认后的项目类型、模板和案例进入 Demo 生成。",
+                "bullet_points": [
+                  "[待补充：项目关键信息]",
+                  "[待补充：模板字段]",
+                  "[待补充：案例确认]"
+                ],
+                "asset_ids": [],
+                "case_ids": [],
+                "visual_suggestion": "使用确认后的固化模板和占位字段",
+                "missing_fields": [
+                  "项目关键信息",
+                  "模板字段",
+                  "案例确认"
+                ]
+              }
+            ]
+          },
+          "chapter_ppt_path": "D:\\中驰股份\\code\\data\\outputs\\project_22\\chapters\\M6_企业背书与荣誉.pptx",
+          "error_message": ""
+        }
+      ],
+      "final_ppt_path": "D:\\中驰股份\\code\\data\\outputs\\project_22\\test_M1_M2_M5_M6_最终稿.pptx",
+      "detected_project_type": "metro",
+      "confirmed_project_type": "metro",
+      "classification_status": "reviewed",
+      "template_selection": {
+        "M1_M2": {
+          "template_key": "metro",
+          "template_filename": "轨道交通地铁全封闭声屏障（M1_&_M2）.pptx"
+        },
+        "M5": {
+          "template_key": "case",
+          "template_filename": "南昌轨道交通4号线声屏障工程项目案例模板（M5）.pptx"
+        },
+        "M6": {
+          "template_key": "enterprise",
+          "template_filename": "中驰企业介绍合并初版（M6）.pptx"
+        }
+      },
+      "case_selection": {
+        "recommended_cases": [
+          {
+            "case_id": "sr_PPT_S1_bb0819b658",
+            "title": "PPT 标前 综合交付方案 合肥新桥机场S1号线声屏障工程交流会资料",
+            "match_reason": "同为轨道交通项目，施工场景相近：新建、既有线改造，痛点相近：噪声治理、工期紧张、技术难度高，同一城市：上海、天津、济南、武汉、成都、广州、西安、南京、深圳、宁波、重庆、青岛、合肥、北京",
+            "matched_tags": [
+              "项目类型:metro",
+              "城市:上海",
+              "城市:天津",
+              "城市:济南",
+              "城市:武汉",
+              "城市:成都",
+              "城市:广州",
+              "城市:西安",
+              "城市:南京",
+              "城市:深圳"
+            ],
+            "source_path": "D:\\中驰股份\\SR智能PPT拆分\\PPT 标前 综合交付方案 合肥新桥机场S1号线声屏障工程交流会资料"
+          },
+          {
+            "case_id": "sr_PPT_4_0822V1_1bb287ec43",
+            "title": "PPT 标前 综合交付方案 南昌轨道交通4号线新增及改造 声屏障专项方案汇报0822V1",
+            "match_reason": "同为轨道交通项目，施工场景相近：新建、加装、既有线改造，痛点相近：噪声治理、工期紧张，同一城市：上海、南昌、武汉、成都、广州、南京、深圳、合肥",
+            "matched_tags": [
+              "项目类型:metro",
+              "城市:上海",
+              "城市:南昌",
+              "城市:武汉",
+              "城市:成都",
+              "城市:广州",
+              "城市:南京",
+              "城市:深圳",
+              "城市:合肥",
+              "场景:新建"
+            ],
+            "source_path": "D:\\中驰股份\\SR智能PPT拆分\\PPT 标前 综合交付方案 南昌轨道交通4号线新增及改造 声屏障专项方案汇报0822V1"
+          }
+        ],
+        "confirmed_case_id": null,
+        "status": "matched",
+        "message": "找到 2 个相似案例"
+      },
+      "classification_result": {
+        "project_id": 22,
+        "classification_status": "reviewed",
+        "detected_project_type": "metro",
+        "confirmed_project_type": "metro",
+        "confidence": 0.95,
+        "matched_keywords": [
+          "地铁",
+          "轨道交通",
+          "城市轨道",
+          "昌平线",
+          "轨交"
+        ],
+        "detection_evidence": [
+          {
+            "project_type": "metro",
+            "keyword": "地铁",
+            "source": "解析文本：北京中海寰宇未来小区加装声屏障项目汇报-十六局20260311.pptx",
+            "snippet": "...号 、照明 等运营设备保护 影响工期 、 现场成品 损坏 影响 地铁正常 运行 设备保护 成品保护要求高，施工路线需避让保护现场、轨..."
+          },
+          {
+            "project_type": "metro",
+            "keyword": "轨道交通",
+            "source": "解析文本：20.噪声污染意见.pdf",
+            "snippet": "...目敏感建筑声环境的影响，须采取噪声防治 措施如下： 会 （1）在轨道交通昌平线途径地块一侧安装长度不小于 515 延米、高度不低于 3 ..."
+          },
+          {
+            "project_type": "metro",
+            "keyword": "城市轨道",
+            "source": "解析文本：轨交既有线声屏障项目案例分享资料.pptx.25EB84F6D7508D9387D39A4D5057671B.20260126170937687.pptx",
+            "snippet": "...享资料 截至 2024 年 12 月 交付 案例 铁路 277 城市轨道交通 95 市政高架 144 高速公路 37 全封闭项目 72 ..."
+          },
+          {
+            "project_type": "metro",
+            "keyword": "昌平线",
+            "source": "解析文本：20.噪声污染意见.pdf",
+            "snippet": "...筑声环境的影响，须采取噪声防治 措施如下： 会 （1）在轨道交通昌平线途径地块一侧安装长度不小于 515 延米、高度不低于 3 米 会..."
+          },
+          {
+            "project_type": "metro",
+            "keyword": "轨交",
+            "source": "解析文本：北京中海寰宇未来小区加装声屏障项目汇报-十六局20260311.pptx",
+            "snippet": "...对措施 2 、 专业交通疏导 方案 三、项目痛点应对措施 3 、轨交既有线交付和管理团队 CONTENTS 目录 北京地铁八通线（鲁..."
+          }
+        ],
+        "template_selection": {
+          "M1_M2": {
+            "template_key": "metro",
+            "template_filename": "轨道交通地铁全封闭声屏障（M1_&_M2）.pptx"
+          },
+          "M5": {
+            "template_key": "case",
+            "template_filename": "南昌轨道交通4号线声屏障工程项目案例模板（M5）.pptx"
+          },
+          "M6": {
+            "template_key": "enterprise",
+            "template_filename": "中驰企业介绍合并初版（M6）.pptx"
+          }
+        },
+        "case_selection": {
+          "recommended_cases": [
+            {
+              "case_id": "sr_PPT_S1_bb0819b658",
+              "title": "PPT 标前 综合交付方案 合肥新桥机场S1号线声屏障工程交流会资料",
+              "match_reason": "同为轨道交通项目，施工场景相近：新建、既有线改造，痛点相近：噪声治理、工期紧张、技术难度高，同一城市：上海、天津、济南、武汉、成都、广州、西安、南京、深圳、宁波、重庆、青岛、合肥、北京",
+              "matched_tags": [
+                "项目类型:metro",
+                "城市:上海",
+                "城市:天津",
+                "城市:济南",
+                "城市:武汉",
+                "城市:成都",
+                "城市:广州",
+                "城市:西安",
+                "城市:南京",
+                "城市:深圳"
+              ],
+              "source_path": "D:\\中驰股份\\SR智能PPT拆分\\PPT 标前 综合交付方案 合肥新桥机场S1号线声屏障工程交流会资料"
+            },
+            {
+              "case_id": "sr_PPT_4_0822V1_1bb287ec43",
+              "title": "PPT 标前 综合交付方案 南昌轨道交通4号线新增及改造 声屏障专项方案汇报0822V1",
+              "match_reason": "同为轨道交通项目，施工场景相近：新建、加装、既有线改造，痛点相近：噪声治理、工期紧张，同一城市：上海、南昌、武汉、成都、广州、南京、深圳、合肥",
+              "matched_tags": [
+                "项目类型:metro",
+                "城市:上海",
+                "城市:南昌",
+                "城市:武汉",
+                "城市:成都",
+                "城市:广州",
+                "城市:南京",
+                "城市:深圳",
+                "城市:合肥",
+                "场景:新建"
+              ],
+              "source_path": "D:\\中驰股份\\SR智能PPT拆分\\PPT 标前 综合交付方案 南昌轨道交通4号线新增及改造 声屏障专项方案汇报0822V1"
+            }
+          ],
+          "confirmed_case_id": null,
+          "status": "matched",
+          "message": "找到 2 个相似案例"
+        },
+        "missing_fields": [
+          "线路名称",
+          "现场痛点确认"
+        ],
+        "files": [
+          {
+            "file_id": 49,
+            "project_id": 22,
+            "module_id": null,
+            "filename": "20.噪声污染意见.pdf",
+            "content_type": "application/pdf",
+            "stored_path": "D:\\中驰股份\\code\\data\\uploads\\22\\unclassified\\49_20.噪声污染意见.pdf",
+            "document_role": "survey",
+            "assigned_modules": [
+              "M2",
+              "M5"
+            ],
+            "parse_status": "parsed",
+            "parsed_text_path": "D:\\中驰股份\\code\\data\\parsed_text\\22\\49.txt",
+            "error_message": ""
+          },
+          {
+            "file_id": 50,
+            "project_id": 22,
+            "module_id": null,
+            "filename": "北京中海寰宇未来小区加装声屏障项目汇报-十六局20260311.pptx",
+            "content_type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "stored_path": "D:\\中驰股份\\code\\data\\uploads\\22\\unclassified\\50_北京中海寰宇未来小区加装声屏障项目汇报-十六局20260311.pptx",
+            "document_role": "enterprise_material",
+            "assigned_modules": [
+              "M6"
+            ],
+            "parse_status": "parsed",
+            "parsed_text_path": "D:\\中驰股份\\code\\data\\parsed_text\\22\\50.txt",
+            "error_message": ""
+          },
+          {
+            "file_id": 51,
+            "project_id": 22,
+            "module_id": null,
+            "filename": "轨交既有线声屏障项目案例分享资料.pptx.25EB84F6D7508D9387D39A4D5057671B.20260126170937687.pptx",
+            "content_type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "stored_path": "D:\\中驰股份\\code\\data\\uploads\\22\\unclassified\\51_轨交既有线声屏障项目案例分享资料.pptx.25EB84F6D7508D9387D39A4D5057671B.20260126170937687.pptx",
+            "document_role": "enterprise_material",
+            "assigned_modules": [
+              "M6"
+            ],
+            "parse_status": "parsed",
+            "parsed_text_path": "D:\\中驰股份\\code\\data\\parsed_text\\22\\51.txt",
+            "error_message": ""
+          },
+          {
+            "file_id": 52,
+            "project_id": 22,
+            "module_id": null,
+            "filename": "合肥3号线汇报资料11.4.pptx",
+            "content_type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "stored_path": "D:\\中驰股份\\code\\data\\uploads\\22\\unclassified\\52_合肥3号线汇报资料11.4.pptx",
+            "document_role": "drawing",
+            "assigned_modules": [
+              "M1",
+              "M2"
+            ],
+            "parse_status": "parsed",
+            "parsed_text_path": "D:\\中驰股份\\code\\data\\parsed_text\\22\\52.txt",
+            "error_message": ""
+          },
+          {
+            "file_id": 53,
+            "project_id": 22,
+            "module_id": null,
+            "filename": "南昌轨道交通4号线一期声屏障变更工程 施工方案汇报资料.pptx",
+            "content_type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "stored_path": "D:\\中驰股份\\code\\data\\uploads\\22\\unclassified\\53_南昌轨道交通4号线一期声屏障变更工程 施工方案汇报资料.pptx",
+            "document_role": "enterprise_material",
+            "assigned_modules": [
+              "M6"
+            ],
+            "parse_status": "parsed",
+            "parsed_text_path": "D:\\中驰股份\\code\\data\\parsed_text\\22\\53.txt",
+            "error_message": ""
+          },
+          {
+            "file_id": 54,
+            "project_id": 22,
+            "module_id": null,
+            "filename": "铁路&轨交既有线声屏障项目案例分享资料(册子打印版)V3.pptx",
+            "content_type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "stored_path": "D:\\中驰股份\\code\\data\\uploads\\22\\unclassified\\54_铁路&轨交既有线声屏障项目案例分享资料(册子打印版)V3.pptx",
+            "document_role": "case_material",
+            "assigned_modules": [
+              "M5"
+            ],
+            "parse_status": "parsed",
+            "parsed_text_path": "D:\\中驰股份\\code\\data\\parsed_text\\22\\54.txt",
+            "error_message": ""
+          },
+          {
+            "file_id": 55,
+            "project_id": 22,
+            "module_id": null,
+            "filename": "中海.pptx",
+            "content_type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "stored_path": "D:\\中驰股份\\code\\data\\uploads\\22\\unclassified\\55_中海.pptx",
+            "document_role": "project_brief",
+            "assigned_modules": [
+              "M1",
+              "M2",
+              "M5"
+            ],
+            "parse_status": "parsed",
+            "parsed_text_path": "D:\\中驰股份\\code\\data\\parsed_text\\22\\55.txt",
+            "error_message": ""
+          },
+          {
+            "file_id": 56,
+            "project_id": 22,
+            "module_id": null,
+            "filename": "中海寰宇未来小区《1-N资料表》3.10.xlsx",
+            "content_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "stored_path": "D:\\中驰股份\\code\\data\\uploads\\22\\unclassified\\56_中海寰宇未来小区《1-N资料表》3.10.xlsx",
+            "document_role": "enterprise_material",
+            "assigned_modules": [
+              "M6"
+            ],
+            "parse_status": "parsed",
+            "parsed_text_path": "D:\\中驰股份\\code\\data\\parsed_text\\22\\56.txt",
+            "error_message": ""
+          },
+          {
+            "file_id": 57,
+            "project_id": 22,
+            "module_id": null,
+            "filename": "中海声屏障施工招标图.pdf",
+            "content_type": "application/pdf",
+            "stored_path": "D:\\中驰股份\\code\\data\\uploads\\22\\unclassified\\57_中海声屏障施工招标图.pdf",
+            "document_role": "enterprise_material",
+            "assigned_modules": [
+              "M6"
+            ],
+            "parse_status": "parsed",
+            "parsed_text_path": "D:\\中驰股份\\code\\data\\parsed_text\\22\\57.txt",
+            "error_message": ""
+          }
+        ]
+      },
+      "classification_review": {
+        "notes": "前端人工确认"
+      }
+    },
+    {
+      "project_name": "M1/M2选择测试项目",
+      "project_location": "",
+      "owner_unit": "",
+      "product_line": "",
+      "project_fields": {},
+      "project_id": 23,
+      "task_status": "待确认",
+      "status_history": [
+        "待生成",
+        "待分析",
+        "资料解析中",
+        "类型识别中",
+        "案例匹配中",
+        "待确认"
+      ],
+      "modules": [
+        {
+          "module_id": "M1",
+          "status": "pending",
+          "status_history": [
+            "pending"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {},
+          "chapter_ppt_path": "",
+          "error_message": ""
+        },
+        {
+          "module_id": "M2",
+          "status": "pending",
+          "status_history": [
+            "pending"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {},
+          "chapter_ppt_path": "",
+          "error_message": ""
+        },
+        {
+          "module_id": "M5",
+          "status": "pending",
+          "status_history": [
+            "pending"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {},
+          "chapter_ppt_path": "",
+          "error_message": ""
+        },
+        {
+          "module_id": "M6",
+          "status": "pending",
+          "status_history": [
+            "pending"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {},
+          "chapter_ppt_path": "",
+          "error_message": ""
+        }
+      ],
+      "final_ppt_path": "",
+      "detected_project_type": "metro",
+      "confirmed_project_type": null,
+      "classification_status": "analyzed",
+      "template_selection": {
+        "M1_M2": {
+          "template_key": "metro",
+          "template_filename": "轨道交通地铁全封闭声屏障（M1_&_M2）.pptx"
+        },
+        "M5": {
+          "template_key": "case",
+          "template_filename": "南昌轨道交通4号线声屏障工程项目案例模板（M5）.pptx"
+        },
+        "M6": {
+          "template_key": "enterprise",
+          "template_filename": "中驰企业介绍合并初版（M6）.pptx"
+        }
+      },
+      "case_selection": {
+        "recommended_cases": [
+          {
+            "case_id": "sr_PPT_S1_bb0819b658",
+            "title": "PPT 标前 综合交付方案 合肥新桥机场S1号线声屏障工程交流会资料",
+            "match_reason": "同为轨道交通项目，痛点相近：噪声治理，同一城市：北京",
+            "matched_tags": [
+              "项目类型:metro",
+              "城市:北京",
+              "痛点:噪声治理",
+              "轨道交通",
+              "声屏障"
+            ],
+            "source_path": "D:\\中驰股份\\SR智能PPT拆分\\PPT 标前 综合交付方案 合肥新桥机场S1号线声屏障工程交流会资料"
+          },
+          {
+            "case_id": "sr_PPT_4_0822V1_1bb287ec43",
+            "title": "PPT 标前 综合交付方案 南昌轨道交通4号线新增及改造 声屏障专项方案汇报0822V1",
+            "match_reason": "同为轨道交通项目，痛点相近：噪声治理",
+            "matched_tags": [
+              "项目类型:metro",
+              "痛点:噪声治理",
+              "轨道交通",
+              "声屏障"
+            ],
+            "source_path": "D:\\中驰股份\\SR智能PPT拆分\\PPT 标前 综合交付方案 南昌轨道交通4号线新增及改造 声屏障专项方案汇报0822V1"
+          }
+        ],
+        "confirmed_case_id": null,
+        "status": "matched",
+        "message": "找到 2 个相似案例"
+      },
+      "classification_result": {
+        "project_id": 23,
+        "classification_status": "analyzed",
+        "detected_project_type": "metro",
+        "confirmed_project_type": null,
+        "confidence": 0.79,
+        "matched_keywords": [
+          "轨道交通",
+          "昌平线"
+        ],
+        "detection_evidence": [
+          {
+            "project_type": "metro",
+            "keyword": "轨道交通",
+            "source": "解析文本：20.噪声污染意见.pdf",
+            "snippet": "...目敏感建筑声环境的影响，须采取噪声防治 措施如下： 会 （1）在轨道交通昌平线途径地块一侧安装长度不小于 515 延米、高度不低于 3 ..."
+          },
+          {
+            "project_type": "metro",
+            "keyword": "昌平线",
+            "source": "解析文本：20.噪声污染意见.pdf",
+            "snippet": "...筑声环境的影响，须采取噪声防治 措施如下： 会 （1）在轨道交通昌平线途径地块一侧安装长度不小于 515 延米、高度不低于 3 米 会..."
+          }
+        ],
+        "template_selection": {
+          "M1_M2": {
+            "template_key": "metro",
+            "template_filename": "轨道交通地铁全封闭声屏障（M1_&_M2）.pptx"
+          },
+          "M5": {
+            "template_key": "case",
+            "template_filename": "南昌轨道交通4号线声屏障工程项目案例模板（M5）.pptx"
+          },
+          "M6": {
+            "template_key": "enterprise",
+            "template_filename": "中驰企业介绍合并初版（M6）.pptx"
+          }
+        },
+        "case_selection": {
+          "recommended_cases": [
+            {
+              "case_id": "sr_PPT_S1_bb0819b658",
+              "title": "PPT 标前 综合交付方案 合肥新桥机场S1号线声屏障工程交流会资料",
+              "match_reason": "同为轨道交通项目，痛点相近：噪声治理，同一城市：北京",
+              "matched_tags": [
+                "项目类型:metro",
+                "城市:北京",
+                "痛点:噪声治理",
+                "轨道交通",
+                "声屏障"
+              ],
+              "source_path": "D:\\中驰股份\\SR智能PPT拆分\\PPT 标前 综合交付方案 合肥新桥机场S1号线声屏障工程交流会资料"
+            },
+            {
+              "case_id": "sr_PPT_4_0822V1_1bb287ec43",
+              "title": "PPT 标前 综合交付方案 南昌轨道交通4号线新增及改造 声屏障专项方案汇报0822V1",
+              "match_reason": "同为轨道交通项目，痛点相近：噪声治理",
+              "matched_tags": [
+                "项目类型:metro",
+                "痛点:噪声治理",
+                "轨道交通",
+                "声屏障"
+              ],
+              "source_path": "D:\\中驰股份\\SR智能PPT拆分\\PPT 标前 综合交付方案 南昌轨道交通4号线新增及改造 声屏障专项方案汇报0822V1"
+            }
+          ],
+          "confirmed_case_id": null,
+          "status": "matched",
+          "message": "找到 2 个相似案例"
+        },
+        "missing_fields": [
+          "线路名称",
+          "现场痛点确认"
+        ],
+        "files": [
+          {
+            "file_id": 58,
+            "project_id": 23,
+            "module_id": null,
+            "filename": "20.噪声污染意见.pdf",
+            "content_type": "application/pdf",
+            "stored_path": "D:\\中驰股份\\code\\data\\uploads\\23\\unclassified\\58_20.噪声污染意见.pdf",
+            "document_role": "survey",
+            "assigned_modules": [
+              "M2",
+              "M5"
+            ],
+            "parse_status": "parsed",
+            "parsed_text_path": "D:\\中驰股份\\code\\data\\parsed_text\\23\\58.txt",
+            "error_message": ""
+          }
+        ]
+      }
+    },
+    {
+      "project_name": "M5案例匹配测试项目",
+      "project_location": "",
+      "owner_unit": "",
+      "product_line": "",
+      "project_fields": {},
+      "project_id": 24,
+      "task_status": "待确认",
+      "status_history": [
+        "待生成",
+        "待分析",
+        "资料解析中",
+        "类型识别中",
+        "案例匹配中",
+        "待确认"
+      ],
+      "modules": [
+        {
+          "module_id": "M1",
+          "status": "pending",
+          "status_history": [
+            "pending"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {},
+          "chapter_ppt_path": "",
+          "error_message": ""
+        },
+        {
+          "module_id": "M2",
+          "status": "pending",
+          "status_history": [
+            "pending"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {},
+          "chapter_ppt_path": "",
+          "error_message": ""
+        },
+        {
+          "module_id": "M5",
+          "status": "pending",
+          "status_history": [
+            "pending"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {},
+          "chapter_ppt_path": "",
+          "error_message": ""
+        },
+        {
+          "module_id": "M6",
+          "status": "pending",
+          "status_history": [
+            "pending"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {},
+          "chapter_ppt_path": "",
+          "error_message": ""
+        }
+      ],
+      "final_ppt_path": "",
+      "detected_project_type": "metro",
+      "confirmed_project_type": null,
+      "classification_status": "analyzed",
+      "template_selection": {
+        "M1_M2": {
+          "template_key": "metro",
+          "template_filename": "轨道交通地铁全封闭声屏障（M1_&_M2）.pptx"
+        },
+        "M5": {
+          "template_key": "case",
+          "template_filename": "南昌轨道交通4号线声屏障工程项目案例模板（M5）.pptx"
+        },
+        "M6": {
+          "template_key": "enterprise",
+          "template_filename": "中驰企业介绍合并初版（M6）.pptx"
+        }
+      },
+      "case_selection": {
+        "recommended_cases": [
+          {
+            "case_id": "sr_PPT_S1_bb0819b658",
+            "title": "PPT 标前 综合交付方案 合肥新桥机场S1号线声屏障工程交流会资料",
+            "match_reason": "同为轨道交通项目，痛点相近：噪声治理，同一城市：北京",
+            "matched_tags": [
+              "项目类型:metro",
+              "城市:北京",
+              "痛点:噪声治理",
+              "轨道交通",
+              "案例",
+              "声屏障"
+            ],
+            "source_path": "D:\\中驰股份\\SR智能PPT拆分\\PPT 标前 综合交付方案 合肥新桥机场S1号线声屏障工程交流会资料"
+          },
+          {
+            "case_id": "sr_PPT_4_0822V1_1bb287ec43",
+            "title": "PPT 标前 综合交付方案 南昌轨道交通4号线新增及改造 声屏障专项方案汇报0822V1",
+            "match_reason": "同为轨道交通项目，痛点相近：噪声治理",
+            "matched_tags": [
+              "项目类型:metro",
+              "痛点:噪声治理",
+              "轨道交通",
+              "案例",
+              "声屏障"
+            ],
+            "source_path": "D:\\中驰股份\\SR智能PPT拆分\\PPT 标前 综合交付方案 南昌轨道交通4号线新增及改造 声屏障专项方案汇报0822V1"
+          }
+        ],
+        "confirmed_case_id": null,
+        "status": "matched",
+        "message": "找到 2 个相似案例"
+      },
+      "classification_result": {
+        "project_id": 24,
+        "classification_status": "analyzed",
+        "detected_project_type": "metro",
+        "confirmed_project_type": null,
+        "confidence": 0.79,
+        "matched_keywords": [
+          "轨道交通",
+          "昌平线"
+        ],
+        "detection_evidence": [
+          {
+            "project_type": "metro",
+            "keyword": "轨道交通",
+            "source": "解析文本：20.噪声污染意见.pdf",
+            "snippet": "...目敏感建筑声环境的影响，须采取噪声防治 措施如下： 会 （1）在轨道交通昌平线途径地块一侧安装长度不小于 515 延米、高度不低于 3 ..."
+          },
+          {
+            "project_type": "metro",
+            "keyword": "昌平线",
+            "source": "解析文本：20.噪声污染意见.pdf",
+            "snippet": "...筑声环境的影响，须采取噪声防治 措施如下： 会 （1）在轨道交通昌平线途径地块一侧安装长度不小于 515 延米、高度不低于 3 米 会..."
+          }
+        ],
+        "template_selection": {
+          "M1_M2": {
+            "template_key": "metro",
+            "template_filename": "轨道交通地铁全封闭声屏障（M1_&_M2）.pptx"
+          },
+          "M5": {
+            "template_key": "case",
+            "template_filename": "南昌轨道交通4号线声屏障工程项目案例模板（M5）.pptx"
+          },
+          "M6": {
+            "template_key": "enterprise",
+            "template_filename": "中驰企业介绍合并初版（M6）.pptx"
+          }
+        },
+        "case_selection": {
+          "recommended_cases": [
+            {
+              "case_id": "sr_PPT_S1_bb0819b658",
+              "title": "PPT 标前 综合交付方案 合肥新桥机场S1号线声屏障工程交流会资料",
+              "match_reason": "同为轨道交通项目，痛点相近：噪声治理，同一城市：北京",
+              "matched_tags": [
+                "项目类型:metro",
+                "城市:北京",
+                "痛点:噪声治理",
+                "轨道交通",
+                "案例",
+                "声屏障"
+              ],
+              "source_path": "D:\\中驰股份\\SR智能PPT拆分\\PPT 标前 综合交付方案 合肥新桥机场S1号线声屏障工程交流会资料"
+            },
+            {
+              "case_id": "sr_PPT_4_0822V1_1bb287ec43",
+              "title": "PPT 标前 综合交付方案 南昌轨道交通4号线新增及改造 声屏障专项方案汇报0822V1",
+              "match_reason": "同为轨道交通项目，痛点相近：噪声治理",
+              "matched_tags": [
+                "项目类型:metro",
+                "痛点:噪声治理",
+                "轨道交通",
+                "案例",
+                "声屏障"
+              ],
+              "source_path": "D:\\中驰股份\\SR智能PPT拆分\\PPT 标前 综合交付方案 南昌轨道交通4号线新增及改造 声屏障专项方案汇报0822V1"
+            }
+          ],
+          "confirmed_case_id": null,
+          "status": "matched",
+          "message": "找到 2 个相似案例"
+        },
+        "missing_fields": [
+          "线路名称",
+          "现场痛点确认"
+        ],
+        "files": [
+          {
+            "file_id": 59,
+            "project_id": 24,
+            "module_id": null,
+            "filename": "20.噪声污染意见.pdf",
+            "content_type": "application/pdf",
+            "stored_path": "D:\\中驰股份\\code\\data\\uploads\\24\\unclassified\\59_20.噪声污染意见.pdf",
+            "document_role": "case_material",
+            "assigned_modules": [
+              "M5"
+            ],
+            "parse_status": "parsed",
+            "parsed_text_path": "D:\\中驰股份\\code\\data\\parsed_text\\24\\59.txt",
+            "error_message": ""
+          }
+        ]
+      }
+    },
+    {
+      "project_name": "M5案例匹配测试项目",
+      "project_location": "",
+      "owner_unit": "",
+      "product_line": "",
+      "project_fields": {},
+      "project_id": 25,
+      "task_status": "待确认",
+      "status_history": [
+        "待生成",
+        "待分析",
+        "资料解析中",
+        "类型识别中",
+        "案例匹配中",
+        "待确认"
+      ],
+      "modules": [
+        {
+          "module_id": "M1",
+          "status": "pending",
+          "status_history": [
+            "pending"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {},
+          "chapter_ppt_path": "",
+          "error_message": ""
+        },
+        {
+          "module_id": "M2",
+          "status": "pending",
+          "status_history": [
+            "pending"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {},
+          "chapter_ppt_path": "",
+          "error_message": ""
+        },
+        {
+          "module_id": "M5",
+          "status": "pending",
+          "status_history": [
+            "pending"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {},
+          "chapter_ppt_path": "",
+          "error_message": ""
+        },
+        {
+          "module_id": "M6",
+          "status": "pending",
+          "status_history": [
+            "pending"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {},
+          "chapter_ppt_path": "",
+          "error_message": ""
+        }
+      ],
+      "final_ppt_path": "",
+      "detected_project_type": "metro",
+      "confirmed_project_type": null,
+      "classification_status": "analyzed",
+      "template_selection": {
+        "M1_M2": {
+          "template_key": "metro",
+          "template_filename": "轨道交通地铁全封闭声屏障（M1_&_M2）.pptx"
+        },
+        "M5": {
+          "template_key": "case",
+          "template_filename": "南昌轨道交通4号线声屏障工程项目案例模板（M5）.pptx"
+        },
+        "M6": {
+          "template_key": "enterprise",
+          "template_filename": "中驰企业介绍合并初版（M6）.pptx"
+        }
+      },
+      "case_selection": {
+        "recommended_cases": [
+          {
+            "case_id": "sr_PPT_S1_bb0819b658",
+            "title": "PPT 标前 综合交付方案 合肥新桥机场S1号线声屏障工程交流会资料",
+            "match_reason": "同为轨道交通项目，痛点相近：噪声治理，同一城市：北京",
+            "matched_tags": [
+              "项目类型:metro",
+              "城市:北京",
+              "痛点:噪声治理",
+              "轨道交通",
+              "案例",
+              "声屏障"
+            ],
+            "source_path": "D:\\中驰股份\\SR智能PPT拆分\\PPT 标前 综合交付方案 合肥新桥机场S1号线声屏障工程交流会资料"
+          },
+          {
+            "case_id": "sr_PPT_4_0822V1_1bb287ec43",
+            "title": "PPT 标前 综合交付方案 南昌轨道交通4号线新增及改造 声屏障专项方案汇报0822V1",
+            "match_reason": "同为轨道交通项目，痛点相近：噪声治理",
+            "matched_tags": [
+              "项目类型:metro",
+              "痛点:噪声治理",
+              "轨道交通",
+              "案例",
+              "声屏障"
+            ],
+            "source_path": "D:\\中驰股份\\SR智能PPT拆分\\PPT 标前 综合交付方案 南昌轨道交通4号线新增及改造 声屏障专项方案汇报0822V1"
+          }
+        ],
+        "confirmed_case_id": null,
+        "status": "matched",
+        "message": "找到 2 个相似案例"
+      },
+      "classification_result": {
+        "project_id": 25,
+        "classification_status": "analyzed",
+        "detected_project_type": "metro",
+        "confirmed_project_type": null,
+        "confidence": 0.79,
+        "matched_keywords": [
+          "轨道交通",
+          "昌平线"
+        ],
+        "detection_evidence": [
+          {
+            "project_type": "metro",
+            "keyword": "轨道交通",
+            "source": "解析文本：20.噪声污染意见.pdf",
+            "snippet": "...目敏感建筑声环境的影响，须采取噪声防治 措施如下： 会 （1）在轨道交通昌平线途径地块一侧安装长度不小于 515 延米、高度不低于 3 ..."
+          },
+          {
+            "project_type": "metro",
+            "keyword": "昌平线",
+            "source": "解析文本：20.噪声污染意见.pdf",
+            "snippet": "...筑声环境的影响，须采取噪声防治 措施如下： 会 （1）在轨道交通昌平线途径地块一侧安装长度不小于 515 延米、高度不低于 3 米 会..."
+          }
+        ],
+        "template_selection": {
+          "M1_M2": {
+            "template_key": "metro",
+            "template_filename": "轨道交通地铁全封闭声屏障（M1_&_M2）.pptx"
+          },
+          "M5": {
+            "template_key": "case",
+            "template_filename": "南昌轨道交通4号线声屏障工程项目案例模板（M5）.pptx"
+          },
+          "M6": {
+            "template_key": "enterprise",
+            "template_filename": "中驰企业介绍合并初版（M6）.pptx"
+          }
+        },
+        "case_selection": {
+          "recommended_cases": [
+            {
+              "case_id": "sr_PPT_S1_bb0819b658",
+              "title": "PPT 标前 综合交付方案 合肥新桥机场S1号线声屏障工程交流会资料",
+              "match_reason": "同为轨道交通项目，痛点相近：噪声治理，同一城市：北京",
+              "matched_tags": [
+                "项目类型:metro",
+                "城市:北京",
+                "痛点:噪声治理",
+                "轨道交通",
+                "案例",
+                "声屏障"
+              ],
+              "source_path": "D:\\中驰股份\\SR智能PPT拆分\\PPT 标前 综合交付方案 合肥新桥机场S1号线声屏障工程交流会资料"
+            },
+            {
+              "case_id": "sr_PPT_4_0822V1_1bb287ec43",
+              "title": "PPT 标前 综合交付方案 南昌轨道交通4号线新增及改造 声屏障专项方案汇报0822V1",
+              "match_reason": "同为轨道交通项目，痛点相近：噪声治理",
+              "matched_tags": [
+                "项目类型:metro",
+                "痛点:噪声治理",
+                "轨道交通",
+                "案例",
+                "声屏障"
+              ],
+              "source_path": "D:\\中驰股份\\SR智能PPT拆分\\PPT 标前 综合交付方案 南昌轨道交通4号线新增及改造 声屏障专项方案汇报0822V1"
+            }
+          ],
+          "confirmed_case_id": null,
+          "status": "matched",
+          "message": "找到 2 个相似案例"
+        },
+        "missing_fields": [
+          "线路名称",
+          "现场痛点确认"
+        ],
+        "files": [
+          {
+            "file_id": 60,
+            "project_id": 25,
+            "module_id": null,
+            "filename": "20.噪声污染意见.pdf",
+            "content_type": "application/pdf",
+            "stored_path": "D:\\中驰股份\\code\\data\\uploads\\25\\unclassified\\60_20.噪声污染意见.pdf",
+            "document_role": "case_material",
+            "assigned_modules": [
+              "M5"
+            ],
+            "parse_status": "parsed",
+            "parsed_text_path": "D:\\中驰股份\\code\\data\\parsed_text\\25\\60.txt",
+            "error_message": ""
+          }
+        ]
+      }
+    },
+    {
+      "project_name": "2",
+      "project_location": "",
+      "owner_unit": "",
+      "product_line": "",
+      "project_fields": {},
+      "project_id": 26,
+      "task_status": "完成",
+      "status_history": [
+        "待生成",
+        "待分析",
+        "资料解析中",
+        "类型识别中",
+        "案例匹配中",
+        "待确认",
+        "生成中",
+        "合并中",
+        "完成",
+        "生成中",
+        "合并中",
+        "完成"
+      ],
+      "modules": [
+        {
+          "module_id": "M1",
+          "status": "rendered",
+          "status_history": [
+            "pending",
+            "outlined",
+            "rendered",
+            "outlined",
+            "rendered"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {
+            "slides": [
+              {
+                "module_id": "M1",
+                "page_number": 1,
+                "page_title": "行业背景与技术标准",
+                "core_insight": "行业背景与技术标准按确认后的项目类型、模板和案例进入 Demo 生成。",
+                "bullet_points": [
+                  "[待补充：项目关键信息]",
+                  "[待补充：模板字段]",
+                  "[待补充：案例确认]"
+                ],
+                "asset_ids": [],
+                "case_ids": [],
+                "visual_suggestion": "使用确认后的固化模板和占位字段",
+                "missing_fields": [
+                  "项目关键信息",
+                  "模板字段",
+                  "案例确认"
+                ]
+              }
+            ]
+          },
+          "chapter_ppt_path": "D:\\中驰股份\\code\\data\\outputs\\project_26\\chapters\\M1_M2_行业背景与技术标准.pptx",
+          "error_message": ""
+        },
+        {
+          "module_id": "M2",
+          "status": "rendered",
+          "status_history": [
+            "pending",
+            "outlined",
+            "rendered",
+            "outlined",
+            "rendered"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {
+            "slides": [
+              {
+                "module_id": "M2",
+                "page_number": 1,
+                "page_title": "项目概况与现场挑战",
+                "core_insight": "项目概况与现场挑战按确认后的项目类型、模板和案例进入 Demo 生成。",
+                "bullet_points": [
+                  "[待补充：项目关键信息]",
+                  "[待补充：模板字段]",
+                  "[待补充：案例确认]"
+                ],
+                "asset_ids": [],
+                "case_ids": [],
+                "visual_suggestion": "使用确认后的固化模板和占位字段",
+                "missing_fields": [
+                  "项目关键信息",
+                  "模板字段",
+                  "案例确认"
+                ]
+              }
+            ]
+          },
+          "chapter_ppt_path": "D:\\中驰股份\\code\\data\\outputs\\project_26\\chapters\\M1_M2_行业背景与技术标准.pptx",
+          "error_message": ""
+        },
+        {
+          "module_id": "M5",
+          "status": "rendered",
+          "status_history": [
+            "pending",
+            "outlined",
+            "rendered",
+            "outlined",
+            "rendered"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {
+            "slides": [
+              {
+                "module_id": "M5",
+                "page_number": 1,
+                "page_title": "同类型案例匹配",
+                "core_insight": "同类型案例匹配按确认后的项目类型、模板和案例进入 Demo 生成。",
+                "bullet_points": [
+                  "[待补充：项目关键信息]",
+                  "[待补充：模板字段]",
+                  "[待补充：案例确认]"
+                ],
+                "asset_ids": [],
+                "case_ids": [],
+                "visual_suggestion": "使用确认后的固化模板和占位字段",
+                "missing_fields": [
+                  "项目关键信息",
+                  "模板字段",
+                  "案例确认"
+                ]
+              }
+            ]
+          },
+          "chapter_ppt_path": "D:\\中驰股份\\code\\data\\outputs\\project_26\\chapters\\M5_同类型案例匹配.pptx",
+          "error_message": ""
+        },
+        {
+          "module_id": "M6",
+          "status": "rendered",
+          "status_history": [
+            "pending",
+            "outlined",
+            "rendered",
+            "outlined",
+            "rendered"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {
+            "slides": [
+              {
+                "module_id": "M6",
+                "page_number": 1,
+                "page_title": "企业背书与荣誉",
+                "core_insight": "企业背书与荣誉按确认后的项目类型、模板和案例进入 Demo 生成。",
+                "bullet_points": [
+                  "[待补充：项目关键信息]",
+                  "[待补充：模板字段]",
+                  "[待补充：案例确认]"
+                ],
+                "asset_ids": [],
+                "case_ids": [],
+                "visual_suggestion": "使用确认后的固化模板和占位字段",
+                "missing_fields": [
+                  "项目关键信息",
+                  "模板字段",
+                  "案例确认"
+                ]
+              }
+            ]
+          },
+          "chapter_ppt_path": "D:\\中驰股份\\code\\data\\outputs\\project_26\\chapters\\M6_企业背书与荣誉.pptx",
+          "error_message": ""
+        }
+      ],
+      "final_ppt_path": "D:\\中驰股份\\code\\data\\outputs\\project_26\\2_M1_M2_M5_M6_最终稿.pptx",
+      "detected_project_type": "metro",
+      "confirmed_project_type": "metro",
+      "classification_status": "reviewed",
+      "template_selection": {
+        "M1_M2": {
+          "template_key": "metro",
+          "template_filename": "轨道交通地铁全封闭声屏障（M1_&_M2）.pptx"
+        },
+        "M5": {
+          "template_key": "case",
+          "template_filename": "南昌轨道交通4号线声屏障工程项目案例模板（M5）.pptx"
+        },
+        "M6": {
+          "template_key": "enterprise",
+          "template_filename": "中驰企业介绍合并初版（M6）.pptx"
+        }
+      },
+      "case_selection": {
+        "recommended_cases": [
+          {
+            "case_id": "sr_PPT_S1_bb0819b658",
+            "title": "PPT 标前 综合交付方案 合肥新桥机场S1号线声屏障工程交流会资料",
+            "match_reason": "同为轨道交通项目，痛点相近：噪声治理，同一城市：北京",
+            "matched_tags": [
+              "项目类型:metro",
+              "城市:北京",
+              "痛点:噪声治理",
+              "轨道交通",
+              "声屏障"
+            ],
+            "source_path": "D:\\中驰股份\\SR智能PPT拆分\\PPT 标前 综合交付方案 合肥新桥机场S1号线声屏障工程交流会资料"
+          },
+          {
+            "case_id": "sr_PPT_4_0822V1_1bb287ec43",
+            "title": "PPT 标前 综合交付方案 南昌轨道交通4号线新增及改造 声屏障专项方案汇报0822V1",
+            "match_reason": "同为轨道交通项目，痛点相近：噪声治理",
+            "matched_tags": [
+              "项目类型:metro",
+              "痛点:噪声治理",
+              "轨道交通",
+              "声屏障"
+            ],
+            "source_path": "D:\\中驰股份\\SR智能PPT拆分\\PPT 标前 综合交付方案 南昌轨道交通4号线新增及改造 声屏障专项方案汇报0822V1"
+          }
+        ],
+        "confirmed_case_id": null,
+        "status": "matched",
+        "message": "找到 2 个相似案例"
+      },
+      "classification_result": {
+        "project_id": 26,
+        "classification_status": "reviewed",
+        "detected_project_type": "metro",
+        "confirmed_project_type": "metro",
+        "confidence": 0.79,
+        "matched_keywords": [
+          "轨道交通",
+          "昌平线"
+        ],
+        "detection_evidence": [
+          {
+            "project_type": "metro",
+            "keyword": "轨道交通",
+            "source": "解析文本：20.噪声污染意见.pdf",
+            "snippet": "...目敏感建筑声环境的影响，须采取噪声防治 措施如下： 会 （1）在轨道交通昌平线途径地块一侧安装长度不小于 515 延米、高度不低于 3 ..."
+          },
+          {
+            "project_type": "metro",
+            "keyword": "昌平线",
+            "source": "解析文本：20.噪声污染意见.pdf",
+            "snippet": "...筑声环境的影响，须采取噪声防治 措施如下： 会 （1）在轨道交通昌平线途径地块一侧安装长度不小于 515 延米、高度不低于 3 米 会..."
+          }
+        ],
+        "template_selection": {
+          "M1_M2": {
+            "template_key": "metro",
+            "template_filename": "轨道交通地铁全封闭声屏障（M1_&_M2）.pptx"
+          },
+          "M5": {
+            "template_key": "case",
+            "template_filename": "南昌轨道交通4号线声屏障工程项目案例模板（M5）.pptx"
+          },
+          "M6": {
+            "template_key": "enterprise",
+            "template_filename": "中驰企业介绍合并初版（M6）.pptx"
+          }
+        },
+        "case_selection": {
+          "recommended_cases": [
+            {
+              "case_id": "sr_PPT_S1_bb0819b658",
+              "title": "PPT 标前 综合交付方案 合肥新桥机场S1号线声屏障工程交流会资料",
+              "match_reason": "同为轨道交通项目，痛点相近：噪声治理，同一城市：北京",
+              "matched_tags": [
+                "项目类型:metro",
+                "城市:北京",
+                "痛点:噪声治理",
+                "轨道交通",
+                "声屏障"
+              ],
+              "source_path": "D:\\中驰股份\\SR智能PPT拆分\\PPT 标前 综合交付方案 合肥新桥机场S1号线声屏障工程交流会资料"
+            },
+            {
+              "case_id": "sr_PPT_4_0822V1_1bb287ec43",
+              "title": "PPT 标前 综合交付方案 南昌轨道交通4号线新增及改造 声屏障专项方案汇报0822V1",
+              "match_reason": "同为轨道交通项目，痛点相近：噪声治理",
+              "matched_tags": [
+                "项目类型:metro",
+                "痛点:噪声治理",
+                "轨道交通",
+                "声屏障"
+              ],
+              "source_path": "D:\\中驰股份\\SR智能PPT拆分\\PPT 标前 综合交付方案 南昌轨道交通4号线新增及改造 声屏障专项方案汇报0822V1"
+            }
+          ],
+          "confirmed_case_id": null,
+          "status": "matched",
+          "message": "找到 2 个相似案例"
+        },
+        "missing_fields": [
+          "线路名称",
+          "现场痛点确认"
+        ],
+        "files": [
+          {
+            "file_id": 61,
+            "project_id": 26,
+            "module_id": null,
+            "filename": "20.噪声污染意见.pdf",
+            "content_type": "application/pdf",
+            "stored_path": "D:\\中驰股份\\code\\data\\uploads\\26\\unclassified\\61_20.噪声污染意见.pdf",
+            "document_role": "survey",
+            "assigned_modules": [
+              "M2",
+              "M5"
+            ],
+            "parse_status": "parsed",
+            "parsed_text_path": "D:\\中驰股份\\code\\data\\parsed_text\\26\\61.txt",
+            "error_message": ""
+          }
+        ]
+      },
+      "classification_review": {
+        "notes": "前端人工确认"
+      }
+    },
+    {
+      "project_name": "3",
+      "project_location": "3",
+      "owner_unit": "3",
+      "product_line": "",
+      "project_fields": {},
+      "project_id": 27,
+      "task_status": "完成",
+      "status_history": [
+        "待生成",
+        "待分析",
+        "资料解析中",
+        "类型识别中",
+        "案例匹配中",
+        "待确认",
+        "生成中",
+        "合并中",
+        "完成"
+      ],
+      "modules": [
+        {
+          "module_id": "M1",
+          "status": "rendered",
+          "status_history": [
+            "pending",
+            "outlined",
+            "rendered"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {
+            "slides": [
+              {
+                "module_id": "M1",
+                "page_number": 1,
+                "page_title": "行业背景与技术标准",
+                "core_insight": "行业背景与技术标准按确认后的项目类型、模板和案例进入 Demo 生成。",
+                "bullet_points": [
+                  "[待补充：项目关键信息]",
+                  "[待补充：模板字段]",
+                  "[待补充：案例确认]"
+                ],
+                "asset_ids": [],
+                "case_ids": [],
+                "visual_suggestion": "使用确认后的固化模板和占位字段",
+                "missing_fields": [
+                  "项目关键信息",
+                  "模板字段",
+                  "案例确认"
+                ]
+              }
+            ]
+          },
+          "chapter_ppt_path": "D:\\中驰股份\\code\\data\\outputs\\project_27\\chapters\\M1_M2_行业背景与技术标准.pptx",
+          "error_message": ""
+        },
+        {
+          "module_id": "M2",
+          "status": "rendered",
+          "status_history": [
+            "pending",
+            "outlined",
+            "rendered"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {
+            "slides": [
+              {
+                "module_id": "M2",
+                "page_number": 1,
+                "page_title": "项目概况与现场挑战",
+                "core_insight": "项目概况与现场挑战按确认后的项目类型、模板和案例进入 Demo 生成。",
+                "bullet_points": [
+                  "[待补充：项目关键信息]",
+                  "[待补充：模板字段]",
+                  "[待补充：案例确认]"
+                ],
+                "asset_ids": [],
+                "case_ids": [],
+                "visual_suggestion": "使用确认后的固化模板和占位字段",
+                "missing_fields": [
+                  "项目关键信息",
+                  "模板字段",
+                  "案例确认"
+                ]
+              }
+            ]
+          },
+          "chapter_ppt_path": "D:\\中驰股份\\code\\data\\outputs\\project_27\\chapters\\M1_M2_行业背景与技术标准.pptx",
+          "error_message": ""
+        },
+        {
+          "module_id": "M5",
+          "status": "rendered",
+          "status_history": [
+            "pending",
+            "outlined",
+            "rendered"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {
+            "slides": [
+              {
+                "module_id": "M5",
+                "page_number": 1,
+                "page_title": "同类型案例匹配",
+                "core_insight": "同类型案例匹配按确认后的项目类型、模板和案例进入 Demo 生成。",
+                "bullet_points": [
+                  "[待补充：项目关键信息]",
+                  "[待补充：模板字段]",
+                  "[待补充：案例确认]"
+                ],
+                "asset_ids": [],
+                "case_ids": [],
+                "visual_suggestion": "使用确认后的固化模板和占位字段",
+                "missing_fields": [
+                  "项目关键信息",
+                  "模板字段",
+                  "案例确认"
+                ]
+              }
+            ]
+          },
+          "chapter_ppt_path": "D:\\中驰股份\\code\\data\\outputs\\project_27\\chapters\\M5_同类型案例匹配.pptx",
+          "error_message": ""
+        },
+        {
+          "module_id": "M6",
+          "status": "rendered",
+          "status_history": [
+            "pending",
+            "outlined",
+            "rendered"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {
+            "slides": [
+              {
+                "module_id": "M6",
+                "page_number": 1,
+                "page_title": "企业背书与荣誉",
+                "core_insight": "企业背书与荣誉按确认后的项目类型、模板和案例进入 Demo 生成。",
+                "bullet_points": [
+                  "[待补充：项目关键信息]",
+                  "[待补充：模板字段]",
+                  "[待补充：案例确认]"
+                ],
+                "asset_ids": [],
+                "case_ids": [],
+                "visual_suggestion": "使用确认后的固化模板和占位字段",
+                "missing_fields": [
+                  "项目关键信息",
+                  "模板字段",
+                  "案例确认"
+                ]
+              }
+            ]
+          },
+          "chapter_ppt_path": "D:\\中驰股份\\code\\data\\outputs\\project_27\\chapters\\M6_企业背书与荣誉.pptx",
+          "error_message": ""
+        }
+      ],
+      "final_ppt_path": "D:\\中驰股份\\code\\data\\outputs\\project_27\\3_M1_M2_M5_M6_最终稿.pptx",
+      "detected_project_type": "metro",
+      "confirmed_project_type": "metro",
+      "classification_status": "reviewed",
+      "template_selection": {
+        "M1_M2": {
+          "template_key": "metro",
+          "template_filename": "轨道交通地铁全封闭声屏障（M1_&_M2）.pptx"
+        },
+        "M5": {
+          "template_key": "case",
+          "template_filename": "南昌轨道交通4号线声屏障工程项目案例模板（M5）.pptx"
+        },
+        "M6": {
+          "template_key": "enterprise",
+          "template_filename": "中驰企业介绍合并初版（M6）.pptx"
+        }
+      },
+      "case_selection": {
+        "recommended_cases": [
+          {
+            "case_id": "sr_PPT_S1_bb0819b658",
+            "title": "PPT 标前 综合交付方案 合肥新桥机场S1号线声屏障工程交流会资料",
+            "match_reason": "同为轨道交通项目，痛点相近：噪声治理，同一城市：北京",
+            "matched_tags": [
+              "项目类型:metro",
+              "城市:北京",
+              "痛点:噪声治理",
+              "声屏障",
+              "轨道交通"
+            ],
+            "source_path": "D:\\中驰股份\\SR智能PPT拆分\\PPT 标前 综合交付方案 合肥新桥机场S1号线声屏障工程交流会资料"
+          },
+          {
+            "case_id": "sr_PPT_4_0822V1_1bb287ec43",
+            "title": "PPT 标前 综合交付方案 南昌轨道交通4号线新增及改造 声屏障专项方案汇报0822V1",
+            "match_reason": "同为轨道交通项目，痛点相近：噪声治理",
+            "matched_tags": [
+              "项目类型:metro",
+              "痛点:噪声治理",
+              "声屏障",
+              "轨道交通"
+            ],
+            "source_path": "D:\\中驰股份\\SR智能PPT拆分\\PPT 标前 综合交付方案 南昌轨道交通4号线新增及改造 声屏障专项方案汇报0822V1"
+          }
+        ],
+        "confirmed_case_id": null,
+        "status": "matched",
+        "message": "找到 2 个相似案例"
+      },
+      "classification_result": {
+        "project_id": 27,
+        "classification_status": "reviewed",
+        "detected_project_type": "metro",
+        "confirmed_project_type": "metro",
+        "confidence": 0.79,
+        "matched_keywords": [
+          "轨道交通",
+          "昌平线"
+        ],
+        "detection_evidence": [
+          {
+            "project_type": "metro",
+            "keyword": "轨道交通",
+            "source": "解析文本：20.噪声污染意见.pdf",
+            "snippet": "...目敏感建筑声环境的影响，须采取噪声防治 措施如下： 会 （1）在轨道交通昌平线途径地块一侧安装长度不小于 515 延米、高度不低于 3 ..."
+          },
+          {
+            "project_type": "metro",
+            "keyword": "昌平线",
+            "source": "解析文本：20.噪声污染意见.pdf",
+            "snippet": "...筑声环境的影响，须采取噪声防治 措施如下： 会 （1）在轨道交通昌平线途径地块一侧安装长度不小于 515 延米、高度不低于 3 米 会..."
+          }
+        ],
+        "template_selection": {
+          "M1_M2": {
+            "template_key": "metro",
+            "template_filename": "轨道交通地铁全封闭声屏障（M1_&_M2）.pptx"
+          },
+          "M5": {
+            "template_key": "case",
+            "template_filename": "南昌轨道交通4号线声屏障工程项目案例模板（M5）.pptx"
+          },
+          "M6": {
+            "template_key": "enterprise",
+            "template_filename": "中驰企业介绍合并初版（M6）.pptx"
+          }
+        },
+        "case_selection": {
+          "recommended_cases": [
+            {
+              "case_id": "sr_PPT_S1_bb0819b658",
+              "title": "PPT 标前 综合交付方案 合肥新桥机场S1号线声屏障工程交流会资料",
+              "match_reason": "同为轨道交通项目，痛点相近：噪声治理，同一城市：北京",
+              "matched_tags": [
+                "项目类型:metro",
+                "城市:北京",
+                "痛点:噪声治理",
+                "声屏障",
+                "轨道交通"
+              ],
+              "source_path": "D:\\中驰股份\\SR智能PPT拆分\\PPT 标前 综合交付方案 合肥新桥机场S1号线声屏障工程交流会资料"
+            },
+            {
+              "case_id": "sr_PPT_4_0822V1_1bb287ec43",
+              "title": "PPT 标前 综合交付方案 南昌轨道交通4号线新增及改造 声屏障专项方案汇报0822V1",
+              "match_reason": "同为轨道交通项目，痛点相近：噪声治理",
+              "matched_tags": [
+                "项目类型:metro",
+                "痛点:噪声治理",
+                "声屏障",
+                "轨道交通"
+              ],
+              "source_path": "D:\\中驰股份\\SR智能PPT拆分\\PPT 标前 综合交付方案 南昌轨道交通4号线新增及改造 声屏障专项方案汇报0822V1"
+            }
+          ],
+          "confirmed_case_id": null,
+          "status": "matched",
+          "message": "找到 2 个相似案例"
+        },
+        "missing_fields": [
+          "线路名称",
+          "现场痛点确认"
+        ],
+        "files": [
+          {
+            "file_id": 62,
+            "project_id": 27,
+            "module_id": null,
+            "filename": "20.噪声污染意见.pdf",
+            "content_type": "application/pdf",
+            "stored_path": "D:\\中驰股份\\code\\data\\uploads\\27\\unclassified\\62_20.噪声污染意见.pdf",
+            "document_role": "survey",
+            "assigned_modules": [
+              "M2",
+              "M5"
+            ],
+            "parse_status": "parsed",
+            "parsed_text_path": "D:\\中驰股份\\code\\data\\parsed_text\\27\\62.txt",
+            "error_message": ""
+          }
+        ]
+      },
+      "classification_review": {
+        "notes": "前端人工确认"
+      }
+    },
+    {
+      "project_name": "4",
+      "project_location": "",
+      "owner_unit": "",
+      "product_line": "",
+      "project_fields": {},
+      "project_id": 28,
+      "task_status": "完成",
+      "status_history": [
+        "待生成",
+        "待分析",
+        "资料解析中",
+        "类型识别中",
+        "案例匹配中",
+        "待确认",
+        "生成中",
+        "合并中",
+        "完成"
+      ],
+      "modules": [
+        {
+          "module_id": "M1",
+          "status": "rendered",
+          "status_history": [
+            "pending",
+            "outlined",
+            "rendered"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {
+            "slides": [
+              {
+                "module_id": "M1",
+                "page_number": 1,
+                "page_title": "行业背景与技术标准",
+                "core_insight": "行业背景与技术标准按确认后的项目类型、模板和案例进入 Demo 生成。",
+                "bullet_points": [
+                  "[待补充：项目关键信息]",
+                  "[待补充：模板字段]",
+                  "[待补充：案例确认]"
+                ],
+                "asset_ids": [],
+                "case_ids": [],
+                "visual_suggestion": "使用确认后的固化模板和占位字段",
+                "missing_fields": [
+                  "项目关键信息",
+                  "模板字段",
+                  "案例确认"
+                ]
+              }
+            ]
+          },
+          "chapter_ppt_path": "D:\\中驰股份\\code\\data\\outputs\\project_28\\chapters\\M1_M2_行业背景与技术标准.pptx",
+          "error_message": ""
+        },
+        {
+          "module_id": "M2",
+          "status": "rendered",
+          "status_history": [
+            "pending",
+            "outlined",
+            "rendered"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {
+            "slides": [
+              {
+                "module_id": "M2",
+                "page_number": 1,
+                "page_title": "项目概况与现场挑战",
+                "core_insight": "项目概况与现场挑战按确认后的项目类型、模板和案例进入 Demo 生成。",
+                "bullet_points": [
+                  "[待补充：项目关键信息]",
+                  "[待补充：模板字段]",
+                  "[待补充：案例确认]"
+                ],
+                "asset_ids": [],
+                "case_ids": [],
+                "visual_suggestion": "使用确认后的固化模板和占位字段",
+                "missing_fields": [
+                  "项目关键信息",
+                  "模板字段",
+                  "案例确认"
+                ]
+              }
+            ]
+          },
+          "chapter_ppt_path": "D:\\中驰股份\\code\\data\\outputs\\project_28\\chapters\\M1_M2_行业背景与技术标准.pptx",
+          "error_message": ""
+        },
+        {
+          "module_id": "M5",
+          "status": "rendered",
+          "status_history": [
+            "pending",
+            "outlined",
+            "rendered"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {
+            "slides": [
+              {
+                "module_id": "M5",
+                "page_number": 1,
+                "page_title": "同类型案例匹配",
+                "core_insight": "同类型案例匹配按确认后的项目类型、模板和案例进入 Demo 生成。",
+                "bullet_points": [
+                  "[待补充：项目关键信息]",
+                  "[待补充：模板字段]",
+                  "[待补充：案例确认]"
+                ],
+                "asset_ids": [],
+                "case_ids": [],
+                "visual_suggestion": "使用确认后的固化模板和占位字段",
+                "missing_fields": [
+                  "项目关键信息",
+                  "模板字段",
+                  "案例确认"
+                ]
+              }
+            ]
+          },
+          "chapter_ppt_path": "D:\\中驰股份\\code\\data\\outputs\\project_28\\chapters\\M5_同类型案例匹配.pptx",
+          "error_message": ""
+        },
+        {
+          "module_id": "M6",
+          "status": "rendered",
+          "status_history": [
+            "pending",
+            "outlined",
+            "rendered"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {
+            "slides": [
+              {
+                "module_id": "M6",
+                "page_number": 1,
+                "page_title": "企业背书与荣誉",
+                "core_insight": "企业背书与荣誉按确认后的项目类型、模板和案例进入 Demo 生成。",
+                "bullet_points": [
+                  "[待补充：项目关键信息]",
+                  "[待补充：模板字段]",
+                  "[待补充：案例确认]"
+                ],
+                "asset_ids": [],
+                "case_ids": [],
+                "visual_suggestion": "使用确认后的固化模板和占位字段",
+                "missing_fields": [
+                  "项目关键信息",
+                  "模板字段",
+                  "案例确认"
+                ]
+              }
+            ]
+          },
+          "chapter_ppt_path": "D:\\中驰股份\\code\\data\\outputs\\project_28\\chapters\\M6_企业背书与荣誉.pptx",
+          "error_message": ""
+        }
+      ],
+      "final_ppt_path": "D:\\中驰股份\\code\\data\\outputs\\project_28\\4_M1_M2_M5_M6_最终稿.pptx",
+      "detected_project_type": "metro",
+      "confirmed_project_type": "metro",
+      "classification_status": "reviewed",
+      "template_selection": {
+        "M1_M2": {
+          "template_key": "metro",
+          "template_filename": "轨道交通地铁全封闭声屏障（M1_&_M2）.pptx"
+        },
+        "M5": {
+          "template_key": "case",
+          "template_filename": "南昌轨道交通4号线声屏障工程项目案例模板（M5）.pptx"
+        },
+        "M6": {
+          "template_key": "enterprise",
+          "template_filename": "中驰企业介绍合并初版（M6）.pptx"
+        }
+      },
+      "case_selection": {
+        "recommended_cases": [
+          {
+            "case_id": "sr_PPT_S1_bb0819b658",
+            "title": "PPT 标前 综合交付方案 合肥新桥机场S1号线声屏障工程交流会资料",
+            "match_reason": "同为轨道交通项目，痛点相近：噪声治理、技术难度高、工期紧张，同一城市：深圳、合肥",
+            "matched_tags": [
+              "项目类型:metro",
+              "城市:深圳",
+              "城市:合肥",
+              "痛点:噪声治理",
+              "痛点:技术难度高",
+              "痛点:工期紧张",
+              "声屏障",
+              "轨道交通",
+              "案例"
+            ],
+            "source_path": "D:\\中驰股份\\SR智能PPT拆分\\PPT 标前 综合交付方案 合肥新桥机场S1号线声屏障工程交流会资料"
+          },
+          {
+            "case_id": "sr_PPT_4_0822V1_1bb287ec43",
+            "title": "PPT 标前 综合交付方案 南昌轨道交通4号线新增及改造 声屏障专项方案汇报0822V1",
+            "match_reason": "同为轨道交通项目，痛点相近：噪声治理、工期紧张，同一城市：深圳、合肥",
+            "matched_tags": [
+              "项目类型:metro",
+              "城市:深圳",
+              "城市:合肥",
+              "痛点:噪声治理",
+              "痛点:工期紧张",
+              "声屏障",
+              "轨道交通",
+              "案例"
+            ],
+            "source_path": "D:\\中驰股份\\SR智能PPT拆分\\PPT 标前 综合交付方案 南昌轨道交通4号线新增及改造 声屏障专项方案汇报0822V1"
+          }
+        ],
+        "confirmed_case_id": null,
+        "status": "matched",
+        "message": "找到 2 个相似案例"
+      },
+      "classification_result": {
+        "project_id": 28,
+        "classification_status": "reviewed",
+        "detected_project_type": "metro",
+        "confirmed_project_type": "metro",
+        "confidence": 0.91,
+        "matched_keywords": [
+          "地铁",
+          "轨道交通",
+          "轨交"
+        ],
+        "detection_evidence": [
+          {
+            "project_type": "metro",
+            "keyword": "地铁",
+            "source": "解析文本：PPT 标前 综合交付方案 合肥新桥机场S1号线声屏障工程交流会资料.pptx",
+            "snippet": "...渐变高度，特殊节点预估 40 种以上。 1 、我司集团总工为合肥地铁专家库成员，参与合肥三号线、四号线、 S1 方案专家评审会，由集..."
+          },
+          {
+            "project_type": "metro",
+            "keyword": "轨道交通",
+            "source": "解析文本：PPT 标前 综合交付方案 合肥新桥机场S1号线声屏障工程交流会资料.pptx",
+            "snippet": "... 劳务人员 整体部署 150 名作业人员，同时储备 150 名有轨道交通全封闭声屏障施工作业人员。 3 材料 钢材已有库存 60% ，铝..."
+          },
+          {
+            "project_type": "metro",
+            "keyword": "轨交",
+            "source": "解析文本：PPT 标前 综合交付方案 合肥新桥机场S1号线声屏障工程交流会资料.pptx",
+            "snippet": "...称 区域 类型 结构形式 合同金额（万元） 标志性意义 1 重庆轨交18号线 重庆 新线 全封闭 23990 轨道交通单体金额最大 ..."
+          }
+        ],
+        "template_selection": {
+          "M1_M2": {
+            "template_key": "metro",
+            "template_filename": "轨道交通地铁全封闭声屏障（M1_&_M2）.pptx"
+          },
+          "M5": {
+            "template_key": "case",
+            "template_filename": "南昌轨道交通4号线声屏障工程项目案例模板（M5）.pptx"
+          },
+          "M6": {
+            "template_key": "enterprise",
+            "template_filename": "中驰企业介绍合并初版（M6）.pptx"
+          }
+        },
+        "case_selection": {
+          "recommended_cases": [
+            {
+              "case_id": "sr_PPT_S1_bb0819b658",
+              "title": "PPT 标前 综合交付方案 合肥新桥机场S1号线声屏障工程交流会资料",
+              "match_reason": "同为轨道交通项目，痛点相近：噪声治理、技术难度高、工期紧张，同一城市：深圳、合肥",
+              "matched_tags": [
+                "项目类型:metro",
+                "城市:深圳",
+                "城市:合肥",
+                "痛点:噪声治理",
+                "痛点:技术难度高",
+                "痛点:工期紧张",
+                "声屏障",
+                "轨道交通",
+                "案例"
+              ],
+              "source_path": "D:\\中驰股份\\SR智能PPT拆分\\PPT 标前 综合交付方案 合肥新桥机场S1号线声屏障工程交流会资料"
+            },
+            {
+              "case_id": "sr_PPT_4_0822V1_1bb287ec43",
+              "title": "PPT 标前 综合交付方案 南昌轨道交通4号线新增及改造 声屏障专项方案汇报0822V1",
+              "match_reason": "同为轨道交通项目，痛点相近：噪声治理、工期紧张，同一城市：深圳、合肥",
+              "matched_tags": [
+                "项目类型:metro",
+                "城市:深圳",
+                "城市:合肥",
+                "痛点:噪声治理",
+                "痛点:工期紧张",
+                "声屏障",
+                "轨道交通",
+                "案例"
+              ],
+              "source_path": "D:\\中驰股份\\SR智能PPT拆分\\PPT 标前 综合交付方案 南昌轨道交通4号线新增及改造 声屏障专项方案汇报0822V1"
+            }
+          ],
+          "confirmed_case_id": null,
+          "status": "matched",
+          "message": "找到 2 个相似案例"
+        },
+        "missing_fields": [
+          "线路名称",
+          "现场痛点确认"
+        ],
+        "files": [
+          {
+            "file_id": 63,
+            "project_id": 28,
+            "module_id": null,
+            "filename": "PPT 标前 综合交付方案 合肥新桥机场S1号线声屏障工程交流会资料.pptx",
+            "content_type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "stored_path": "D:\\中驰股份\\code\\data\\uploads\\28\\unclassified\\63_PPT 标前 综合交付方案 合肥新桥机场S1号线声屏障工程交流会资料.pptx",
+            "document_role": "enterprise_material",
+            "assigned_modules": [
+              "M6"
+            ],
+            "parse_status": "parsed",
+            "parsed_text_path": "D:\\中驰股份\\code\\data\\parsed_text\\28\\63.txt",
+            "error_message": ""
+          }
+        ]
+      },
+      "classification_review": {
+        "notes": "前端人工确认"
+      }
+    },
+    {
+      "project_name": "5",
+      "project_location": "",
+      "owner_unit": "",
+      "product_line": "",
+      "project_fields": {},
+      "project_id": 29,
+      "task_status": "完成",
+      "status_history": [
+        "待生成",
+        "待分析",
+        "资料解析中",
+        "类型识别中",
+        "案例匹配中",
+        "待确认",
+        "生成中",
+        "合并中",
+        "完成"
+      ],
+      "modules": [
+        {
+          "module_id": "M1",
+          "status": "rendered",
+          "status_history": [
+            "pending",
+            "outlined",
+            "rendered"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {
+            "slides": [
+              {
+                "module_id": "M1",
+                "page_number": 1,
+                "page_title": "行业背景与技术标准",
+                "core_insight": "行业背景与技术标准按确认后的项目类型、模板和案例进入 Demo 生成。",
+                "bullet_points": [
+                  "[待补充：项目关键信息]",
+                  "[待补充：模板字段]",
+                  "[待补充：案例确认]"
+                ],
+                "asset_ids": [],
+                "case_ids": [],
+                "visual_suggestion": "使用确认后的固化模板和占位字段",
+                "missing_fields": [
+                  "项目关键信息",
+                  "模板字段",
+                  "案例确认"
+                ]
+              }
+            ]
+          },
+          "chapter_ppt_path": "D:\\中驰股份\\code\\data\\outputs\\project_29\\chapters\\M1_M2_行业背景与技术标准.pptx",
+          "error_message": ""
+        },
+        {
+          "module_id": "M2",
+          "status": "rendered",
+          "status_history": [
+            "pending",
+            "outlined",
+            "rendered"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {
+            "slides": [
+              {
+                "module_id": "M2",
+                "page_number": 1,
+                "page_title": "项目概况与现场挑战",
+                "core_insight": "项目概况与现场挑战按确认后的项目类型、模板和案例进入 Demo 生成。",
+                "bullet_points": [
+                  "[待补充：项目关键信息]",
+                  "[待补充：模板字段]",
+                  "[待补充：案例确认]"
+                ],
+                "asset_ids": [],
+                "case_ids": [],
+                "visual_suggestion": "使用确认后的固化模板和占位字段",
+                "missing_fields": [
+                  "项目关键信息",
+                  "模板字段",
+                  "案例确认"
+                ]
+              }
+            ]
+          },
+          "chapter_ppt_path": "D:\\中驰股份\\code\\data\\outputs\\project_29\\chapters\\M1_M2_行业背景与技术标准.pptx",
+          "error_message": ""
+        },
+        {
+          "module_id": "M5",
+          "status": "rendered",
+          "status_history": [
+            "pending",
+            "outlined",
+            "rendered"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {
+            "slides": [
+              {
+                "module_id": "M5",
+                "page_number": 1,
+                "page_title": "同类型案例匹配",
+                "core_insight": "同类型案例匹配按确认后的项目类型、模板和案例进入 Demo 生成。",
+                "bullet_points": [
+                  "[待补充：项目关键信息]",
+                  "[待补充：模板字段]",
+                  "[待补充：案例确认]"
+                ],
+                "asset_ids": [],
+                "case_ids": [],
+                "visual_suggestion": "使用确认后的固化模板和占位字段",
+                "missing_fields": [
+                  "项目关键信息",
+                  "模板字段",
+                  "案例确认"
+                ]
+              }
+            ]
+          },
+          "chapter_ppt_path": "D:\\中驰股份\\code\\data\\outputs\\project_29\\chapters\\M5_同类型案例匹配.pptx",
+          "error_message": ""
+        },
+        {
+          "module_id": "M6",
+          "status": "rendered",
+          "status_history": [
+            "pending",
+            "outlined",
+            "rendered"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {
+            "slides": [
+              {
+                "module_id": "M6",
+                "page_number": 1,
+                "page_title": "企业背书与荣誉",
+                "core_insight": "企业背书与荣誉按确认后的项目类型、模板和案例进入 Demo 生成。",
+                "bullet_points": [
+                  "[待补充：项目关键信息]",
+                  "[待补充：模板字段]",
+                  "[待补充：案例确认]"
+                ],
+                "asset_ids": [],
+                "case_ids": [],
+                "visual_suggestion": "使用确认后的固化模板和占位字段",
+                "missing_fields": [
+                  "项目关键信息",
+                  "模板字段",
+                  "案例确认"
+                ]
+              }
+            ]
+          },
+          "chapter_ppt_path": "D:\\中驰股份\\code\\data\\outputs\\project_29\\chapters\\M6_企业背书与荣誉.pptx",
+          "error_message": ""
+        }
+      ],
+      "final_ppt_path": "D:\\中驰股份\\code\\data\\outputs\\project_29\\5_M1_M2_M5_M6_最终稿.pptx",
+      "detected_project_type": "highway",
+      "confirmed_project_type": "highway",
+      "classification_status": "reviewed",
+      "template_selection": {
+        "M1_M2": {
+          "template_key": "highway",
+          "template_filename": "公路全封闭声屏障（M1_&_M2）.pptx"
+        },
+        "M5": {
+          "template_key": "case",
+          "template_filename": "南昌轨道交通4号线声屏障工程项目案例模板（M5）.pptx"
+        },
+        "M6": {
+          "template_key": "enterprise",
+          "template_filename": "中驰企业介绍合并初版（M6）.pptx"
+        }
+      },
+      "case_selection": {
+        "recommended_cases": [
+          {
+            "case_id": "sr_PPT_4_0822V1_1bb287ec43",
+            "title": "PPT 标前 综合交付方案 南昌轨道交通4号线新增及改造 声屏障专项方案汇报0822V1",
+            "match_reason": "同为声屏障相关项目，场景可参考",
+            "matched_tags": [
+              "声屏障",
+              "公路"
+            ],
+            "source_path": "D:\\中驰股份\\SR智能PPT拆分\\PPT 标前 综合交付方案 南昌轨道交通4号线新增及改造 声屏障专项方案汇报0822V1"
+          },
+          {
+            "case_id": "sr_PPT_S1_bb0819b658",
+            "title": "PPT 标前 综合交付方案 合肥新桥机场S1号线声屏障工程交流会资料",
+            "match_reason": "同为声屏障相关项目，场景可参考",
+            "matched_tags": [
+              "声屏障",
+              "公路"
+            ],
+            "source_path": "D:\\中驰股份\\SR智能PPT拆分\\PPT 标前 综合交付方案 合肥新桥机场S1号线声屏障工程交流会资料"
+          },
+          {
+            "case_id": "sr_PPT_20250310_9c6387b110",
+            "title": "PPT 标前 综合交付方案 宁马城际铁路（马鞍山段）汇报资料20250310",
+            "match_reason": "同为声屏障相关项目，场景可参考",
+            "matched_tags": [
+              "声屏障",
+              "公路"
+            ],
+            "source_path": "D:\\中驰股份\\SR智能PPT拆分\\PPT 标前 综合交付方案 宁马城际铁路（马鞍山段）汇报资料20250310"
+          }
+        ],
+        "confirmed_case_id": null,
+        "status": "matched",
+        "message": "找到 3 个相似案例"
+      },
+      "classification_result": {
+        "project_id": 29,
+        "classification_status": "reviewed",
+        "detected_project_type": "highway",
+        "confirmed_project_type": "highway",
+        "confidence": 0.67,
+        "matched_keywords": [
+          "公路"
+        ],
+        "detection_evidence": [
+          {
+            "project_type": "highway",
+            "keyword": "公路",
+            "source": "文件名：公路全封闭.pdf",
+            "snippet": "公路全封闭.pdf"
+          }
+        ],
+        "template_selection": {
+          "M1_M2": {
+            "template_key": "highway",
+            "template_filename": "公路全封闭声屏障（M1_&_M2）.pptx"
+          },
+          "M5": {
+            "template_key": "case",
+            "template_filename": "南昌轨道交通4号线声屏障工程项目案例模板（M5）.pptx"
+          },
+          "M6": {
+            "template_key": "enterprise",
+            "template_filename": "中驰企业介绍合并初版（M6）.pptx"
+          }
+        },
+        "case_selection": {
+          "recommended_cases": [
+            {
+              "case_id": "sr_PPT_4_0822V1_1bb287ec43",
+              "title": "PPT 标前 综合交付方案 南昌轨道交通4号线新增及改造 声屏障专项方案汇报0822V1",
+              "match_reason": "同为声屏障相关项目，场景可参考",
+              "matched_tags": [
+                "声屏障",
+                "公路"
+              ],
+              "source_path": "D:\\中驰股份\\SR智能PPT拆分\\PPT 标前 综合交付方案 南昌轨道交通4号线新增及改造 声屏障专项方案汇报0822V1"
+            },
+            {
+              "case_id": "sr_PPT_S1_bb0819b658",
+              "title": "PPT 标前 综合交付方案 合肥新桥机场S1号线声屏障工程交流会资料",
+              "match_reason": "同为声屏障相关项目，场景可参考",
+              "matched_tags": [
+                "声屏障",
+                "公路"
+              ],
+              "source_path": "D:\\中驰股份\\SR智能PPT拆分\\PPT 标前 综合交付方案 合肥新桥机场S1号线声屏障工程交流会资料"
+            },
+            {
+              "case_id": "sr_PPT_20250310_9c6387b110",
+              "title": "PPT 标前 综合交付方案 宁马城际铁路（马鞍山段）汇报资料20250310",
+              "match_reason": "同为声屏障相关项目，场景可参考",
+              "matched_tags": [
+                "声屏障",
+                "公路"
+              ],
+              "source_path": "D:\\中驰股份\\SR智能PPT拆分\\PPT 标前 综合交付方案 宁马城际铁路（马鞍山段）汇报资料20250310"
+            }
+          ],
+          "confirmed_case_id": null,
+          "status": "matched",
+          "message": "找到 3 个相似案例"
+        },
+        "missing_fields": [
+          "线路名称",
+          "现场痛点确认"
+        ],
+        "files": [
+          {
+            "file_id": 64,
+            "project_id": 29,
+            "module_id": null,
+            "filename": "公路全封闭.pdf",
+            "content_type": "application/pdf",
+            "stored_path": "D:\\中驰股份\\code\\data\\uploads\\29\\unclassified\\64_公路全封闭.pdf",
+            "document_role": "project_brief",
+            "assigned_modules": [
+              "M1",
+              "M2",
+              "M5"
+            ],
+            "parse_status": "parsed",
+            "parsed_text_path": "D:\\中驰股份\\code\\data\\parsed_text\\29\\64.txt",
+            "error_message": ""
+          }
+        ]
+      },
+      "classification_review": {
+        "notes": "前端人工确认"
+      }
+    },
+    {
+      "project_name": "22",
+      "project_location": "22",
+      "owner_unit": "",
+      "product_line": "",
+      "project_fields": {},
+      "project_id": 30,
+      "task_status": "待生成",
+      "status_history": [
+        "待生成"
+      ],
+      "modules": [
+        {
+          "module_id": "M1",
+          "status": "pending",
+          "status_history": [
+            "pending"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {},
+          "chapter_ppt_path": "",
+          "error_message": ""
+        },
+        {
+          "module_id": "M2",
+          "status": "pending",
+          "status_history": [
+            "pending"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {},
+          "chapter_ppt_path": "",
+          "error_message": ""
+        },
+        {
+          "module_id": "M5",
+          "status": "pending",
+          "status_history": [
+            "pending"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {},
+          "chapter_ppt_path": "",
+          "error_message": ""
+        },
+        {
+          "module_id": "M6",
+          "status": "pending",
+          "status_history": [
+            "pending"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {},
+          "chapter_ppt_path": "",
+          "error_message": ""
+        }
+      ],
+      "final_ppt_path": "",
+      "detected_project_type": null,
+      "confirmed_project_type": null,
+      "classification_status": "pending",
+      "template_selection": {},
+      "case_selection": {}
     }
   ],
   "files": [
@@ -3748,6 +6442,315 @@
       ],
       "parse_status": "parsed",
       "parsed_text_path": "D:\\中驰股份\\code\\data\\parsed_text\\20\\44.txt",
+      "error_message": ""
+    },
+    {
+      "file_id": 45,
+      "project_id": 21,
+      "module_id": "M1",
+      "filename": "M1.pdf",
+      "content_type": "application/pdf",
+      "stored_path": "D:\\中驰股份\\code\\data\\uploads\\21\\M1\\45_M1.pdf",
+      "document_role": "unknown",
+      "assigned_modules": [
+        "M1"
+      ],
+      "parse_status": "pending",
+      "parsed_text_path": "",
+      "error_message": ""
+    },
+    {
+      "file_id": 46,
+      "project_id": 21,
+      "module_id": "M2",
+      "filename": "M2.pdf",
+      "content_type": "application/pdf",
+      "stored_path": "D:\\中驰股份\\code\\data\\uploads\\21\\M2\\46_M2.pdf",
+      "document_role": "unknown",
+      "assigned_modules": [
+        "M2"
+      ],
+      "parse_status": "pending",
+      "parsed_text_path": "",
+      "error_message": ""
+    },
+    {
+      "file_id": 47,
+      "project_id": 21,
+      "module_id": "M5",
+      "filename": "M5.pdf",
+      "content_type": "application/pdf",
+      "stored_path": "D:\\中驰股份\\code\\data\\uploads\\21\\M5\\47_M5.pdf",
+      "document_role": "unknown",
+      "assigned_modules": [
+        "M5"
+      ],
+      "parse_status": "pending",
+      "parsed_text_path": "",
+      "error_message": ""
+    },
+    {
+      "file_id": 48,
+      "project_id": 21,
+      "module_id": "M6",
+      "filename": "M6.pdf",
+      "content_type": "application/pdf",
+      "stored_path": "D:\\中驰股份\\code\\data\\uploads\\21\\M6\\48_M6.pdf",
+      "document_role": "unknown",
+      "assigned_modules": [
+        "M6"
+      ],
+      "parse_status": "pending",
+      "parsed_text_path": "",
+      "error_message": ""
+    },
+    {
+      "file_id": 49,
+      "project_id": 22,
+      "module_id": null,
+      "filename": "20.噪声污染意见.pdf",
+      "content_type": "application/pdf",
+      "stored_path": "D:\\中驰股份\\code\\data\\uploads\\22\\unclassified\\49_20.噪声污染意见.pdf",
+      "document_role": "survey",
+      "assigned_modules": [
+        "M2",
+        "M5"
+      ],
+      "parse_status": "parsed",
+      "parsed_text_path": "D:\\中驰股份\\code\\data\\parsed_text\\22\\49.txt",
+      "error_message": ""
+    },
+    {
+      "file_id": 50,
+      "project_id": 22,
+      "module_id": null,
+      "filename": "北京中海寰宇未来小区加装声屏障项目汇报-十六局20260311.pptx",
+      "content_type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      "stored_path": "D:\\中驰股份\\code\\data\\uploads\\22\\unclassified\\50_北京中海寰宇未来小区加装声屏障项目汇报-十六局20260311.pptx",
+      "document_role": "enterprise_material",
+      "assigned_modules": [
+        "M6"
+      ],
+      "parse_status": "parsed",
+      "parsed_text_path": "D:\\中驰股份\\code\\data\\parsed_text\\22\\50.txt",
+      "error_message": ""
+    },
+    {
+      "file_id": 51,
+      "project_id": 22,
+      "module_id": null,
+      "filename": "轨交既有线声屏障项目案例分享资料.pptx.25EB84F6D7508D9387D39A4D5057671B.20260126170937687.pptx",
+      "content_type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      "stored_path": "D:\\中驰股份\\code\\data\\uploads\\22\\unclassified\\51_轨交既有线声屏障项目案例分享资料.pptx.25EB84F6D7508D9387D39A4D5057671B.20260126170937687.pptx",
+      "document_role": "enterprise_material",
+      "assigned_modules": [
+        "M6"
+      ],
+      "parse_status": "parsed",
+      "parsed_text_path": "D:\\中驰股份\\code\\data\\parsed_text\\22\\51.txt",
+      "error_message": ""
+    },
+    {
+      "file_id": 52,
+      "project_id": 22,
+      "module_id": null,
+      "filename": "合肥3号线汇报资料11.4.pptx",
+      "content_type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      "stored_path": "D:\\中驰股份\\code\\data\\uploads\\22\\unclassified\\52_合肥3号线汇报资料11.4.pptx",
+      "document_role": "drawing",
+      "assigned_modules": [
+        "M1",
+        "M2"
+      ],
+      "parse_status": "parsed",
+      "parsed_text_path": "D:\\中驰股份\\code\\data\\parsed_text\\22\\52.txt",
+      "error_message": ""
+    },
+    {
+      "file_id": 53,
+      "project_id": 22,
+      "module_id": null,
+      "filename": "南昌轨道交通4号线一期声屏障变更工程 施工方案汇报资料.pptx",
+      "content_type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      "stored_path": "D:\\中驰股份\\code\\data\\uploads\\22\\unclassified\\53_南昌轨道交通4号线一期声屏障变更工程 施工方案汇报资料.pptx",
+      "document_role": "enterprise_material",
+      "assigned_modules": [
+        "M6"
+      ],
+      "parse_status": "parsed",
+      "parsed_text_path": "D:\\中驰股份\\code\\data\\parsed_text\\22\\53.txt",
+      "error_message": ""
+    },
+    {
+      "file_id": 54,
+      "project_id": 22,
+      "module_id": null,
+      "filename": "铁路&轨交既有线声屏障项目案例分享资料(册子打印版)V3.pptx",
+      "content_type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      "stored_path": "D:\\中驰股份\\code\\data\\uploads\\22\\unclassified\\54_铁路&轨交既有线声屏障项目案例分享资料(册子打印版)V3.pptx",
+      "document_role": "case_material",
+      "assigned_modules": [
+        "M5"
+      ],
+      "parse_status": "parsed",
+      "parsed_text_path": "D:\\中驰股份\\code\\data\\parsed_text\\22\\54.txt",
+      "error_message": ""
+    },
+    {
+      "file_id": 55,
+      "project_id": 22,
+      "module_id": null,
+      "filename": "中海.pptx",
+      "content_type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      "stored_path": "D:\\中驰股份\\code\\data\\uploads\\22\\unclassified\\55_中海.pptx",
+      "document_role": "project_brief",
+      "assigned_modules": [
+        "M1",
+        "M2",
+        "M5"
+      ],
+      "parse_status": "parsed",
+      "parsed_text_path": "D:\\中驰股份\\code\\data\\parsed_text\\22\\55.txt",
+      "error_message": ""
+    },
+    {
+      "file_id": 56,
+      "project_id": 22,
+      "module_id": null,
+      "filename": "中海寰宇未来小区《1-N资料表》3.10.xlsx",
+      "content_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "stored_path": "D:\\中驰股份\\code\\data\\uploads\\22\\unclassified\\56_中海寰宇未来小区《1-N资料表》3.10.xlsx",
+      "document_role": "enterprise_material",
+      "assigned_modules": [
+        "M6"
+      ],
+      "parse_status": "parsed",
+      "parsed_text_path": "D:\\中驰股份\\code\\data\\parsed_text\\22\\56.txt",
+      "error_message": ""
+    },
+    {
+      "file_id": 57,
+      "project_id": 22,
+      "module_id": null,
+      "filename": "中海声屏障施工招标图.pdf",
+      "content_type": "application/pdf",
+      "stored_path": "D:\\中驰股份\\code\\data\\uploads\\22\\unclassified\\57_中海声屏障施工招标图.pdf",
+      "document_role": "enterprise_material",
+      "assigned_modules": [
+        "M6"
+      ],
+      "parse_status": "parsed",
+      "parsed_text_path": "D:\\中驰股份\\code\\data\\parsed_text\\22\\57.txt",
+      "error_message": ""
+    },
+    {
+      "file_id": 58,
+      "project_id": 23,
+      "module_id": null,
+      "filename": "20.噪声污染意见.pdf",
+      "content_type": "application/pdf",
+      "stored_path": "D:\\中驰股份\\code\\data\\uploads\\23\\unclassified\\58_20.噪声污染意见.pdf",
+      "document_role": "survey",
+      "assigned_modules": [
+        "M2",
+        "M5"
+      ],
+      "parse_status": "parsed",
+      "parsed_text_path": "D:\\中驰股份\\code\\data\\parsed_text\\23\\58.txt",
+      "error_message": ""
+    },
+    {
+      "file_id": 59,
+      "project_id": 24,
+      "module_id": null,
+      "filename": "20.噪声污染意见.pdf",
+      "content_type": "application/pdf",
+      "stored_path": "D:\\中驰股份\\code\\data\\uploads\\24\\unclassified\\59_20.噪声污染意见.pdf",
+      "document_role": "case_material",
+      "assigned_modules": [
+        "M5"
+      ],
+      "parse_status": "parsed",
+      "parsed_text_path": "D:\\中驰股份\\code\\data\\parsed_text\\24\\59.txt",
+      "error_message": ""
+    },
+    {
+      "file_id": 60,
+      "project_id": 25,
+      "module_id": null,
+      "filename": "20.噪声污染意见.pdf",
+      "content_type": "application/pdf",
+      "stored_path": "D:\\中驰股份\\code\\data\\uploads\\25\\unclassified\\60_20.噪声污染意见.pdf",
+      "document_role": "case_material",
+      "assigned_modules": [
+        "M5"
+      ],
+      "parse_status": "parsed",
+      "parsed_text_path": "D:\\中驰股份\\code\\data\\parsed_text\\25\\60.txt",
+      "error_message": ""
+    },
+    {
+      "file_id": 61,
+      "project_id": 26,
+      "module_id": null,
+      "filename": "20.噪声污染意见.pdf",
+      "content_type": "application/pdf",
+      "stored_path": "D:\\中驰股份\\code\\data\\uploads\\26\\unclassified\\61_20.噪声污染意见.pdf",
+      "document_role": "survey",
+      "assigned_modules": [
+        "M2",
+        "M5"
+      ],
+      "parse_status": "parsed",
+      "parsed_text_path": "D:\\中驰股份\\code\\data\\parsed_text\\26\\61.txt",
+      "error_message": ""
+    },
+    {
+      "file_id": 62,
+      "project_id": 27,
+      "module_id": null,
+      "filename": "20.噪声污染意见.pdf",
+      "content_type": "application/pdf",
+      "stored_path": "D:\\中驰股份\\code\\data\\uploads\\27\\unclassified\\62_20.噪声污染意见.pdf",
+      "document_role": "survey",
+      "assigned_modules": [
+        "M2",
+        "M5"
+      ],
+      "parse_status": "parsed",
+      "parsed_text_path": "D:\\中驰股份\\code\\data\\parsed_text\\27\\62.txt",
+      "error_message": ""
+    },
+    {
+      "file_id": 63,
+      "project_id": 28,
+      "module_id": null,
+      "filename": "PPT 标前 综合交付方案 合肥新桥机场S1号线声屏障工程交流会资料.pptx",
+      "content_type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      "stored_path": "D:\\中驰股份\\code\\data\\uploads\\28\\unclassified\\63_PPT 标前 综合交付方案 合肥新桥机场S1号线声屏障工程交流会资料.pptx",
+      "document_role": "enterprise_material",
+      "assigned_modules": [
+        "M6"
+      ],
+      "parse_status": "parsed",
+      "parsed_text_path": "D:\\中驰股份\\code\\data\\parsed_text\\28\\63.txt",
+      "error_message": ""
+    },
+    {
+      "file_id": 64,
+      "project_id": 29,
+      "module_id": null,
+      "filename": "公路全封闭.pdf",
+      "content_type": "application/pdf",
+      "stored_path": "D:\\中驰股份\\code\\data\\uploads\\29\\unclassified\\64_公路全封闭.pdf",
+      "document_role": "project_brief",
+      "assigned_modules": [
+        "M1",
+        "M2",
+        "M5"
+      ],
+      "parse_status": "parsed",
+      "parsed_text_path": "D:\\中驰股份\\code\\data\\parsed_text\\29\\64.txt",
       "error_message": ""
     }
   ],

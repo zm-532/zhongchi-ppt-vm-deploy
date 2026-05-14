@@ -152,11 +152,9 @@ export default function HomePage() {
           project_name: formData.get("project_name") || "中驰智能PPT演示项目",
           project_location: formData.get("project_location") || "",
           owner_unit: formData.get("owner_unit") || "",
-          product_line: formData.get("product_line") || "",
         }),
       });
       setProjects((items) => [project, ...items]);
-      setCurrentProject(project);
       setTask(null);
       setUploadedFiles([]);
       setClassification(null);
@@ -262,7 +260,6 @@ export default function HomePage() {
           project_name: m1m2TestProjectName || "M1/M2选择测试项目",
           project_location: "",
           owner_unit: "",
-          product_line: "",
         }),
       });
       const body = new FormData();
@@ -293,7 +290,6 @@ export default function HomePage() {
           project_name: m5TestProjectName || "M5案例匹配测试项目",
           project_location: "",
           owner_unit: "",
-          product_line: "",
         }),
       });
       const body = new FormData();
@@ -439,7 +435,6 @@ export default function HomePage() {
               <label>项目名称<input name="project_name" placeholder="例如：某城市轨道交通声屏障改造项目" /></label>
               <label>项目所在地<input name="project_location" placeholder="例如：南京" /></label>
               <label>建设/业主单位<input name="owner_unit" placeholder="例如：某建设单位" /></label>
-              <label>产品线<select name="product_line" defaultValue=""><option value="" disabled>请选择产品线</option><option>公路全封闭</option><option>铁路声屏障</option><option>轨交声屏障</option><option>轨交既有线改造</option></select></label>
               <button className="primaryButton" disabled={busy} type="submit">创建项目</button>
             </form>
           </section>

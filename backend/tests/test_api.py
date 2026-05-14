@@ -421,9 +421,9 @@ class BackendApiTest(unittest.TestCase):
         detail = self.client.get(f"/api/projects/{project_id}").json()
         final_path = Path(detail["final_ppt_path"])
         self.assertTrue(final_path.exists())
-        # M6 fixed template has 15 slides; M1/M2/M5 each generate 2 slides (cover + outline)
-        # Total: M1(2) + M2(2) + M5(2) + M6(15) = 21 slides
-        self.assertEqual(len(Presentation(str(final_path)).slides), 21)
+        # M1/M2 metro template=10 slides, M5 case template=11 slides, M6 enterprise template=15 slides
+        # Total: 10 + 11 + 15 = 36 slides
+        self.assertEqual(len(Presentation(str(final_path)).slides), 36)
 
         download_response = self.client.get(f"/api/projects/{project_id}/download")
         self.assertEqual(download_response.status_code, 200)

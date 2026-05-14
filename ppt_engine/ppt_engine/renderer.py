@@ -1,4 +1,6 @@
 from copy import deepcopy
+from io import BytesIO
+import os
 import shutil
 from pathlib import Path
 from typing import Any
@@ -49,6 +51,7 @@ DEEP_BLUE = RGBColor(0x1A, 0x3A, 0x6B)
 ACCENT_GOLD = RGBColor(0xCA, 0x8A, 0x04)
 LIGHT_BG = RGBColor(0xF7, 0xFA, 0xFC)
 BODY_TEXT = RGBColor(0x1F, 0x29, 0x37)
+EMU_PER_POINT = 12700
 
 
 # =============================================================================
@@ -196,20 +199,14 @@ def _render_m6_fixed_template(project: dict[str, Any], output_dir: Path) -> Path
     """渲染 M6 固定企业介绍模板（不做字段替换）。
 
     直接复制固定模板到输出目录，不做任何字段替换或素材替换。
+    模板缺失时抛出异常，不生成静默占位页。
     """
     source_template = PPT_TEMPLATE_ROOT / M6_TEMPLATE_FILENAME
     if not source_template.exists():
-        # Fallback: 创建占位页
-        prs = Presentation()
-        prs.slide_width = Inches(13.333)
-        prs.slide_height = Inches(7.5)
-        slide = prs.slides.add_slide(prs.slide_layouts[6])
-        slide.shapes.add_textbox(Inches(1), Inches(3), Inches(11), Inches(1.5))
-        text_frame = slide.shapes[-1].text_frame
-        text_frame.paragraphs[0].text = f"[M6] 企业背书与荣誉 - 模板文件未找到：{M6_TEMPLATE_FILENAME}"
-        file_path = output_dir / f"M6_{MODULE_TITLES['M6']}.pptx"
-        prs.save(file_path)
-        return file_path
+        raise FileNotFoundError(
+            f"M6 固定模板未找到：{source_template}。"
+            "请确认 PPT_TEMPLATE_ROOT 配置正确且模板文件存在。"
+        )
 
     file_path = output_dir / f"M6_{MODULE_TITLES['M6']}.pptx"
     _copy_fixed_template(source_template, file_path)
@@ -223,24 +220,17 @@ def _render_m1_m2_fixed(
 
     根据 confirmed_project_type 从 M1_M2_TEMPLATE_MAP 选择对应模板，
     复制模板文件作为章节输出，不做字段替换。
+    模板缺失时抛出异常，不生成静默占位页。
     """
     _validate_project_type(project_type)
     template_filename = M1_M2_TEMPLATE_MAP[project_type]
     source_template = PPT_TEMPLATE_ROOT / template_filename
 
     if not source_template.exists():
-        prs = Presentation()
-        prs.slide_width = Inches(13.333)
-        prs.slide_height = Inches(7.5)
-        slide = prs.slides.add_slide(prs.slide_layouts[6])
-        slide.shapes.add_textbox(Inches(1), Inches(3), Inches(11), Inches(1.5))
-        text_frame = slide.shapes[-1].text_frame
-        text_frame.paragraphs[0].text = (
-            f"[M1/M2] 行业背景与技术标准 - 模板文件未找到：{template_filename}"
+        raise FileNotFoundError(
+            f"M1/M2 固定模板未找到：{source_template}。"
+            f"请确认 project_type={project_type} 对应的模板文件存在。"
         )
-        file_path = output_dir / f"M1_M2_{MODULE_TITLES['M1_M2']}.pptx"
-        prs.save(file_path)
-        return file_path
 
     file_path = output_dir / f"M1_M2_{MODULE_TITLES['M1_M2']}.pptx"
     _copy_fixed_template(source_template, file_path)
@@ -254,21 +244,14 @@ def _render_m5_case_template(
 
     复制 M5 案例模板到输出目录。案例字段填充能力本阶段可先跳过，
     后续再完善字段映射。
+    模板缺失时抛出异常，不生成静默占位页。
     """
     source_template = PPT_TEMPLATE_ROOT / M5_TEMPLATE_FILENAME
     if not source_template.exists():
-        prs = Presentation()
-        prs.slide_width = Inches(13.333)
-        prs.slide_height = Inches(7.5)
-        slide = prs.slides.add_slide(prs.slide_layouts[6])
-        slide.shapes.add_textbox(Inches(1), Inches(3), Inches(11), Inches(1.5))
-        text_frame = slide.shapes[-1].text_frame
-        text_frame.paragraphs[0].text = (
-            f"[M5] 同类型案例匹配 - 模板文件未找到：{M5_TEMPLATE_FILENAME}"
+        raise FileNotFoundError(
+            f"M5 案例模板未找到：{source_template}。"
+            "请确认 PPT_TEMPLATE_ROOT 配置正确且模板文件存在。"
         )
-        file_path = output_dir / f"M5_{MODULE_TITLES['M5']}.pptx"
-        prs.save(file_path)
-        return file_path
 
     file_path = output_dir / f"M5_{MODULE_TITLES['M5']}.pptx"
     _copy_fixed_template(source_template, file_path)
@@ -316,10 +299,48 @@ def render_chapter_ppt(
 
 
 def _append_slide(target: Presentation, source_slide) -> None:
+    """将 source_slide 完整追加到 target，包括其 OPC 关系（图片/媒体/图表等）。"""
     blank = target.slides.add_slide(target.slide_layouts[6])
-    for shape in source_slide.shapes:
-        blank.shapes._spTree.insert_element_before(deepcopy(shape.element), "p:extLst")
 
+    # 复制 shape XML，并记录复制内容实际引用的关系 ID。
+    copied_elements = []
+    used_relationship_ids = set()
+    for shape in source_slide.shapes:
+        copied_element = deepcopy(shape.element)
+        copied_elements.append(copied_element)
+        for element in copied_element.iter():
+            for value in element.attrib.values():
+                if isinstance(value, str) and value.startswith("rId"):
+                    used_relationship_ids.add(value)
+        blank.shapes._spTree.insert_element_before(copied_element, "p:extLst")
+
+    # 复制 copied XML 实际引用的 slide.rels，并记录 old rId -> new rId。
+    relationship_id_map = {}
+    if hasattr(source_slide, "part") and hasattr(source_slide.part, "rels"):
+        target_slide_part = blank.part
+        for rId, rel in source_slide.part.rels.items():
+            if rId not in used_relationship_ids:
+                continue
+            if rel.reltype.endswith("/relationships/image") and not rel.is_external:
+                _, new_rId = target_slide_part.get_or_add_image_part(
+                    BytesIO(rel.target_part.blob)
+                )
+                relationship_id_map[rId] = new_rId
+                continue
+            # 非图片内部关系：复制对应 Part；外部关系：传 URI 字符串。
+            target_obj = rel.target_part if not rel.is_external else rel.target_ref
+            relationship_id_map[rId] = target_slide_part.rels._add_relationship(
+                rel.reltype, target_obj, rel.is_external
+            )
+
+    # copied XML 仍然带着源 slide 的 rId，必须重写为目标 slide 新 rId。
+    for copied_element in copied_elements:
+        for element in copied_element.iter():
+            for attribute_name, value in list(element.attrib.items()):
+                if value in relationship_id_map:
+                    element.set(attribute_name, relationship_id_map[value])
+
+    # 复制背景
     if source_slide.background.fill.type is not None:
         blank.background.fill.solid()
         try:
@@ -328,18 +349,112 @@ def _append_slide(target: Presentation, source_slide) -> None:
             pass
 
 
+def _presentation_size(path: str | Path) -> tuple[int, int]:
+    presentation = Presentation(str(path))
+    return int(presentation.slide_width), int(presentation.slide_height)
+
+
+def _validate_chapter_sizes(chapter_paths: list[str | Path]) -> tuple[int, int]:
+    first_width, first_height = _presentation_size(chapter_paths[0])
+    for chapter_path in chapter_paths[1:]:
+        width, height = _presentation_size(chapter_path)
+        if width != first_width or height != first_height:
+            raise ValueError(
+                "章节 PPTX 尺寸不一致，当前合并器暂不支持跨尺寸合并："
+                f"{chapter_path} 的尺寸为 {width}x{height}，"
+                f"首个章节尺寸为 {first_width}x{first_height}。"
+            )
+    return first_width, first_height
+
+
+def _merge_pptx_with_powerpoint(chapter_paths: list[str | Path], output_path: str | Path) -> bool:
+    """使用 PowerPoint COM 原样合并幻灯片；不可用时返回 False。"""
+    if os.name != "nt":
+        return False
+
+    try:
+        import win32com.client  # type: ignore[import-not-found]
+    except ImportError:
+        return False
+
+    final_path = Path(output_path).resolve()
+    final_path.parent.mkdir(parents=True, exist_ok=True)
+
+    app = None
+    target = None
+    opened_sources = []
+    try:
+        app = win32com.client.DispatchEx("PowerPoint.Application")
+        target = app.Presentations.Add(WithWindow=False)
+
+        # PowerPoint COM 使用 points；12700 EMU = 1 point。
+        first_width, first_height = _presentation_size(chapter_paths[0])
+        target.PageSetup.SlideWidth = first_width / EMU_PER_POINT
+        target.PageSetup.SlideHeight = first_height / EMU_PER_POINT
+
+        insert_index = 0
+        for chapter_path in chapter_paths:
+            source_path = str(Path(chapter_path).resolve())
+            source = app.Presentations.Open(source_path, ReadOnly=True, Untitled=False, WithWindow=False)
+            opened_sources.append(source)
+            slide_count = source.Slides.Count
+            source.Close()
+            opened_sources.pop()
+            if slide_count == 0:
+                continue
+            target.Slides.InsertFromFile(source_path, insert_index, 1, slide_count)
+            insert_index += slide_count
+
+        target.SaveAs(str(final_path))
+        return True
+    finally:
+        for source in reversed(opened_sources):
+            try:
+                source.Close()
+            except Exception:
+                pass
+        if target is not None:
+            try:
+                target.Close()
+            except Exception:
+                pass
+        if app is not None:
+            try:
+                app.Quit()
+            except Exception:
+                pass
+
+
 def merge_pptx(chapter_paths: list[str | Path], output_path: str | Path) -> Path:
+    if not chapter_paths:
+        raise ValueError("至少需要一个章节 PPTX 用于合并。")
+
+    _validate_chapter_sizes(chapter_paths)
+
+    merge_engine = os.environ.get("ZHONGCHI_PPT_MERGE_ENGINE", "auto").lower()
+    if merge_engine not in {"auto", "powerpoint", "python-pptx"}:
+        raise ValueError("ZHONGCHI_PPT_MERGE_ENGINE 只允许 auto/powerpoint/python-pptx。")
+
+    if merge_engine in {"auto", "powerpoint"}:
+        merged_by_powerpoint = _merge_pptx_with_powerpoint(chapter_paths, output_path)
+        if merged_by_powerpoint:
+            return Path(output_path)
+        if merge_engine == "powerpoint":
+            raise RuntimeError("PowerPoint COM 合并不可用，请确认已安装 pywin32 和 Microsoft PowerPoint。")
+
+    chapters = [Presentation(str(chapter_path)) for chapter_path in chapter_paths]
+    first_chapter = chapters[0]
+
     merged = Presentation()
-    merged.slide_width = Inches(13.333)
-    merged.slide_height = Inches(7.5)
+    merged.slide_width = first_chapter.slide_width
+    merged.slide_height = first_chapter.slide_height
 
     if len(merged.slides) > 0:
         xml_slides = merged.slides._sldIdLst
         for slide_id in list(xml_slides):
             xml_slides.remove(slide_id)
 
-    for chapter_path in chapter_paths:
-        chapter = Presentation(str(chapter_path))
+    for chapter in chapters:
         for slide in chapter.slides:
             _append_slide(merged, slide)
 
@@ -374,4 +489,3 @@ def render_final_ppt(
         chapter_paths.append(chapter_path)
     final_name = f"{_safe_text(project.get('project_name'), '项目名称')}_中驰智能PPT_Demo.pptx"
     return merge_pptx(chapter_paths, output_path / final_name)
-

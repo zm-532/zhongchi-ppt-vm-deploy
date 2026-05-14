@@ -1,8 +1,12 @@
+import os
 import tempfile
 import unittest
+import zipfile
+from collections import Counter
 from pathlib import Path
 
 from pptx import Presentation
+from pptx.util import Inches
 
 from ppt_engine.renderer import (
     MERGE_ORDER,
@@ -14,6 +18,8 @@ from ppt_engine.renderer import (
     render_chapter_ppt,
     render_final_ppt,
 )
+
+os.environ["ZHONGCHI_PPT_MERGE_ENGINE"] = "python-pptx"
 
 
 PROJECT = {
@@ -69,6 +75,43 @@ def slide_texts(path: Path) -> list[str]:
             if hasattr(shape, "text") and shape.text:
                 texts.append(shape.text)
     return texts
+
+
+def slide_image_relationship_errors(path: Path) -> list[str]:
+    errors = []
+    with zipfile.ZipFile(path) as pptx_zip:
+        slide_names = sorted(
+            [
+                name
+                for name in pptx_zip.namelist()
+                if name.startswith("ppt/slides/slide") and name.endswith(".xml")
+            ],
+            key=lambda name: int(
+                name.removeprefix("ppt/slides/slide").removesuffix(".xml")
+            ),
+        )
+        for slide_name in slide_names:
+            slide_xml = pptx_zip.read(slide_name).decode("utf-8")
+            rels_name = slide_name.replace("ppt/slides/", "ppt/slides/_rels/") + ".rels"
+            rels_xml = pptx_zip.read(rels_name).decode("utf-8")
+            for relationship_id in set(slide_xml.split('r:embed="')[1:]):
+                relationship_id = relationship_id.split('"', 1)[0]
+                marker = f'Id="{relationship_id}"'
+                if marker not in rels_xml:
+                    errors.append(f"{slide_name}: missing {relationship_id}")
+                    continue
+                rel_start = rels_xml.index(marker)
+                rel_end = rels_xml.find("/>", rel_start)
+                rel_fragment = rels_xml[rel_start:rel_end]
+                if "/relationships/image" not in rel_fragment:
+                    errors.append(f"{slide_name}: {relationship_id} is not image")
+    return errors
+
+
+def duplicate_zip_entries(path: Path) -> list[str]:
+    with zipfile.ZipFile(path) as pptx_zip:
+        counts = Counter(pptx_zip.namelist())
+    return sorted(name for name, count in counts.items() if count > 1)
 
 
 class TemplateConfigTest(unittest.TestCase):
@@ -252,6 +295,103 @@ class MergePptxTest(unittest.TestCase):
             self.assertTrue(result.exists())
             presentation = Presentation(str(result))
             self.assertGreater(len(presentation.slides), 0)
+
+    def test_merge_pptx_preserves_source_slide_size(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            chapters = []
+            for module_id in MERGE_ORDER:
+                outline = (
+                    {"project_type": "metro"}
+                    if module_id == "M1_M2"
+                    else {"case_data": None}
+                    if module_id == "M5"
+                    else {}
+                )
+                chapters.append(render_chapter_ppt(module_id, PROJECT, outline, temp_dir))
+
+            final_path = Path(temp_dir) / "final.pptx"
+            result = merge_pptx(chapters, final_path)
+
+            first_chapter = Presentation(str(chapters[0]))
+            merged = Presentation(str(result))
+            self.assertEqual(merged.slide_width, first_chapter.slide_width)
+            self.assertEqual(merged.slide_height, first_chapter.slide_height)
+
+    def test_merge_pptx_keeps_blip_relationships_pointing_to_images(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            chapters = []
+            for module_id in MERGE_ORDER:
+                outline = (
+                    {"project_type": "metro"}
+                    if module_id == "M1_M2"
+                    else {"case_data": None}
+                    if module_id == "M5"
+                    else {}
+                )
+                chapters.append(render_chapter_ppt(module_id, PROJECT, outline, temp_dir))
+
+            final_path = Path(temp_dir) / "final.pptx"
+            result = merge_pptx(chapters, final_path)
+
+            self.assertEqual(slide_image_relationship_errors(result), [])
+
+    def test_merge_pptx_does_not_write_duplicate_zip_entries(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            chapters = []
+            for module_id in MERGE_ORDER:
+                outline = (
+                    {"project_type": "metro"}
+                    if module_id == "M1_M2"
+                    else {"case_data": None}
+                    if module_id == "M5"
+                    else {}
+                )
+                chapters.append(render_chapter_ppt(module_id, PROJECT, outline, temp_dir))
+
+            final_path = Path(temp_dir) / "final.pptx"
+            result = merge_pptx(chapters, final_path)
+
+            self.assertEqual(duplicate_zip_entries(result), [])
+
+    def test_merge_pptx_slide_count_matches_chapter_slide_count_sum(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            chapters = []
+            for module_id in MERGE_ORDER:
+                outline = (
+                    {"project_type": "metro"}
+                    if module_id == "M1_M2"
+                    else {"case_data": None}
+                    if module_id == "M5"
+                    else {}
+                )
+                chapters.append(render_chapter_ppt(module_id, PROJECT, outline, temp_dir))
+
+            final_path = Path(temp_dir) / "final.pptx"
+            result = merge_pptx(chapters, final_path)
+
+            expected_count = sum(slide_count(chapter) for chapter in chapters)
+            self.assertEqual(slide_count(result), expected_count)
+
+    def test_merge_pptx_rejects_mismatched_slide_sizes(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            first = Presentation()
+            first.slide_width = Inches(10)
+            first.slide_height = Inches(5.625)
+            first.slides.add_slide(first.slide_layouts[6])
+            first_path = Path(temp_dir) / "first.pptx"
+            first.save(first_path)
+
+            second = Presentation()
+            second.slide_width = Inches(13.333)
+            second.slide_height = Inches(7.5)
+            second.slides.add_slide(second.slide_layouts[6])
+            second_path = Path(temp_dir) / "second.pptx"
+            second.save(second_path)
+
+            with self.assertRaises(ValueError) as context:
+                merge_pptx([first_path, second_path], Path(temp_dir) / "final.pptx")
+
+            self.assertIn("尺寸不一致", str(context.exception))
 
 
 class RenderFinalPptTest(unittest.TestCase):
