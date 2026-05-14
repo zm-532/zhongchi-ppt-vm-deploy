@@ -1,4 +1,5 @@
 from copy import deepcopy
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -8,14 +9,40 @@ from pptx.enum.text import PP_ALIGN
 from pptx.util import Inches, Pt
 
 
-MODULE_ORDER = ("M1", "M2", "M5", "M6")
+# =============================================================================
+# 模板路径配置（统一入口，禁止散落硬编码）
+# =============================================================================
+PPT_TEMPLATE_ROOT = Path(r"D:\中驰股份\code\ppt_engine\templates\solution_fixed_modules")
+
+# M1/M2 固定模板映射表：project_type -> 模板文件名
+M1_M2_TEMPLATE_MAP = {
+    "highway": "公路全封闭声屏障（M1_&_M2）.pptx",
+    "metro": "轨道交通地铁全封闭声屏障（M1_&_M2）.pptx",
+    "existing_rail_transit": "铁路_&_轨道交通既有线声屏障_（M1_&_M2）.pptx",
+    "railway": "铁路声屏障行业背景与技术发展（M1_&_M2）.pptx",
+}
+
+# M5 案例模板文件名
+M5_TEMPLATE_FILENAME = "南昌轨道交通4号线声屏障工程项目案例模板（M5）.pptx"
+
+# M6 固定模板文件名
+M6_TEMPLATE_FILENAME = "中驰企业介绍合并初版（M6）.pptx"
+
+
+# =============================================================================
+# 合并顺序与模块标题
+# =============================================================================
+# 最终 PPT 合并顺序：M1/M2 -> M5 -> M6
+MERGE_ORDER = ("M1_M2", "M5", "M6")
 
 MODULE_TITLES = {
-    "M1": "行业背景与技术标准",
-    "M2": "项目概况与现场挑战",
+    "M1_M2": "行业背景与技术标准",
     "M5": "同类型案例匹配",
     "M6": "企业背书与荣誉",
 }
+
+# M1/M2 模板的 project_type 枚举
+PROJECT_TYPES = ("highway", "metro", "existing_rail_transit", "railway")
 
 PRIMARY_BLUE = RGBColor(0x15, 0x65, 0xC0)
 DEEP_BLUE = RGBColor(0x1A, 0x3A, 0x6B)
@@ -24,9 +51,23 @@ LIGHT_BG = RGBColor(0xF7, 0xFA, 0xFC)
 BODY_TEXT = RGBColor(0x1F, 0x29, 0x37)
 
 
+# =============================================================================
+# 辅助函数
+# =============================================================================
+
+
+def _validate_project_type(project_type: str) -> None:
+    """验证 project_type 是否为合法枚举值。"""
+    if project_type not in PROJECT_TYPES:
+        raise ValueError(
+            f"无效的 project_type：{project_type}，可选值：{PROJECT_TYPES}。"
+        )
+
+
 def _validate_module(module_id: str) -> None:
-    if module_id not in MODULE_ORDER:
-        raise ValueError("本阶段 PPT 引擎只支持 M1/M2/M5/M6，M3/M4 为后续动态模块。")
+    """验证 module_id 是否为合法模块。"""
+    if module_id not in MERGE_ORDER:
+        raise ValueError("本阶段 PPT 引擎只支持 M1_M2/M5/M6，M3/M4 为后续动态模块。")
 
 
 def _safe_text(value: Any, field_name: str) -> str:
@@ -145,35 +186,133 @@ def _add_outline_slide(prs: Presentation, module_id: str, slide_data: dict[str, 
         _add_textbox(slide, Inches(0.85), Inches(6.0), Inches(11.5), Inches(0.4), marker_text, 13, ACCENT_GOLD, True)
 
 
-def render_chapter_ppt(module_id: str, project: dict[str, Any], outline: dict[str, Any], output_dir: str | Path) -> Path:
+def _copy_fixed_template(source_path: Path, dest_path: Path) -> None:
+    """Copy fixed template PPTX to destination. Creates parent directories if needed."""
+    dest_path.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source_path, dest_path)
+
+
+def _render_m6_fixed_template(project: dict[str, Any], output_dir: Path) -> Path:
+    """渲染 M6 固定企业介绍模板（不做字段替换）。
+
+    直接复制固定模板到输出目录，不做任何字段替换或素材替换。
+    """
+    source_template = PPT_TEMPLATE_ROOT / M6_TEMPLATE_FILENAME
+    if not source_template.exists():
+        # Fallback: 创建占位页
+        prs = Presentation()
+        prs.slide_width = Inches(13.333)
+        prs.slide_height = Inches(7.5)
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        slide.shapes.add_textbox(Inches(1), Inches(3), Inches(11), Inches(1.5))
+        text_frame = slide.shapes[-1].text_frame
+        text_frame.paragraphs[0].text = f"[M6] 企业背书与荣誉 - 模板文件未找到：{M6_TEMPLATE_FILENAME}"
+        file_path = output_dir / f"M6_{MODULE_TITLES['M6']}.pptx"
+        prs.save(file_path)
+        return file_path
+
+    file_path = output_dir / f"M6_{MODULE_TITLES['M6']}.pptx"
+    _copy_fixed_template(source_template, file_path)
+    return file_path
+
+
+def _render_m1_m2_fixed(
+    project_type: str, project: dict[str, Any], output_dir: Path
+) -> Path:
+    """渲染 M1/M2 固定模板（根据 project_type 选择，不做字段替换）。
+
+    根据 confirmed_project_type 从 M1_M2_TEMPLATE_MAP 选择对应模板，
+    复制模板文件作为章节输出，不做字段替换。
+    """
+    _validate_project_type(project_type)
+    template_filename = M1_M2_TEMPLATE_MAP[project_type]
+    source_template = PPT_TEMPLATE_ROOT / template_filename
+
+    if not source_template.exists():
+        prs = Presentation()
+        prs.slide_width = Inches(13.333)
+        prs.slide_height = Inches(7.5)
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        slide.shapes.add_textbox(Inches(1), Inches(3), Inches(11), Inches(1.5))
+        text_frame = slide.shapes[-1].text_frame
+        text_frame.paragraphs[0].text = (
+            f"[M1/M2] 行业背景与技术标准 - 模板文件未找到：{template_filename}"
+        )
+        file_path = output_dir / f"M1_M2_{MODULE_TITLES['M1_M2']}.pptx"
+        prs.save(file_path)
+        return file_path
+
+    file_path = output_dir / f"M1_M2_{MODULE_TITLES['M1_M2']}.pptx"
+    _copy_fixed_template(source_template, file_path)
+    return file_path
+
+
+def _render_m5_case_template(
+    case_data: dict[str, Any] | None, project: dict[str, Any], output_dir: Path
+) -> Path:
+    """渲染 M5 案例模板（保留字段填充入口）。
+
+    复制 M5 案例模板到输出目录。案例字段填充能力本阶段可先跳过，
+    后续再完善字段映射。
+    """
+    source_template = PPT_TEMPLATE_ROOT / M5_TEMPLATE_FILENAME
+    if not source_template.exists():
+        prs = Presentation()
+        prs.slide_width = Inches(13.333)
+        prs.slide_height = Inches(7.5)
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        slide.shapes.add_textbox(Inches(1), Inches(3), Inches(11), Inches(1.5))
+        text_frame = slide.shapes[-1].text_frame
+        text_frame.paragraphs[0].text = (
+            f"[M5] 同类型案例匹配 - 模板文件未找到：{M5_TEMPLATE_FILENAME}"
+        )
+        file_path = output_dir / f"M5_{MODULE_TITLES['M5']}.pptx"
+        prs.save(file_path)
+        return file_path
+
+    file_path = output_dir / f"M5_{MODULE_TITLES['M5']}.pptx"
+    _copy_fixed_template(source_template, file_path)
+    return file_path
+
+
+def render_chapter_ppt(
+    module_id: str,
+    project: dict[str, Any],
+    outline: dict[str, Any],
+    output_dir: str | Path,
+) -> Path:
+    """渲染单个章节 PPTX。
+
+    Args:
+        module_id: 模块标识，支持 M1_M2 / M5 / M6。
+        project: 项目基础信息字典。
+        outline: 章节配置。对于 M1_M2，outline 应包含 project_type；对于 M5，应包含 case_data；
+                 对于 M6，outline 被忽略（固定模板）。
+        output_dir: 输出目录路径。
+
+    Returns:
+        生成的章节 PPTX 文件路径。
+    """
     _validate_module(module_id)
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
 
-    prs = Presentation()
-    prs.slide_width = Inches(13.333)
-    prs.slide_height = Inches(7.5)
-    _add_cover_slide(prs, module_id, project)
+    if module_id == "M1_M2":
+        # M1/M2：根据 project_type 选择固定模板，只复制不替换
+        project_type = outline.get("project_type", "highway")
+        return _render_m1_m2_fixed(project_type, project, output_path)
 
-    for index, slide_data in enumerate(outline.get("slides") or [], start=1):
-        _add_outline_slide(prs, module_id, slide_data, index)
+    if module_id == "M5":
+        # M5：案例模板填充入口，case_data 可为 None（允许先输出模板章节）
+        case_data = outline.get("case_data")
+        return _render_m5_case_template(case_data, project, output_path)
 
-    if not outline.get("slides"):
-        _add_outline_slide(
-            prs,
-            module_id,
-            {
-                "page_title": MODULE_TITLES[module_id],
-                "core_insight": "[待补充：章节大纲]",
-                "bullet_points": ["[待补充：章节要点]"],
-                "missing_fields": ["章节大纲"],
-            },
-            1,
-        )
+    if module_id == "M6":
+        # M6：直接使用固定企业介绍模板，不做字段替换
+        return _render_m6_fixed_template(project, output_path)
 
-    file_path = output_path / f"{module_id}_{MODULE_TITLES[module_id]}.pptx"
-    prs.save(file_path)
-    return file_path
+    # 不应到达此处（_validate_module 已拦截）
+    raise ValueError(f"不支持的模块：{module_id}")
 
 
 def _append_slide(target: Presentation, source_slide) -> None:
@@ -185,7 +324,7 @@ def _append_slide(target: Presentation, source_slide) -> None:
         blank.background.fill.solid()
         try:
             blank.background.fill.fore_color.rgb = source_slide.background.fill.fore_color.rgb
-        except AttributeError:
+        except (AttributeError, TypeError):
             pass
 
 
@@ -210,13 +349,29 @@ def merge_pptx(chapter_paths: list[str | Path], output_path: str | Path) -> Path
     return final_path
 
 
-def render_final_ppt(project: dict[str, Any], outlines: dict[str, dict[str, Any]], output_dir: str | Path) -> Path:
+def render_final_ppt(
+    project: dict[str, Any],
+    outlines: dict[str, dict[str, Any]],
+    output_dir: str | Path,
+) -> Path:
+    """按 M1/M2 -> M5 -> M6 顺序合并章节 PPTX。
+
+    Args:
+        project: 项目基础信息字典。
+        outlines: 章节配置字典，key 为模块标识，value 为模块配置。
+                  M1_M2 需要包含 project_type；M5 需要包含 case_data；M6 被忽略。
+        output_dir: 输出目录路径。
+
+    Returns:
+        生成的最终 PPTX 文件路径。
+    """
     output_path = Path(output_dir)
     chapters_dir = output_path / "chapters"
-    chapter_paths = [
-        render_chapter_ppt(module_id, project, outlines.get(module_id, {"slides": []}), chapters_dir)
-        for module_id in MODULE_ORDER
-    ]
+    chapter_paths = []
+    for module_id in MERGE_ORDER:
+        outline = outlines.get(module_id, {})
+        chapter_path = render_chapter_ppt(module_id, project, outline, chapters_dir)
+        chapter_paths.append(chapter_path)
     final_name = f"{_safe_text(project.get('project_name'), '项目名称')}_中驰智能PPT_Demo.pptx"
     return merge_pptx(chapter_paths, output_path / final_name)
 
