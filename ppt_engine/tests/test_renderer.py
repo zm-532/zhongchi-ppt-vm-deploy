@@ -36,18 +36,27 @@ OUTLINES_M1_M2_ONLY = {
     },
 }
 
-# M5 with case_data (case_data optional per spec - can be None)
+M5_CASE_DATA = {
+    "case_id": "sr_case_abc123",
+    "case_title": "南昌轨道交通4号线声屏障工程",
+    "match_reason": "同为轨道交通声屏障",
+}
+
+
+def outline_for_module(module_id: str) -> dict:
+    if module_id == "M1_M2":
+        return {"project_type": "metro"}
+    if module_id == "M5":
+        return {"case_data": M5_CASE_DATA}
+    return {}
+
+
+# M5 with case_data
 OUTLINES_WITH_M5 = {
     "M1_M2": {
         "project_type": "metro",
     },
-    "M5": {
-        "case_data": {
-            "case_id": 1,
-            "case_title": "南昌轨道交通4号线声屏障工程",
-            "match_reason": "同为轨道交通声屏障",
-        }
-    },
+    "M5": {"case_data": M5_CASE_DATA},
 }
 
 # Full outlines with all three modules
@@ -55,9 +64,7 @@ OUTLINES_FULL = {
     "M1_M2": {
         "project_type": "metro",
     },
-    "M5": {
-        "case_data": None,
-    },
+    "M5": {"case_data": M5_CASE_DATA},
     "M6": {},
 }
 
@@ -186,24 +193,19 @@ class M1M2TemplateSelectionTest(unittest.TestCase):
 
 
 class M5CaseTemplateTest(unittest.TestCase):
-    """验证 M5 案例模板入口（case_data 可为 None）。"""
+    """验证 M5 案例模板入口。"""
 
-    def test_m5_with_none_case_data_produces_valid_pptx(self):
+    def test_m5_with_none_case_data_is_rejected(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             outline = {"case_data": None}
-            output_path = render_chapter_ppt("M5", PROJECT, outline, temp_dir)
-
-            self.assertTrue(output_path.exists())
-            presentation = Presentation(str(output_path))
-            self.assertGreater(len(presentation.slides), 0)
+            with self.assertRaises(ValueError) as context:
+                render_chapter_ppt("M5", PROJECT, outline, temp_dir)
+            self.assertIn("未选择 M5 案例", str(context.exception))
 
     def test_m5_with_case_data_produces_valid_pptx(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             outline = {
-                "case_data": {
-                    "case_id": 1,
-                    "case_title": "南昌轨道交通4号线声屏障工程",
-                }
+                "case_data": M5_CASE_DATA
             }
             output_path = render_chapter_ppt("M5", PROJECT, outline, temp_dir)
 
@@ -277,13 +279,7 @@ class MergePptxTest(unittest.TestCase):
             # Render each chapter
             chapters = {}
             for module_id in MERGE_ORDER:
-                outline = (
-                    {"project_type": "metro"}
-                    if module_id == "M1_M2"
-                    else {"case_data": None}
-                    if module_id == "M5"
-                    else {}
-                )
+                outline = outline_for_module(module_id)
                 chapters[module_id] = render_chapter_ppt(
                     module_id, PROJECT, outline, temp_dir
                 )
@@ -300,13 +296,7 @@ class MergePptxTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             chapters = []
             for module_id in MERGE_ORDER:
-                outline = (
-                    {"project_type": "metro"}
-                    if module_id == "M1_M2"
-                    else {"case_data": None}
-                    if module_id == "M5"
-                    else {}
-                )
+                outline = outline_for_module(module_id)
                 chapters.append(render_chapter_ppt(module_id, PROJECT, outline, temp_dir))
 
             final_path = Path(temp_dir) / "final.pptx"
@@ -321,13 +311,7 @@ class MergePptxTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             chapters = []
             for module_id in MERGE_ORDER:
-                outline = (
-                    {"project_type": "metro"}
-                    if module_id == "M1_M2"
-                    else {"case_data": None}
-                    if module_id == "M5"
-                    else {}
-                )
+                outline = outline_for_module(module_id)
                 chapters.append(render_chapter_ppt(module_id, PROJECT, outline, temp_dir))
 
             final_path = Path(temp_dir) / "final.pptx"
@@ -339,13 +323,7 @@ class MergePptxTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             chapters = []
             for module_id in MERGE_ORDER:
-                outline = (
-                    {"project_type": "metro"}
-                    if module_id == "M1_M2"
-                    else {"case_data": None}
-                    if module_id == "M5"
-                    else {}
-                )
+                outline = outline_for_module(module_id)
                 chapters.append(render_chapter_ppt(module_id, PROJECT, outline, temp_dir))
 
             final_path = Path(temp_dir) / "final.pptx"
@@ -357,13 +335,7 @@ class MergePptxTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             chapters = []
             for module_id in MERGE_ORDER:
-                outline = (
-                    {"project_type": "metro"}
-                    if module_id == "M1_M2"
-                    else {"case_data": None}
-                    if module_id == "M5"
-                    else {}
-                )
+                outline = outline_for_module(module_id)
                 chapters.append(render_chapter_ppt(module_id, PROJECT, outline, temp_dir))
 
             final_path = Path(temp_dir) / "final.pptx"

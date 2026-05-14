@@ -51,7 +51,7 @@ type ClassificationResult = {
   missing_fields?: string[];
 };
 type TaskState = { project_id: number; task_status: string; status_history: string[] };
-type ReviewForm = { projectType: string; m1m2Template: string; caseId: string; notes: string };
+type ReviewForm = { projectType: string; m1m2Template: string; caseId?: string; notes: string };
 type RecommendedCase = { case_id: number | string; title: string; match_reason?: string; matched_tags?: string[]; source_path?: string };
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
@@ -86,7 +86,7 @@ export default function HomePage() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [uploadedFiles, setUploadedFiles] = useState<StoredFile[]>([]);
   const [classification, setClassification] = useState<ClassificationResult | null>(null);
-  const [reviewForm, setReviewForm] = useState<ReviewForm>({ projectType: "", m1m2Template: "", caseId: "", notes: "" });
+  const [reviewForm, setReviewForm] = useState<ReviewForm>({ projectType: "", m1m2Template: "", caseId: undefined, notes: "" });
   const [m1m2TestFiles, setM1m2TestFiles] = useState<File[]>([]);
   const [m1m2TestProjectName, setM1m2TestProjectName] = useState("M1/M2选择测试项目");
   const [m1m2TestResult, setM1m2TestResult] = useState<ClassificationResult | null>(null);
@@ -97,6 +97,7 @@ export default function HomePage() {
   const [m5TestResult, setM5TestResult] = useState<ClassificationResult | null>(null);
   const [m5TestUploadedFiles, setM5TestUploadedFiles] = useState<StoredFile[]>([]);
   const [m5TestMessage, setM5TestMessage] = useState("请上传项目资料，系统将根据案例库匹配相似案例。");
+  const [uploadSuccess, setUploadSuccess] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("请先创建项目，再统一上传项目资料。");
   const activeStatus = task?.task_status ?? currentProject?.task_status ?? "待上传";
@@ -131,13 +132,26 @@ export default function HomePage() {
     const detectedType = classification?.confirmed_project_type || classification?.detected_project_type || "";
     const templateKey = classification?.template_selection?.M1_M2?.template_key || detectedType;
     const confirmedCaseId = classification?.case_selection?.confirmed_case_id;
-    const firstCaseId = recommendedCases[0]?.case_id;
-    setReviewForm((value) => ({
-      ...value,
-      projectType: value.projectType || detectedType,
-      m1m2Template: value.m1m2Template || templateKey || "",
-      caseId: value.caseId || String(confirmedCaseId ?? firstCaseId ?? ""),
-    }));
+
+    setReviewForm((value) => {
+      // 只有在 caseId 从未设置过（undefined）时才用默认值初始化，
+      // 一旦用户明确选择过（包括空字符串），就不再覆盖。
+      const needsInitCaseId = value.caseId === undefined || value.caseId === null;
+      let newCaseId = value.caseId;
+      if (needsInitCaseId) {
+        // 首次初始化：优先用后端确认的 caseId，其次用推荐列表第一个，均无则为 null（表示暂不选择）
+        newCaseId = confirmedCaseId !== undefined && confirmedCaseId !== null
+          ? String(confirmedCaseId)
+          : (recommendedCases[0]?.case_id !== undefined ? String(recommendedCases[0].case_id) : "");
+      }
+
+      return {
+        ...value,
+        projectType: value.projectType || detectedType || "",
+        m1m2Template: value.m1m2Template || templateKey || "",
+        caseId: newCaseId,
+      };
+    });
   }, [classification, recommendedCases]);
 
   async function createProject(event: FormEvent<HTMLFormElement>) {
@@ -152,13 +166,16 @@ export default function HomePage() {
           project_name: formData.get("project_name") || "中驰智能PPT演示项目",
           project_location: formData.get("project_location") || "",
           owner_unit: formData.get("owner_unit") || "",
+          product_line: formData.get("product_line") || "",
         }),
       });
       setProjects((items) => [project, ...items]);
+      setCurrentProject(project);
       setTask(null);
       setUploadedFiles([]);
+      setUploadSuccess(false);
       setClassification(null);
-      setReviewForm({ projectType: "", m1m2Template: "", caseId: "", notes: "" });
+      setReviewForm({ projectType: "", m1m2Template: "", caseId: undefined, notes: "" });
       setActiveView("projects");
       window.location.hash = "projects";
       setMessage(`项目已创建：${project.project_name}`);
@@ -179,7 +196,9 @@ export default function HomePage() {
       const stored = await requestJson<StoredFile[] | StoredFile>(`/api/projects/${currentProject.project_id}/files`, { method: "POST", body });
       setUploadedFiles(Array.isArray(stored) ? stored : [stored]);
       setCurrentProject(await requestJson<Project>(`/api/projects/${currentProject.project_id}`));
-      setMessage("项目资料已统一上传。");
+      setSelectedFiles([]);
+      setUploadSuccess(true);
+      setMessage("项目资料已统一上传，可点击开始识别资料。");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "统一上传失败");
     } finally {
@@ -217,13 +236,14 @@ export default function HomePage() {
             M5: classification?.template_selection?.M5,
             M6: classification?.template_selection?.M6,
           },
-          confirmed_case_id: reviewForm.caseId ? Number(reviewForm.caseId) : null,
+          confirmed_case_id: reviewForm.caseId || null,
           notes: reviewForm.notes || "前端人工确认",
         }),
       });
       const latest = await requestJson<ClassificationResult>(`/api/projects/${currentProject.project_id}/classification`);
       setClassification(latest);
-      setMessage("人工确认已提交，可启动最终生成。");
+      const caseMsg = reviewForm.caseId ? "" : "（本次不使用 M5 案例）";
+      setMessage(`人工确认已提交${caseMsg}，可启动最终生成。`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "人工确认失败");
     } finally {
@@ -260,6 +280,7 @@ export default function HomePage() {
           project_name: m1m2TestProjectName || "M1/M2选择测试项目",
           project_location: "",
           owner_unit: "",
+          product_line: "",
         }),
       });
       const body = new FormData();
@@ -290,6 +311,7 @@ export default function HomePage() {
           project_name: m5TestProjectName || "M5案例匹配测试项目",
           project_location: "",
           owner_unit: "",
+          product_line: "",
         }),
       });
       const body = new FormData();
@@ -369,6 +391,7 @@ export default function HomePage() {
                       <button className="primaryButton" disabled={busy} onClick={uploadProjectFiles} type="button">统一上传项目资料</button>
                       <button className="secondaryButton" disabled={busy} onClick={analyzeProject} type="button">开始识别资料</button>
                     </div>
+                    {uploadSuccess && <div className="uploadSuccess">上传成功，已上传 {uploadedFiles.length} 个文件</div>}
                   </div>
                   <div className="futureModules"><strong>M3/M4 为后续动态模块，本阶段不生成</strong><span>后续将根据真实设计参数、工程量、用钢量和工期规则动态生成。</span></div>
                 </section>
@@ -421,7 +444,7 @@ export default function HomePage() {
                   <ol className="statusList">{statuses.map((status, index) => <li className={status === activeStatus ? "current" : ""} key={status}><span>{index + 1}</span>{status}</li>)}</ol>
                   <div className="historyBox"><strong>状态历史</strong><span>{statusHistory}</span></div>
                   <p className="messageLine">{message}</p>
-                  <div className="downloadRow"><div><h3>最终文件</h3><p>生成完成后可下载按 M1/M2 → M5 → M6 合并的 PPTX；M3/M4 不参与当前生成链路。</p></div><span className="badge">{activeStatus}</span></div>
+                  <div className="downloadRow"><div><h3>最终文件</h3><p id="finalFileDesc">生成完成后可下载 PPTX</p></div><span className="badge">{activeStatus}</span></div>
                 </section>
               </>
             ) : null}
@@ -435,6 +458,13 @@ export default function HomePage() {
               <label>项目名称<input name="project_name" placeholder="例如：某城市轨道交通声屏障改造项目" /></label>
               <label>项目所在地<input name="project_location" placeholder="例如：南京" /></label>
               <label>建设/业主单位<input name="owner_unit" placeholder="例如：某建设单位" /></label>
+              <label>产品线<select aria-label="产品线" name="product_line" defaultValue="">
+                <option value="">请选择产品线</option>
+                <option value="轨道交通声屏障">轨道交通声屏障</option>
+                <option value="轨交既有线改造">轨交既有线改造</option>
+                <option value="公路声屏障">公路声屏障</option>
+                <option value="铁路声屏障">铁路声屏障</option>
+              </select></label>
               <button className="primaryButton" disabled={busy} type="submit">创建项目</button>
             </form>
           </section>

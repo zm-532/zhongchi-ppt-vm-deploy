@@ -14,7 +14,12 @@ from pptx.util import Inches, Pt
 # =============================================================================
 # 模板路径配置（统一入口，禁止散落硬编码）
 # =============================================================================
-PPT_TEMPLATE_ROOT = Path(r"D:\中驰股份\code\ppt_engine\templates\solution_fixed_modules")
+PPT_TEMPLATE_ROOT = Path(
+    os.environ.get(
+        "ZHONGCHI_PPT_TEMPLATE_ROOT",
+        Path(__file__).resolve().parents[1] / "templates" / "solution_fixed_modules",
+    )
+)
 
 # M1/M2 固定模板映射表：project_type -> 模板文件名
 M1_M2_TEMPLATE_MAP = {
@@ -286,8 +291,10 @@ def render_chapter_ppt(
         return _render_m1_m2_fixed(project_type, project, output_path)
 
     if module_id == "M5":
-        # M5：案例模板填充入口，case_data 可为 None（允许先输出模板章节）
+        # M5：案例模板填充入口，必须有有效的 case_data 才能渲染
         case_data = outline.get("case_data")
+        if not case_data or not case_data.get("case_id"):
+            raise ValueError("未选择 M5 案例，禁止生成 M5 案例模板。")
         return _render_m5_case_template(case_data, project, output_path)
 
     if module_id == "M6":
@@ -407,6 +414,8 @@ def _merge_pptx_with_powerpoint(chapter_paths: list[str | Path], output_path: st
 
         target.SaveAs(str(final_path))
         return True
+    except Exception:
+        return False
     finally:
         for source in reversed(opened_sources):
             try:

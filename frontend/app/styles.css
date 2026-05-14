@@ -605,6 +605,17 @@ select {
   flex-wrap: wrap;
 }
 
+.uploadSuccess {
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-radius: 6px;
+  background: #eef6ff;
+  border: 1px solid #a8c8f0;
+  color: #1a5fb4;
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .historyBox,
 .messageLine,
 .moduleStatus {

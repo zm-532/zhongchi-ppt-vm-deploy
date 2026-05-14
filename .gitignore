@@ -29,6 +29,7 @@ pnpm-debug.log*
 !.env.example
 
 # Runtime data and generated artifacts
+data/mock_db.json
 data/uploads/
 data/outputs/
 data/previews/
@@ -39,3 +40,4 @@ data/parsed_text/
 Thumbs.db
 .vscode/
 .idea/
+.claude/

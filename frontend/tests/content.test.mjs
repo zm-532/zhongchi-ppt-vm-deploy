@@ -102,6 +102,15 @@ test("frontend wires required backend API calls", () => {
   ].forEach((text) => assert.match(source, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))));
 });
 
+test("frontend preserves case id strings and uses backend default port", () => {
+  const source = pageSource();
+
+  assert.match(source, /http:\/\/127\.0\.0\.1:8000/);
+  assert.doesNotMatch(source, /Number\(reviewForm\.caseId\)/);
+  assert.match(source, /confirmed_case_id: reviewForm\.caseId \|\| null/);
+  assert.match(source, /caseId: undefined/);
+});
+
 test("frontend calls backend api for the full demo workflow", () => {
   const source = pageSource();
 
