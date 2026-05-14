@@ -1,0 +1,10 @@
+[project]
+name = "zhongchi-asset-tools"
+version = "0.1.0"
+description = "Asset scanning and fallback matching tools for Zhongchi intelligent PPT demo"
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.uv]
+package = false
+

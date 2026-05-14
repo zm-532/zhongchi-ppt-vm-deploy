@@ -1,0 +1,11 @@
+[project]
+name = "zhongchi-ppt-engine"
+version = "0.1.0"
+description = "python-pptx renderer for Zhongchi intelligent PPT demo"
+requires-python = ">=3.11"
+dependencies = [
+    "python-pptx>=1.0.2",
+]
+
+[tool.uv]
+package = false

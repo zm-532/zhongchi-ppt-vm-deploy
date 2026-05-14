@@ -1,0 +1,10 @@
+[project]
+name = "zhongchi-ppt-workflow"
+version = "0.1.0"
+description = "Replaceable workflow skeleton for Zhongchi intelligent PPT demo"
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.uv]
+package = false
+
