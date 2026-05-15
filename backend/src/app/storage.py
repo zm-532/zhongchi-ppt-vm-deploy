@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
@@ -133,6 +134,24 @@ class JsonStore:
         state = self.load()
         return next((project for project in state["projects"] if project["project_id"] == project_id), None)
 
+    def delete_project(self, project_id: int) -> bool:
+        state = self.load()
+        project_count = len(state["projects"])
+        state["projects"] = [project for project in state["projects"] if project["project_id"] != project_id]
+        if len(state["projects"]) == project_count:
+            return False
+
+        state["files"] = [file_record for file_record in state["files"] if file_record["project_id"] != project_id]
+        for path in (
+            self.uploads_dir / str(project_id),
+            self.data_dir / "parsed_text" / str(project_id),
+            self.data_dir / "outputs" / f"project_{project_id}",
+        ):
+            if path.exists():
+                shutil.rmtree(path)
+        self.save(state)
+        return True
+
     def add_file(self, project_id: int, module_id: str, filename: str, content_type: str, content: bytes) -> dict[str, Any] | None:
         state = self.load()
         project = next((item for item in state["projects"] if item["project_id"] == project_id), None)
@@ -158,6 +177,9 @@ class JsonStore:
             "parse_status": "pending",
             "parsed_text_path": "",
             "error_message": "",
+            "vector_status": "not_indexed",
+            "vector_chunk_count": 0,
+            "vector_error_message": "",
         }
         state["files"].append(file_record)
 
@@ -194,6 +216,9 @@ class JsonStore:
                 "parse_status": "pending",
                 "parsed_text_path": "",
                 "error_message": "",
+                "vector_status": "not_indexed",
+                "vector_chunk_count": 0,
+                "vector_error_message": "",
             }
             state["files"].append(file_record)
             records.append(file_record)
@@ -626,6 +651,173 @@ class JsonStore:
 
     def get_cases(self) -> list[dict[str, Any]]:
         return self.load()["cases"]
+
+    def index_project_vector(
+        self,
+        project_id: int,
+        file_ids: list[int] | None = None,
+    ) -> dict[str, Any]:
+        """
+        Index project files into the vector store after user confirmation.
+
+        Reads parsed text files, chunks them, generates embeddings, and upserts to pgvector.
+        Does NOT write to vector store during analyze_project() - only via this method.
+
+        Args:
+            project_id: The project to index
+            file_ids: Optional list of specific file_ids to index. If None, indexes all
+                     files with parse_status='parsed' and a valid parsed_text_path.
+
+        Returns:
+            Dict with indexing results: indexed_files, indexed_chunks, skipped_files, message
+        """
+        state = self.load()
+        project = next((item for item in state["projects"] if item["project_id"] == project_id), None)
+        if project is None:
+            return {
+                "project_id": project_id,
+                "status": "error",
+                "indexed_files": 0,
+                "indexed_chunks": 0,
+                "skipped_files": [],
+                "message": "项目不存在",
+            }
+
+        # Get files to index
+        all_files = [f for f in state["files"] if f["project_id"] == project_id]
+        skipped_files: list[str] = []
+
+        if file_ids is not None:
+            files_to_index = [f for f in all_files if f["file_id"] in file_ids]
+        else:
+            # Default: all files with parse_status that could yield content for indexing
+            # Only files with parse_status='parsed' can produce content
+            files_to_index = [
+                f for f in all_files
+                if f.get("parse_status") == "parsed" and f.get("parsed_text_path")
+            ]
+            # Also track files that will be skipped (not parsed) for reporting
+            for f in all_files:
+                if f not in files_to_index:
+                    ps = f.get("parse_status", "unknown")
+                    skipped_files.append(f["filename"])
+                    f["vector_status"] = "skipped"
+                    f["vector_error_message"] = f"跳过：parse_status={ps}"
+
+        indexed_files = 0
+        indexed_chunks = 0
+
+        # Import here to avoid circular imports and handle optional pgvector
+        from .chunking import chunk_text
+        from .embedding import create_embedding_provider
+        from .vector_service import ChunkMetadata, get_vector_store
+
+        vector_store = get_vector_store()
+        embedding_provider = create_embedding_provider()
+        vector_enabled = vector_store.is_available()
+
+        for file_record in files_to_index:
+            parse_status = file_record.get("parse_status", "")
+            # Skip non-parsed files
+            if parse_status not in ("parsed",):
+                skipped_files.append(file_record["filename"])
+                file_record["vector_status"] = "skipped"
+                file_record["vector_error_message"] = f"跳过：parse_status={parse_status}"
+                continue
+
+            parsed_text_path = file_record.get("parsed_text_path")
+            if not parsed_text_path or not Path(parsed_text_path).exists():
+                skipped_files.append(file_record["filename"])
+                file_record["vector_status"] = "skipped"
+                file_record["vector_error_message"] = "跳过：无 parsed_text_path 或文件不存在"
+                continue
+
+            try:
+                text = Path(parsed_text_path).read_text(encoding="utf-8", errors="ignore")
+            except OSError as exc:
+                file_record["vector_status"] = "failed"
+                file_record["vector_error_message"] = f"读取失败：{exc}"
+                skipped_files.append(file_record["filename"])
+                continue
+
+            if not text or not text.strip():
+                skipped_files.append(file_record["filename"])
+                file_record["vector_status"] = "skipped"
+                file_record["vector_error_message"] = "跳过：解析文本为空"
+                continue
+
+            # Chunk the text
+            chunks = chunk_text(text)
+            if not chunks:
+                skipped_files.append(file_record["filename"])
+                file_record["vector_status"] = "skipped"
+                file_record["vector_error_message"] = "跳过：切块结果为空"
+                continue
+
+            # Generate embeddings
+            try:
+                embeddings = embedding_provider.embed(chunks)
+            except Exception as exc:
+                file_record["vector_status"] = "failed"
+                file_record["vector_error_message"] = f"Embedding 失败：{exc}"
+                skipped_files.append(file_record["filename"])
+                continue
+
+            # Build metadata for each chunk
+            metadata: list[ChunkMetadata] = []
+            for idx, chunk in enumerate(chunks):
+                meta = ChunkMetadata(
+                    filename=file_record["filename"],
+                    source_path=file_record.get("stored_path", ""),
+                    document_role=file_record.get("document_role", "unknown"),
+                    assigned_modules=file_record.get("assigned_modules", []),
+                    chunk_index=idx,
+                    project_id=project_id,
+                    file_id=file_record["file_id"],
+                    doc_type="project",
+                )
+                metadata.append(meta)
+
+            # Upsert to vector store
+            if vector_enabled:
+                try:
+                    inserted = vector_store.upsert(chunks, embeddings, metadata)
+                    file_record["vector_status"] = "indexed"
+                    file_record["vector_chunk_count"] = inserted
+                    file_record["vector_error_message"] = ""
+                    indexed_files += 1
+                    indexed_chunks += inserted
+                except Exception as exc:
+                    file_record["vector_status"] = "failed"
+                    file_record["vector_error_message"] = str(exc)
+                    skipped_files.append(file_record["filename"])
+                    continue
+            else:
+                # Vector store not available - do NOT count as indexed, mark as not_indexed
+                file_record["vector_status"] = "not_indexed"
+                file_record["vector_chunk_count"] = len(chunks)
+                file_record["vector_error_message"] = "向量库未配置（ZHONGCHI_VECTOR_DSN 未设置）"
+                # Add to skipped so frontend knows nothing was actually stored
+                skipped_files.append(file_record["filename"])
+                # Do NOT increment indexed_files/indexed_chunks
+
+        self.save(state)
+
+        if vector_enabled:
+            message = "已存入向量库"
+            status = "indexed"
+        else:
+            message = "向量库未配置（ZHONGCHI_VECTOR_DSN 未设置），本次未实际入库"
+            status = "not_configured"
+
+        return {
+            "project_id": project_id,
+            "status": status,
+            "indexed_files": indexed_files,
+            "indexed_chunks": indexed_chunks,
+            "skipped_files": skipped_files,
+            "message": message,
+        }
 
 
 def get_store() -> JsonStore:

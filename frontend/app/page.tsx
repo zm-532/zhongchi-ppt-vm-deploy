@@ -18,7 +18,7 @@ const m1m2Templates = [
   { value: "railway", label: "铁路声屏障行业背景与技术发展（M1_&_M2）.pptx" },
 ];
 
-type ViewId = "projects" | "create" | "cases" | "m1m2-test" | "m5-test";
+type ViewId = "projects" | "create" | "cases" | "m1m2-test" | "m5-test" | "document-parse-test";
 type Project = {
   project_id: number;
   project_name: string;
@@ -53,19 +53,29 @@ type ClassificationResult = {
 type TaskState = { project_id: number; task_status: string; status_history: string[] };
 type ReviewForm = { projectType: string; m1m2Template: string; caseId?: string; notes: string };
 type RecommendedCase = { case_id: number | string; title: string; match_reason?: string; matched_tags?: string[]; source_path?: string };
+type DocumentParseSlide = { slide_index?: number; sheet_name?: string; title?: string; rows?: number; columns?: number; preview_rows?: string[][]; texts?: string[]; text?: string };
+type DocumentParseTestResult = {
+  filename: string; suffix: string; content_type: string; parse_status: string;
+  document_role: string; assigned_modules: string[]; text: string;
+  text_preview: string; sections: string[]; tables: Array<Record<string, unknown>>;
+  slides: DocumentParseSlide[]; metadata: Record<string, unknown>; error_message: string;
+};
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
+const PROJECT_LIST_PREVIEW_LIMIT = 10;
 const viewTitles: Record<ViewId, { title: string; description: string }> = {
   projects: { title: "我的项目", description: "创建项目、统一上传项目资料，并确认系统识别结果。" },
   create: { title: "新建项目", description: "填写基础信息后创建一个新的售前 PPT 项目。" },
   cases: { title: "案例库管理", description: "维护历史案例，供系统按项目标签推荐引用。" },
   "m1m2-test": { title: "M1/M2选择测试", description: "上传测试资料，根据文件名和解析文本识别项目类型并选择对应 M1/M2 固化模板。" },
   "m5-test": { title: "M5选择测试", description: "上传测试资料，根据项目标签从案例库匹配相似案例并显示匹配理由。" },
+  "document-parse-test": { title: "文档解析测试", description: "用于测试不同格式资料的文本与结构化解析效果。" },
 };
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, init);
   if (!response.ok) throw new Error(await response.text());
+  if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
 
@@ -97,11 +107,19 @@ export default function HomePage() {
   const [m5TestResult, setM5TestResult] = useState<ClassificationResult | null>(null);
   const [m5TestUploadedFiles, setM5TestUploadedFiles] = useState<StoredFile[]>([]);
   const [m5TestMessage, setM5TestMessage] = useState("请上传项目资料，系统将根据案例库匹配相似案例。");
+  const [documentParseTestFiles, setDocumentParseTestFiles] = useState<File[]>([]);
+  const [documentParseTestResults, setDocumentParseTestResults] = useState<DocumentParseTestResult[]>([]);
+  const [documentParseTestMessage, setDocumentParseTestMessage] = useState("请上传文件以测试解析效果。");
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("请先创建项目，再统一上传项目资料。");
+  const [projectListExpanded, setProjectListExpanded] = useState(false);
+  const [isManagingProjects, setIsManagingProjects] = useState(false);
+  const [selectedProjectIds, setSelectedProjectIds] = useState<number[]>([]);
   const activeStatus = task?.task_status ?? currentProject?.task_status ?? "待上传";
   const recommendedCases = useMemo(() => classification?.case_selection?.recommended_cases ?? [], [classification]);
+  const hasMoreProjects = projects.length > PROJECT_LIST_PREVIEW_LIMIT;
+  const visibleProjects = projectListExpanded ? projects : projects.slice(0, PROJECT_LIST_PREVIEW_LIMIT);
 
   const statusHistory = useMemo(
     () => (task?.status_history ?? currentProject?.status_history ?? ["待上传"]).join(" -> "),
@@ -111,7 +129,7 @@ export default function HomePage() {
   useEffect(() => {
     function syncViewFromHash() {
       const nextView = window.location.hash.replace("#", "");
-      setActiveView(nextView === "create" || nextView === "cases" || nextView === "m1m2-test" || nextView === "m5-test" ? nextView : "projects");
+      setActiveView(nextView === "create" || nextView === "cases" || nextView === "m1m2-test" || nextView === "m5-test" || nextView === "document-parse-test" ? nextView : "projects");
     }
 
     syncViewFromHash();
@@ -267,6 +285,61 @@ export default function HomePage() {
     }
   }
 
+  async function saveToVectorStore() {
+    if (!currentProject) return setMessage("请先创建项目。");
+    setBusy(true);
+    try {
+      const result = await requestJson<{ status: string; indexed_files: number; indexed_chunks: number; skipped_files: string[]; message: string }>(
+        `/api/projects/${currentProject.project_id}/vector-index`,
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) }
+      );
+      if (result.status === "not_configured") {
+        setMessage(result.message || "向量库未配置（ZHONGCHI_VECTOR_DSN 未设置），未实际入库。");
+      } else if (result.status === "error" || (result.indexed_chunks === 0 && result.skipped_files.length > 0)) {
+        setMessage("当前没有可存入向量库的解析文本。");
+      } else {
+        setMessage(`已存入向量库：${result.indexed_files} 个文件，${result.indexed_chunks} 个文本块。`);
+      }
+      // Refresh current project to get updated vector_status
+      setCurrentProject(await requestJson<Project>(`/api/projects/${currentProject.project_id}`));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "存入向量库失败");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function toggleProjectManagement() {
+    setIsManagingProjects((value) => !value);
+    setSelectedProjectIds([]);
+  }
+
+  function toggleProjectSelection(projectId: number) {
+    setSelectedProjectIds((ids) => (ids.includes(projectId) ? ids.filter((id) => id !== projectId) : [...ids, projectId]));
+  }
+
+  async function deleteSelectedProjects() {
+    if (selectedProjectIds.length === 0) return setMessage("请先选择要删除的项目。");
+    setBusy(true);
+    try {
+      const idsToDelete = [...selectedProjectIds];
+      await Promise.all(idsToDelete.map((projectId) => requestJson(`/api/projects/${projectId}`, { method: "DELETE" })));
+      const remainingProjects = projects.filter((project) => !idsToDelete.includes(project.project_id));
+      setProjects(remainingProjects);
+      setSelectedProjectIds([]);
+      if (currentProject && idsToDelete.includes(currentProject.project_id)) {
+        setCurrentProject(remainingProjects[0] ?? null);
+        setTask(null);
+        setClassification(null);
+      }
+      setMessage(`已删除 ${idsToDelete.length} 个项目。`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "删除项目失败");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function runM1M2TemplateTest() {
     if (m1m2TestFiles.length === 0) return setM1m2TestMessage("请先选择一个或多个测试资料文件。");
     setBusy(true);
@@ -334,6 +407,23 @@ export default function HomePage() {
     }
   }
 
+  async function runDocumentParseTest() {
+    if (documentParseTestFiles.length === 0) return setDocumentParseTestMessage("请先选择要测试的文件。");
+    setBusy(true);
+    setDocumentParseTestResults([]);
+    try {
+      const body = new FormData();
+      documentParseTestFiles.forEach((file) => body.append("files", file));
+      const results = await requestJson<DocumentParseTestResult[]>("/api/document-parse-test", { method: "POST", body });
+      setDocumentParseTestResults(results);
+      setDocumentParseTestMessage(`解析完成，共 ${results.length} 个文件。`);
+    } catch (error) {
+      setDocumentParseTestMessage(error instanceof Error ? error.message : "解析测试失败");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function downloadFinal() {
     if (!currentProject) return setMessage("请先创建项目。");
     window.location.href = `${API_BASE}/api/projects/${currentProject.project_id}/download`;
@@ -351,17 +441,39 @@ export default function HomePage() {
           <a className={activeView === "cases" ? "navItem active" : "navItem"} href="#cases">案例库管理</a>
           <a className={activeView === "m1m2-test" ? "navItem active" : "navItem"} href="#m1m2-test">M1/M2选择测试</a>
           <a className={activeView === "m5-test" ? "navItem active" : "navItem"} href="#m5-test">M5选择测试</a>
+          <a className={activeView === "document-parse-test" ? "navItem active" : "navItem"} href="#document-parse-test">文档解析测试</a>
         </nav>
       </aside>
       <section className="content">
-        <header className="topbar"><div><h1>{pageTitle.title}</h1><p>{pageTitle.description}</p></div>{activeView === "projects" ? <a className="primaryButton" href="#create">新建项目</a> : null}</header>
+        <header className="topbar"><div><h1>{pageTitle.title}</h1><p>{pageTitle.description}</p></div>{activeView === "projects" ? <div className="topbarActions"><button className="secondaryButton" onClick={toggleProjectManagement} type="button">{isManagingProjects ? "取消管理" : "管理项目"}</button><a className="primaryButton" href="#create">新建项目</a></div> : null}</header>
 
         {activeView === "projects" ? (
           <>
             <section id="projects" className="section">
               <div className="sectionHeader"><h2>项目列表</h2><span className="badge">{projects.length ? `${projects.length} 个项目` : "Demo 数据"}</span></div>
               {projects.length === 0 ? <div className="emptyState"><div className="emptyIcon" aria-hidden="true">+</div><h3>还没有任何项目</h3><p>点击右上角新建项目，填写基础信息后即可进入资料上传。</p><a className="secondaryButton" href="#create">创建第一个项目</a></div> : (
-                <div className="projectList">{projects.map((project) => <button className={currentProject?.project_id === project.project_id ? "projectItem selected" : "projectItem"} key={project.project_id} onClick={() => { setCurrentProject(project); setTask(null); setClassification(null); }} type="button"><strong>{project.project_name}</strong><span>{project.task_status}</span></button>)}</div>
+                <>
+                  {isManagingProjects ? (
+                    <div className="projectManageBar"><span>已选择 {selectedProjectIds.length} 个项目</span><button className="dangerButton" disabled={busy || selectedProjectIds.length === 0} onClick={deleteSelectedProjects} type="button">删除选中</button></div>
+                  ) : null}
+                  <div className="projectList">{visibleProjects.map((project) => isManagingProjects ? (
+                    <label className={selectedProjectIds.includes(project.project_id) ? "projectItem manageItem selected" : "projectItem manageItem"} key={project.project_id}>
+                      <input checked={selectedProjectIds.includes(project.project_id)} onChange={() => toggleProjectSelection(project.project_id)} type="checkbox" />
+                      <strong>{project.project_name}</strong>
+                      <span>{project.task_status}</span>
+                    </label>
+                  ) : (
+                    <button className={currentProject?.project_id === project.project_id ? "projectItem selected" : "projectItem"} key={project.project_id} onClick={() => { setCurrentProject(project); setTask(null); setClassification(null); }} type="button"><strong>{project.project_name}</strong><span>{project.task_status}</span></button>
+                  ))}</div>
+                  {hasMoreProjects ? (
+                    <div className="projectListFooter">
+                      <span>{projectListExpanded ? `已显示全部 ${projects.length} 个项目` : `已显示前 ${PROJECT_LIST_PREVIEW_LIMIT} 个，共 ${projects.length} 个项目`}</span>
+                      <button className="secondaryButton" onClick={() => setProjectListExpanded((value) => !value)} type="button">
+                        {projectListExpanded ? "收起" : "显示更多"}
+                      </button>
+                    </div>
+                  ) : null}
+                </>
               )}
             </section>
 
@@ -433,6 +545,9 @@ export default function HomePage() {
                         <label>确认备注<input value={reviewForm.notes} onChange={(event) => setReviewForm((value) => ({ ...value, notes: event.target.value }))} placeholder="可填写模板或案例调整原因" /></label>
                         <button className="primaryButton" disabled={busy} type="submit">提交人工确认</button>
                       </form>
+                      <div className="actions" style={{ marginTop: "1rem" }}>
+                        <button className="secondaryButton" disabled={busy} onClick={saveToVectorStore} type="button">确认存入向量库</button>
+                      </div>
                     </>
                   ) : (
                     <div className="emptyState compact"><h3>等待系统识别</h3><p>统一上传项目资料后，点击开始识别资料，即可在此确认项目类型、模板选择、案例选择和缺失字段。</p></div>
@@ -456,9 +571,9 @@ export default function HomePage() {
             <div className="sectionHeader"><h2>新建项目</h2><span className="badge">基础信息</span></div>
             <form className="projectForm" onSubmit={createProject}>
               <label>项目名称<input name="project_name" placeholder="例如：某城市轨道交通声屏障改造项目" /></label>
-              <label>项目所在地<input name="project_location" placeholder="例如：南京" /></label>
-              <label>建设/业主单位<input name="owner_unit" placeholder="例如：某建设单位" /></label>
-              <label>产品线<select aria-label="产品线" name="product_line" defaultValue="">
+              <label>项目所在地（可选）<input name="project_location" placeholder="例如：南京" /></label>
+              <label>建设/业主单位（可选）<input name="owner_unit" placeholder="例如：某建设单位" /></label>
+              <label>产品线（可选）<select aria-label="产品线" name="product_line" defaultValue="">
                 <option value="">请选择产品线</option>
                 <option value="轨道交通声屏障">轨道交通声屏障</option>
                 <option value="轨交既有线改造">轨交既有线改造</option>
@@ -615,14 +730,14 @@ export default function HomePage() {
                         <strong>匹配标签：</strong>
                         {caseItem.matched_tags && caseItem.matched_tags.length > 0 ? (
                           caseItem.matched_tags.map((tag, tagIndex) => (
-                            <span key={tagIndex} style={{ marginLeft: "4px", padding: "2px 8px", background: "#eef6ff", borderRadius: "4px", fontSize: "12px" }}>{tag}</span>
+                            <span className="caseTag" key={tagIndex}>{tag}</span>
                           ))
                         ) : (
                           <span>暂无标签</span>
                         )}
                       </div>
                       {caseItem.source_path && (
-                        <p style={{ fontSize: "12px", color: "#65748b", marginTop: "4px" }}><strong>来源路径：</strong>{caseItem.source_path}</p>
+                        <p className="sourcePath"><strong>来源路径：</strong>{caseItem.source_path}</p>
                       )}
                     </article>
                   ))}
@@ -636,14 +751,14 @@ export default function HomePage() {
             )}
 
             {m5TestResult?.case_selection?.status && (
-              <div style={{ marginTop: "12px", padding: "8px 12px", background: m5TestResult.case_selection.status === "matched" ? "#eef6ff" : "#fff8e6", borderRadius: "6px", fontSize: "13px" }}>
+              <div className={m5TestResult.case_selection.status === "matched" ? "matchStatus matched" : "matchStatus"}>
                 <strong>案例匹配状态：</strong>{m5TestResult.case_selection.status}
                 {m5TestResult.case_selection.message && <span> - {m5TestResult.case_selection.message}</span>}
               </div>
             )}
 
             {m5TestResult?.detection_evidence && m5TestResult.detection_evidence.length > 0 && (
-              <div className="evidencePanel" style={{ marginTop: "16px" }}>
+              <div className="evidencePanel spaced">
                 <div className="sectionHeader">
                   <h3>判断依据</h3>
                   <span className="badge">detection_evidence</span>
@@ -661,6 +776,110 @@ export default function HomePage() {
                 </div>
               </div>
             )}
+          </section>
+        ) : null}
+
+        {activeView === "document-parse-test" ? (
+          <section id="document-parse-test" className="section">
+            <div className="sectionHeader">
+              <h2>文档解析测试</h2>
+              <span className="badge">多格式解析验证</span>
+            </div>
+            <div className="testPanel">
+              <label className="uploadBox">
+                <span>选择测试文件</span>
+                <input
+                  name="document_parse_test_files"
+                  type="file"
+                  multiple
+                  accept=".txt,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg,.dwg,.dxf"
+                  onChange={(event) => setDocumentParseTestFiles(Array.from(event.target.files ?? []))}
+                />
+              </label>
+              <div className="fileList">
+                {documentParseTestFiles.map((file) => <span key={file.name}>{file.name}</span>)}
+              </div>
+              <button className="primaryButton" disabled={busy} onClick={runDocumentParseTest} type="button">开始解析测试</button>
+              <p className="messageLine">{documentParseTestMessage}</p>
+            </div>
+
+            {documentParseTestResults.length > 0 ? (
+              <div className="parseTestResults">
+                {documentParseTestResults.map((result, index) => (
+                  <article className="parseResultCard" key={index}>
+                    <div className="parseResultHeader">
+                      <strong>{result.filename}</strong>
+                      <span className="badge">{result.suffix}</span>
+                      <span className={`parseStatus ${result.parse_status}`}>{result.parse_status}</span>
+                      {result.parse_status === "pending_enhancement" && <span className="badge warn">pending_enhancement</span>}
+                      {result.parse_status === "pending_ocr" && <span className="badge warn">pending_ocr</span>}
+                    </div>
+                    <div className="parseResultMeta">
+                      <span>资料角色: {result.document_role}</span>
+                      <span>可服务模块: {result.assigned_modules.join(", ") || "暂无"}</span>
+                      <span>Content-Type: {result.content_type}</span>
+                    </div>
+                    {result.error_message ? (
+                      <div className={`parseError ${result.parse_status}`}>{result.error_message}</div>
+                    ) : null}
+                    {result.text ? (
+                      <div className="parseTextPreview">
+                        <strong>解析文本</strong>
+                        <pre className="parseTextBox">{result.text.length > 2000 ? result.text.slice(0, 2000) + "\n...(已截断)" : result.text}</pre>
+                        <div className="parseStats">
+                          <span>字符数: {result.text.length}</span>
+                          <span>行数: {result.sections?.length || result.text.split("\n").length}</span>
+                        </div>
+                      </div>
+                    ) : null}
+                    {result.slides && result.slides.length > 0 ? (
+                      <div className="parseSlides">
+                        <strong>结构化结果 ({result.slides.length} 项):</strong>
+                        {result.slides.map((slide: DocumentParseSlide, slideIdx: number) => (
+                          <div key={slideIdx} className={`slideItem ${slide.title ? "hasTitle" : ""}`}>
+                            <div className="slideItemHeader">
+                              <span className="slideIndex">{slideIdx + 1}</span>
+                              {slide.sheet_name ? <span className="sheetName">{slide.sheet_name}</span> : null}
+                              {slide.title ? <strong className="slideTitle">{slide.title}</strong> : null}
+                              {slide.rows !== undefined ? <span className="slideMeta">行{slide.rows} × 列{slide.columns}</span> : null}
+                            </div>
+                            {slide.preview_rows && slide.preview_rows.length > 0 ? (
+                              <div className="tableScrollWrapper">
+                                <table className="previewTable">
+                                  <tbody>
+                                    {slide.preview_rows.slice(0, 10).map((row: string[], rowIdx: number) => (
+                                      <tr key={rowIdx}>
+                                        <td className="rowNum">{rowIdx + 1}</td>
+                                        {row.map((cell: string, cellIdx: number) => <td key={cellIdx}>{cell}</td>)}
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            ) : null}
+                            {slide.texts && slide.texts.length > 0 ? (
+                              <div className="slideTexts">
+                                {slide.texts.slice(0, 10).map((t: string, i: number) => <p key={i} className="slideTextItem">{t}</p>)}
+                              </div>
+                            ) : null}
+                            {slide.text ? <p className="slideTextItem">{slide.text}</p> : null}
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                    {result.sections && result.sections.length > 0 ? (
+                      <div className="parseSections">
+                        <strong>段落/行预览</strong>
+                        <ul className="sectionsList">
+                          {result.sections.slice(0, 20).map((sec: string, i: number) => <li key={i}>{sec}</li>)}
+                        </ul>
+                        {result.sections.length > 20 ? <p className="sectionsMore">... 共 {result.sections.length} 条</p> : null}
+                      </div>
+                    ) : null}
+                  </article>
+                ))}
+              </div>
+            ) : null}
           </section>
         ) : null}
       </section>

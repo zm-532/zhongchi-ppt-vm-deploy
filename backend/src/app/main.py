@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
 from .constants import ALLOWED_EXTENSIONS, ALLOWED_MODULE_IDS, PROJECT_TYPES
-from .schemas import ClassificationResult, ClassificationReviewRequest, Project, ProjectCreate, ReviewRequest, StoredFile
+from .schemas import ClassificationResult, ClassificationReviewRequest, DocumentParseTestResult, Project, ProjectCreate, ReviewRequest, StoredFile, VectorIndexRequest, VectorIndexResponse
 from .storage import get_store
 
 app = FastAPI(title="中驰智能PPT Demo API")
@@ -62,6 +62,13 @@ def get_project(project_id: int) -> dict:
     if project is None:
         raise HTTPException(status_code=404, detail="项目不存在")
     return project
+
+
+@app.delete("/api/projects/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_project(project_id: int) -> None:
+    deleted = get_store().delete_project(project_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="项目不存在")
 
 
 @app.post("/api/projects/{project_id}/modules/{module_id}/files", response_model=StoredFile, status_code=status.HTTP_201_CREATED)
@@ -162,6 +169,29 @@ def review_project(project_id: int, payload: ReviewRequest) -> dict:
     return {"project_id": project_id, "task_status": project["task_status"], "status_history": project["status_history"], "modules": project["modules"]}
 
 
+@app.post("/api/projects/{project_id}/vector-index", response_model=VectorIndexResponse)
+def index_project_vector(project_id: int, payload: VectorIndexRequest | None = None) -> dict:
+    """
+    Index parsed project files into the vector store.
+
+    This endpoint is called after user confirmation. It reads parsed text files,
+    generates chunks and embeddings, and stores them in pgvector.
+
+    If file_ids is not provided in the request body, all files with parse_status='parsed'
+    and a valid parsed_text_path will be indexed.
+
+    Vector store must be configured via ZHONGCHI_VECTOR_DSN. If not configured,
+    the endpoint returns an error but does not block the main flow.
+    """
+    file_ids = payload.file_ids if payload else None
+    result = get_store().index_project_vector(project_id, file_ids)
+
+    if result["status"] == "error" and "项目不存在" in result.get("message", ""):
+        raise HTTPException(status_code=404, detail=result["message"])
+
+    return result
+
+
 @app.get("/api/projects/{project_id}/download")
 def download_project(project_id: int) -> FileResponse:
     project = get_store().get_project(project_id)
@@ -183,6 +213,337 @@ def list_assets(module_id: str | None = None) -> list[dict]:
 @app.get("/api/cases")
 def list_cases() -> list[dict]:
     return get_store().get_cases()
+
+
+@app.post("/api/document-parse-test", response_model=list[DocumentParseTestResult], status_code=status.HTTP_200_OK)
+async def document_parse_test(files: list[UploadFile] = File(...)) -> list[dict]:
+    from .document_analysis import analyze_document, classify_document
+    from .storage import get_store
+    import tempfile
+    from pathlib import Path
+
+    results: list[dict] = []
+    store = get_store()
+
+    for file in files:
+        filename = file.filename or "upload"
+        suffix = Path(filename).suffix.lower()
+        content_type = file.content_type or "application/octet-stream"
+
+        # Check extension
+        if suffix not in ALLOWED_EXTENSIONS:
+            results.append({
+                "filename": filename,
+                "suffix": suffix,
+                "content_type": content_type,
+                "parse_status": "failed",
+                "document_role": "unknown",
+                "assigned_modules": [],
+                "text": "",
+                "text_preview": "",
+                "sections": [],
+                "tables": [],
+                "slides": [],
+                "metadata": {},
+                "error_message": f"不支持的文件类型: {suffix}",
+            })
+            continue
+
+        # Read file content
+        try:
+            content = await file.read()
+        except Exception as exc:
+            results.append({
+                "filename": filename,
+                "suffix": suffix,
+                "content_type": content_type,
+                "parse_status": "failed",
+                "document_role": "unknown",
+                "assigned_modules": [],
+                "text": "",
+                "text_preview": "",
+                "sections": [],
+                "tables": [],
+                "slides": [],
+                "metadata": {},
+                "error_message": f"文件读取失败: {exc}",
+            })
+            continue
+
+        # Handle pending_enhancement types (images, CAD)
+        if suffix in {".png", ".jpg", ".jpeg", ".dwg", ".dxf"}:
+            context_text = ""
+            role, modules = classify_document(filename, "", context_text)
+            results.append({
+                "filename": filename,
+                "suffix": suffix,
+                "content_type": content_type,
+                "parse_status": "pending_enhancement",
+                "document_role": role,
+                "assigned_modules": modules,
+                "text": "",
+                "text_preview": "",
+                "sections": [],
+                "tables": [],
+                "slides": [],
+                "metadata": {"original_size_bytes": len(content)},
+                "error_message": "图片和 CAD 文件当前返回 pending_enhancement，不接入大模型，不编造内容。",
+            })
+            continue
+
+        # Save to temp file for parsing
+        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+            tmp.write(content)
+            tmp_path = tmp.name
+
+        try:
+            analysis = analyze_document(filename, tmp_path)
+
+            text_preview = analysis.extracted_text[:200] if analysis.extracted_text else ""
+
+            # Extract sections/tables/slides based on file type
+            sections: list[str] = []
+            tables: list[dict] = []
+            slides: list[dict] = []
+
+            if suffix == ".txt":
+                text = analysis.extracted_text
+                sections = [line.strip() for line in text.split("\n") if line.strip()][:50]
+
+            elif suffix == ".pdf":
+                text = analysis.extracted_text
+                sections = [line.strip() for line in text.split("\n") if line.strip()][:50]
+                if not text.strip():
+                    results.append({
+                        "filename": filename,
+                        "suffix": suffix,
+                        "content_type": content_type,
+                        "parse_status": "pending_ocr",
+                        "document_role": analysis.document_role,
+                        "assigned_modules": analysis.assigned_modules,
+                        "text": "",
+                        "text_preview": "",
+                        "sections": [],
+                        "tables": [],
+                        "slides": [],
+                        "metadata": {"original_size_bytes": len(content)},
+                        "error_message": "疑似扫描件或图片型 PDF，无法提取可复制文本。",
+                    })
+                    continue
+
+            elif suffix == ".docx":
+                text = analysis.extracted_text
+                sections = [line.strip() for line in text.split("\n") if line.strip()][:50]
+                # Extract tables from docx - tables are in word/document.xml as w:tbl elements
+                import zipfile
+                from xml.etree import ElementTree
+                try:
+                    with zipfile.ZipFile(tmp_path) as z:
+                        if "word/document.xml" in z.namelist():
+                            doc_xml = z.read("word/document.xml").decode("utf-8", errors="ignore")
+                            doc_root = ElementTree.fromstring(doc_xml)
+                            ns = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+                            for tbl in doc_root.iter(f"{ns}tbl"):
+                                table_texts = []
+                                for t in tbl.iter(f"{ns}t"):
+                                    if t.text and t.text.strip():
+                                        table_texts.append(t.text.strip())
+                                if table_texts:
+                                    tables.append({"table_index": len(tables), "text": " ".join(table_texts[:100])})
+                except Exception:
+                    pass
+
+            elif suffix == ".doc":
+                # fallback for old .doc format
+                text = analysis.extracted_text
+                results.append({
+                    "filename": filename,
+                    "suffix": suffix,
+                    "content_type": content_type,
+                    "parse_status": "parsed",
+                    "document_role": analysis.document_role,
+                    "assigned_modules": analysis.assigned_modules,
+                    "text": text,
+                    "text_preview": text_preview,
+                    "sections": [line.strip() for line in text.split("\n") if line.strip()][:50],
+                    "tables": [],
+                    "slides": [],
+                    "metadata": {"original_size_bytes": len(content)},
+                    "error_message": ".doc 老格式解析能力有限，仅提取了部分文本。",
+                })
+                continue
+
+            elif suffix == ".xlsx":
+                import zipfile
+                from xml.etree import ElementTree
+                text_parts: list[str] = []
+                try:
+                    with zipfile.ZipFile(tmp_path) as z:
+                        # Get shared strings
+                        shared_strings: list[str] = []
+                        if "xl/sharedStrings.xml" in z.namelist():
+                            ss_xml = z.read("xl/sharedStrings.xml").decode("utf-8", errors="ignore")
+                            ss_root = ElementTree.fromstring(ss_xml)
+                            for si in ss_root:
+                                t_texts = []
+                                for t in si.iter():
+                                    if t.text:
+                                        t_texts.append(t.text)
+                                shared_strings.append("".join(t_texts))
+
+                        # Get real sheet names from workbook.xml
+                        sheet_name_map: dict[int, str] = {}
+                        if "xl/workbook.xml" in z.namelist():
+                            wb_xml = z.read("xl/workbook.xml").decode("utf-8", errors="ignore")
+                            wb_root = ElementTree.fromstring(wb_xml)
+                            ns = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
+                            for idx, sheet in enumerate(wb_root.iter(f"{ns}sheet")):
+                                name = sheet.get("name", f"Sheet{idx + 1}")
+                                sheet_name_map[idx + 1] = name
+                        else:
+                            for i in range(1, 20):
+                                sheet_name_map[i] = f"Sheet{i}"
+
+                        # Get sheet files
+                        sheet_files = sorted([n for n in z.namelist() if n.startswith("xl/worksheets/sheet") and n.endswith(".xml")])
+                        for idx, sheet_file in enumerate(sheet_files):
+                            sheet_xml = z.read(sheet_file).decode("utf-8", errors="ignore")
+                            sheet_root = ElementTree.fromstring(sheet_xml)
+                            rows_data: list[list[str]] = []
+                            for row in sheet_root.iter("{http://schemas.openxmlformats.org/spreadsheetml/2006/main}row"):
+                                row_cells = []
+                                for cell in row:
+                                    cell_type = cell.get("t", "")
+                                    v = cell.find("{http://schemas.openxmlformats.org/spreadsheetml/2006/main}v")
+                                    if v is not None and v.text is not None:
+                                        if cell_type == "s":
+                                            try:
+                                                row_cells.append(shared_strings[int(v.text)])
+                                            except (ValueError, IndexError):
+                                                row_cells.append(v.text)
+                                        else:
+                                            row_cells.append(v.text)
+                                    else:
+                                        row_cells.append("")
+                                rows_data.append(row_cells)
+
+                            preview_rows = rows_data[:20] if rows_data else []
+                            sheet_name = sheet_name_map.get(idx + 1, f"Sheet{idx + 1}")
+                            sheet_text = " ".join([" | ".join(row) for row in rows_data])
+                            text_parts.append(f"[{sheet_name}] {sheet_text}")
+
+                            slides.append({
+                                "sheet_index": idx + 1,
+                                "sheet_name": sheet_name,
+                                "rows": len(rows_data),
+                                "columns": len(rows_data[0]) if rows_data else 0,
+                                "preview_rows": preview_rows,
+                                "text": sheet_text[:500],
+                            })
+                except Exception as exc:
+                    pass
+
+                text = " ".join(text_parts) if text_parts else analysis.extracted_text
+
+            elif suffix == ".xls":
+                results.append({
+                    "filename": filename,
+                    "suffix": suffix,
+                    "content_type": content_type,
+                    "parse_status": "pending_enhancement",
+                    "document_role": analysis.document_role,
+                    "assigned_modules": analysis.assigned_modules,
+                    "text": analysis.extracted_text,
+                    "text_preview": analysis.extracted_text[:200],
+                    "sections": [],
+                    "tables": [],
+                    "slides": [],
+                    "metadata": {"original_size_bytes": len(content)},
+                    "error_message": ".xls 老格式当前返回 pending_enhancement，不支持结构化解析。",
+                })
+                continue
+
+            elif suffix == ".pptx":
+                import zipfile
+                from xml.etree import ElementTree
+                try:
+                    with zipfile.ZipFile(tmp_path) as z:
+                        slide_files = sorted([n for n in z.namelist() if n.startswith("ppt/slides/slide") and n.endswith(".xml")])
+                        for idx, slide_file in enumerate(slide_files):
+                            xml_content = z.read(slide_file).decode("utf-8", errors="ignore")
+                            root = ElementTree.fromstring(xml_content)
+                            texts = []
+                            for t in root.iter():
+                                if t.text and t.text.strip():
+                                    texts.append(t.text.strip())
+                            slide_text = " ".join(texts)
+                            title = texts[0] if texts else ""
+                            slides.append({
+                                "slide_index": idx + 1,
+                                "title": title,
+                                "texts": texts[:20],
+                            })
+                except Exception:
+                    pass
+                text = analysis.extracted_text
+
+            elif suffix == ".ppt":
+                results.append({
+                    "filename": filename,
+                    "suffix": suffix,
+                    "content_type": content_type,
+                    "parse_status": "pending_enhancement",
+                    "document_role": analysis.document_role,
+                    "assigned_modules": analysis.assigned_modules,
+                    "text": analysis.extracted_text,
+                    "text_preview": analysis.extracted_text[:200],
+                    "sections": [],
+                    "tables": [],
+                    "slides": [],
+                    "metadata": {"original_size_bytes": len(content)},
+                    "error_message": ".ppt 老格式当前返回 pending_enhancement，不支持结构化解析。",
+                })
+                continue
+
+            else:
+                text = analysis.extracted_text
+
+            results.append({
+                "filename": filename,
+                "suffix": suffix,
+                "content_type": content_type,
+                "parse_status": analysis.parse_status,
+                "document_role": analysis.document_role,
+                "assigned_modules": analysis.assigned_modules,
+                "text": text if suffix != ".xlsx" else "\n".join(text_parts),
+                "text_preview": text_preview,
+                "sections": sections if suffix not in {".xlsx", ".pptx"} else [],
+                "tables": tables,
+                "slides": slides if suffix in {".xlsx", ".pptx"} else [],
+                "metadata": {"original_size_bytes": len(content)},
+                "error_message": analysis.error_message,
+            })
+
+        except Exception as exc:
+            results.append({
+                "filename": filename,
+                "suffix": suffix,
+                "content_type": content_type,
+                "parse_status": "failed",
+                "document_role": "unknown",
+                "assigned_modules": [],
+                "text": "",
+                "text_preview": "",
+                "sections": [],
+                "tables": [],
+                "slides": [],
+                "metadata": {},
+                "error_message": str(exc),
+            })
+        finally:
+            Path(tmp_path).unlink()
+
+    return results
 
 
 def main() -> None:

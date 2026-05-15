@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import uuid
 from dataclasses import dataclass, field
 
 try:
@@ -56,6 +55,11 @@ class PgVectorStore:
         if config is None:
             dsn = os.environ.get("ZHONGCHI_VECTOR_DSN", "")
             table_name = os.environ.get("ZHONGCHI_VECTOR_TABLE", "zhongchi_embeddings")
+            # Sanitize table_name to only allow safe SQL identifiers
+            import re
+            table_name = re.sub(r"[^A-Za-z0-9_]", "", table_name)
+            if not table_name:
+                table_name = "zhongchi_embeddings"
             embedding_dim_str = os.environ.get("ZHONGCHI_EMBEDDING_DIM", "")
             embedding_dim = int(embedding_dim_str) if embedding_dim_str else 1536
             config = PgVectorConfig(
@@ -288,3 +292,7 @@ class PgVectorStore:
             conn.commit()
         return deleted if deleted is not None else 0
 
+
+def get_vector_store() -> PgVectorStore:
+    """Get the configured vector store instance."""
+    return PgVectorStore()

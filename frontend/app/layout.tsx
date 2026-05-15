@@ -4,6 +4,11 @@ import "./styles.css";
 export const metadata: Metadata = {
   title: "中驰售前PPT助手",
   description: "按模块上传材料并生成中驰解决方案PPT初稿",
+  icons: {
+    icon: "/brand-icon.png",
+    shortcut: "/brand-icon.png",
+    apple: "/brand-icon.png",
+  },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

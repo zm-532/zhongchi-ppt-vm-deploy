@@ -47,6 +47,10 @@ class StoredFile(BaseModel):
     parse_status: str = "pending"
     parsed_text_path: str = ""
     error_message: str = ""
+    # Vector store fields
+    vector_status: str = "not_indexed"  # not_indexed, indexed, skipped, failed
+    vector_chunk_count: int = 0
+    vector_error_message: str = ""
 
 
 class ReviewRequest(BaseModel):
@@ -73,3 +77,34 @@ class ClassificationReviewRequest(BaseModel):
     template_selection: dict[str, Any] = Field(default_factory=dict)
     confirmed_case_id: str | int | None = None
     notes: str = ""
+
+
+class VectorIndexRequest(BaseModel):
+    """Request body for POST /api/projects/{project_id}/vector-index."""
+    file_ids: list[int] | None = None  # If None, index all parsed files
+
+
+class VectorIndexResponse(BaseModel):
+    """Response for POST /api/projects/{project_id}/vector-index."""
+    project_id: int
+    status: str  # "indexed", "error"
+    indexed_files: int
+    indexed_chunks: int
+    skipped_files: list[str] = Field(default_factory=list)
+    message: str
+
+
+class DocumentParseTestResult(BaseModel):
+    filename: str
+    suffix: str
+    content_type: str
+    parse_status: str
+    document_role: str
+    assigned_modules: list[str] = Field(default_factory=list)
+    text: str = ""
+    text_preview: str = ""
+    sections: list[str] = Field(default_factory=list)
+    tables: list[dict[str, Any]] = Field(default_factory=list)
+    slides: list[dict[str, Any]] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    error_message: str = ""

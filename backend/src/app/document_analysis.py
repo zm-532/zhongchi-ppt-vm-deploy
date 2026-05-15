@@ -8,7 +8,7 @@ from pathlib import Path
 from xml.etree import ElementTree
 
 
-TEXT_EXTENSIONS = {".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx"}
+TEXT_EXTENSIONS = {".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".txt"}
 PENDING_ENHANCEMENT_EXTENSIONS = {".png", ".jpg", ".jpeg", ".dwg", ".dxf"}
 
 

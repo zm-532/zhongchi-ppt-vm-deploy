@@ -32,7 +32,9 @@ def _xlsx_bytes(text: str) -> bytes:
 
 class BackendApiTest(unittest.TestCase):
     def setUp(self):
-        self.temp_dir = tempfile.TemporaryDirectory()
+        test_tmp_root = Path(__file__).resolve().parents[1] / "test_tmp"
+        test_tmp_root.mkdir(exist_ok=True)
+        self.temp_dir = tempfile.TemporaryDirectory(dir=test_tmp_root)
         os.environ["ZHONGCHI_DATA_DIR"] = self.temp_dir.name
 
         from fastapi.testclient import TestClient
@@ -68,6 +70,18 @@ class BackendApiTest(unittest.TestCase):
         detail_response = self.client.get(f"/api/projects/{project['project_id']}")
         self.assertEqual(detail_response.status_code, 200)
         self.assertEqual(detail_response.json()["project_id"], project["project_id"])
+
+    def test_delete_project_removes_it_from_list_and_detail(self):
+        first_id = self.client.post("/api/projects", json={"project_name": "待删除项目"}).json()["project_id"]
+        second_id = self.client.post("/api/projects", json={"project_name": "保留项目"}).json()["project_id"]
+
+        delete_response = self.client.delete(f"/api/projects/{first_id}")
+
+        self.assertEqual(delete_response.status_code, 204)
+        list_response = self.client.get("/api/projects")
+        self.assertEqual([item["project_id"] for item in list_response.json()], [second_id])
+        detail_response = self.client.get(f"/api/projects/{first_id}")
+        self.assertEqual(detail_response.status_code, 404)
 
     def test_upload_records_file_against_allowed_module(self):
         project_id = self.client.post("/api/projects", json={"project_name": "上传测试项目"}).json()["project_id"]
@@ -546,6 +560,273 @@ class BackendApiTest(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.headers["access-control-allow-origin"], "http://127.0.0.1:3001")
+
+    def test_document_parse_test_accepts_txt_and_returns_parsed_result(self):
+        response = self.client.post(
+            "/api/document-parse-test",
+            files=[("files", ("test.txt", b"Metro Project Brief\nProject: Nanjing Metro Line 3\nType: Railway", "text/plain"))],
+        )
+
+        self.assertEqual(response.status_code, 200)
+        results = response.json()
+        self.assertEqual(len(results), 1)
+        result = results[0]
+        self.assertEqual(result["filename"], "test.txt")
+        self.assertEqual(result["suffix"], ".txt")
+        self.assertEqual(result["parse_status"], "parsed")
+        self.assertIn("document_role", result)
+        self.assertIn("text", result)
+        self.assertTrue(len(result["text"]) > 0)
+        self.assertEqual(result["error_message"], "")
+
+    def test_document_parse_test_accepts_multiple_files_including_office_formats(self):
+        response = self.client.post(
+            "/api/document-parse-test",
+            files=[
+                ("files", ("project.txt", b"Highway noise barrier project", "text/plain")),
+                ("files", ("docx_test.docx", _docx_bytes("highway tender project"), "application/vnd.openxmlformats-officedocument.wordprocessingml.document")),
+                ("files", ("xlsx_test.xlsx", _xlsx_bytes("survey pain point"), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")),
+                ("files", ("pptx_test.pptx", _pptx_bytes("enterprise CNAS"), "application/vnd.openxmlformats-officedocument.presentationml.presentation")),
+            ],
+        )
+
+        self.assertEqual(response.status_code, 200)
+        results = response.json()
+        self.assertEqual(len(results), 4)
+        filenames = {r["filename"] for r in results}
+        self.assertEqual(filenames, {"project.txt", "docx_test.docx", "xlsx_test.xlsx", "pptx_test.pptx"})
+        for result in results:
+            self.assertIn("parse_status", result)
+            self.assertIn("document_role", result)
+            self.assertIn("assigned_modules", result)
+            self.assertIn("text_preview", result)
+
+    def test_document_parse_test_returns_pending_enhancement_for_images_and_cad(self):
+        response = self.client.post(
+            "/api/document-parse-test",
+            files=[
+                ("files", ("plan.png", b"\x89PNG\r\n\x1a\n", "image/png")),
+                ("files", ("drawing.dwg", b"CAD content", "application/vnd.dwg")),
+            ],
+        )
+
+        self.assertEqual(response.status_code, 200)
+        results = response.json()
+        self.assertEqual(len(results), 2)
+        for result in results:
+            self.assertEqual(result["parse_status"], "pending_enhancement")
+            self.assertIn("error_message", result)
+            self.assertTrue("pending_enhancement" in result["error_message"] or "图片" in result["error_message"] or "CAD" in result["error_message"])
+            self.assertEqual(result["text"], "")
+
+    def test_document_parse_test_returns_pending_ocr_for_empty_pdf(self):
+        # PDF with no extractable text - simulated by passing text bytes as PDF
+        response = self.client.post(
+            "/api/document-parse-test",
+            files=[("files", ("empty.pdf", b"%PDF-1.4\n%%EOF\n", "application/pdf"))],
+        )
+
+        self.assertEqual(response.status_code, 200)
+        results = response.json()
+        self.assertEqual(len(results), 1)
+        result = results[0]
+        self.assertIn(result["parse_status"], ["pending_ocr", "parsed"])
+        self.assertIn(result["filename"], "empty.pdf")
+
+    def test_document_parse_test_rejects_unsupported_extension(self):
+        response = self.client.post(
+            "/api/document-parse-test",
+            files=[("files", ("malware.exe", b"MZ\x90\x00", "application/x-msdownload"))],
+        )
+
+        self.assertEqual(response.status_code, 200)
+        results = response.json()
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["parse_status"], "failed")
+        self.assertIn("不支持", results[0]["error_message"])
+
+    def test_document_parse_test_does_not_create_project_or_write_to_main_flow(self):
+        import json
+        list_before = self.client.get("/api/projects").json()
+
+        response = self.client.post(
+            "/api/document-parse-test",
+            files=[("files", ("test.txt", b"test content", "text/plain"))],
+        )
+
+        self.assertEqual(response.status_code, 200)
+        list_after = self.client.get("/api/projects").json()
+        self.assertEqual(len(list_before), len(list_after))
+
+    def test_document_parse_test_includes_required_fields_in_response(self):
+        response = self.client.post(
+            "/api/document-parse-test",
+            files=[("files", ("doc.docx", _docx_bytes("tender project highway railway"), "application/vnd.openxmlformats-officedocument.wordprocessingml.document"))],
+        )
+
+        self.assertEqual(response.status_code, 200)
+        result = response.json()[0]
+        required_fields = [
+            "filename", "suffix", "content_type", "parse_status",
+            "document_role", "assigned_modules", "text", "text_preview",
+            "sections", "tables", "slides", "metadata", "error_message",
+        ]
+        for field in required_fields:
+            self.assertIn(field, result, f"Missing field: {field}")
+
+    def test_analyze_project_does_not_write_to_vector_store(self):
+        """Verify that analyze_project does NOT write to vector store."""
+        project_id = self.client.post(
+            "/api/projects",
+            json={
+                "project_name": "向量库测试项目",
+                "project_location": "南京",
+                "product_line": "轨道交通声屏障",
+            },
+        ).json()["project_id"]
+
+        self.client.post(
+            f"/api/projects/{project_id}/files",
+            files=[
+                ("files", ("南京地铁项目简介.pdf", b"metro line noise barrier", "application/pdf")),
+            ],
+        )
+
+        # Make sure vector DSN is NOT set
+        old_dsn = os.environ.pop("ZHONGCHI_VECTOR_DSN", None)
+        try:
+            analyze_response = self.client.post(f"/api/projects/{project_id}/analyze")
+            self.assertEqual(analyze_response.status_code, 200)
+            classification = analyze_response.json()
+
+            # analyze should NOT have written to vector store
+            # vector_status should still be "not_indexed" for all files
+            for file_record in classification.get("files", []):
+                self.assertEqual(file_record.get("vector_status", "not_indexed"), "not_indexed")
+                self.assertEqual(file_record.get("vector_chunk_count", 0), 0)
+        finally:
+            if old_dsn:
+                os.environ["ZHONGCHI_VECTOR_DSN"] = old_dsn
+
+    def test_vector_index_returns_proper_response_structure(self):
+        """Verify the vector-index endpoint returns proper response structure."""
+        project_id = self.client.post(
+            "/api/projects",
+            json={
+                "project_name": "向量库索引测试",
+                "project_location": "南京",
+                "product_line": "轨道交通声屏障",
+            },
+        ).json()["project_id"]
+
+        self.client.post(
+            f"/api/projects/{project_id}/files",
+            files=[
+                ("files", ("南京地铁项目简介.pdf", b"metro line noise barrier", "application/pdf")),
+            ],
+        )
+        self.client.post(f"/api/projects/{project_id}/analyze")
+
+        # Call vector-index
+        vector_response = self.client.post(
+            f"/api/projects/{project_id}/vector-index",
+            json={},
+        )
+        self.assertEqual(vector_response.status_code, 200)
+        result = vector_response.json()
+
+        # Check response structure
+        self.assertEqual(result["project_id"], project_id)
+        self.assertIn("status", result)
+        self.assertIn("indexed_files", result)
+        self.assertIn("indexed_chunks", result)
+        self.assertIn("skipped_files", result)
+        self.assertIn("message", result)
+
+        # Without ZHONGCHI_VECTOR_DSN, should return not_configured
+        self.assertEqual(result["status"], "not_configured")
+        self.assertIn("向量库未配置", result["message"])
+
+    def test_vector_index_with_file_ids_filtering(self):
+        """Test vector-index with specific file_ids in request body."""
+        project_id = self.client.post(
+            "/api/projects",
+            json={
+                "project_name": "选择性索引测试",
+                "project_location": "南京",
+                "product_line": "轨道交通声屏障",
+            },
+        ).json()["project_id"]
+
+        upload_response = self.client.post(
+            f"/api/projects/{project_id}/files",
+            files=[
+                ("files", ("南京地铁项目简介.pdf", b"metro line noise barrier", "application/pdf")),
+                ("files", ("企业资质介绍.pptx", b"enterprise CNAS", "application/vnd.openxmlformats-officedocument.presentationml.presentation")),
+            ],
+        )
+        self.assertEqual(upload_response.status_code, 201)
+        files = upload_response.json()
+        self.assertEqual(len(files), 2)
+
+        self.client.post(f"/api/projects/{project_id}/analyze")
+
+        # Index only the first file
+        first_file_id = files[0]["file_id"]
+        vector_response = self.client.post(
+            f"/api/projects/{project_id}/vector-index",
+            json={"file_ids": [first_file_id]},
+        )
+        self.assertEqual(vector_response.status_code, 200)
+        result = vector_response.json()
+        self.assertEqual(result["project_id"], project_id)
+        self.assertIn("indexed_files", result)
+        self.assertIn("indexed_chunks", result)
+
+    def test_vector_index_skips_pending_enhancement_files(self):
+        """Test that vector-index skips files with parse_status pending_enhancement."""
+        project_id = self.client.post(
+            "/api/projects",
+            json={"project_name": "跳过待增强文件测试", "product_line": "轨道交通声屏障"},
+        ).json()["project_id"]
+
+        self.client.post(
+            f"/api/projects/{project_id}/files",
+            files=[("files", ("总平面图.png", b"\x89PNG\r\n\x1a\n", "image/png"))],
+        )
+        self.client.post(f"/api/projects/{project_id}/analyze")
+
+        vector_response = self.client.post(
+            f"/api/projects/{project_id}/vector-index",
+            json={},
+        )
+        self.assertEqual(vector_response.status_code, 200)
+        result = vector_response.json()
+        # Image file should be skipped
+        self.assertGreater(len(result["skipped_files"]), 0)
+
+    def test_stored_file_includes_vector_status_fields(self):
+        """Verify StoredFile response includes vector_status fields."""
+        project_id = self.client.post(
+            "/api/projects",
+            json={"project_name": "向量状态字段测试", "product_line": "公路声屏障"},
+        ).json()["project_id"]
+
+        self.client.post(
+            f"/api/projects/{project_id}/files",
+            files=[("files", ("技术标书.docx", _docx_bytes("招标文件 技术标准 高速 公路 声屏障"), "application/vnd.openxmlformats-officedocument.wordprocessingml.document"))],
+        )
+        self.client.post(f"/api/projects/{project_id}/analyze")
+
+        classification = self.client.get(f"/api/projects/{project_id}/classification").json()
+        files = classification.get("files", [])
+
+        self.assertGreater(len(files), 0)
+        for f in files:
+            # All parsed files should have vector_status fields
+            self.assertIn("vector_status", f)
+            self.assertIn("vector_chunk_count", f)
+            self.assertIn("vector_error_message", f)
 
 
 if __name__ == "__main__":

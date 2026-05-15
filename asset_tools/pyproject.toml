@@ -5,6 +5,9 @@ description = "Asset scanning and fallback matching tools for Zhongchi intellige
 requires-python = ">=3.11"
 dependencies = []
 
+[project.scripts]
+asset-tools = "asset_tools.cli:main"
+
 [tool.uv]
 package = false
 

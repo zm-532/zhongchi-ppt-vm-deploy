@@ -15,6 +15,7 @@ MODULE_NAMES = {
 INITIAL_TASK_STATUS = "待生成"
 
 ALLOWED_EXTENSIONS = {
+    ".txt",
     ".ppt",
     ".pptx",
     ".pdf",
