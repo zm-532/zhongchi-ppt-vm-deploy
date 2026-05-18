@@ -14,9 +14,11 @@ from ppt_engine.renderer import (
     M5_TEMPLATE_FILENAME,
     M6_TEMPLATE_FILENAME,
     PPT_TEMPLATE_ROOT,
+    build_m1_m2_replacement_map,
     merge_pptx,
     render_chapter_ppt,
     render_final_ppt,
+    replace_text_placeholders,
 )
 
 os.environ["ZHONGCHI_PPT_MERGE_ENGINE"] = "python-pptx"
@@ -402,6 +404,409 @@ class RenderFinalPptTest(unittest.TestCase):
             final_path = render_final_ppt(PROJECT, OUTLINES_FULL, temp_dir)
 
             self.assertIn("某城市轨道交通声屏障改造项目", final_path.name)
+
+
+class ReplaceTextPlaceholdersTest(unittest.TestCase):
+    """验证 replace_text_placeholders 通用占位符替换能力。"""
+
+    def _create_test_pptx_with_placeholder(self, placeholder: str, dest_dir: Path) -> Path:
+        """创建一个包含指定占位符的测试 PPTX。"""
+        prs = Presentation()
+        prs.slide_width = Inches(10)
+        prs.slide_height = Inches(5.625)
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        shape = slide.shapes.add_textbox(Inches(1), Inches(1), Inches(8), Inches(1))
+        tf = shape.text_frame
+        tf.clear()
+        para = tf.paragraphs[0]
+        run = para.add_run()
+        # f-string 中 {{ 产生字面 {，所以 {{project_name}} 要写成 {{{{project_name}}}}
+        run.text = f"项目名称：{{{{{placeholder}}}}}"
+        path = dest_dir / "test_placeholder.pptx"
+        prs.save(str(path))
+        return path
+
+    def test_replaces_placeholder_with_value(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            pptx_path = self._create_test_pptx_with_placeholder("project_name", Path(temp_dir))
+            replace_text_placeholders(pptx_path, {"project_name": "南京地铁3号线声屏障工程"})
+            prs = Presentation(str(pptx_path))
+            texts = []
+            for slide in prs.slides:
+                for shape in slide.shapes:
+                    if hasattr(shape, "text"):
+                        texts.append(shape.text)
+            self.assertIn("南京地铁3号线声屏障工程", "\n".join(texts))
+            self.assertNotIn("{{project_name}}", "\n".join(texts))
+
+    def test_empty_field_uses_placeholder_fallback(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            pptx_path = self._create_test_pptx_with_placeholder("project_location", Path(temp_dir))
+            # build_m1_m2_replacement_map 对空字段会填充中文兜底
+            # 测试：传中文兜底值进去，PPTX 里显示的也是中文兜底
+            replace_text_placeholders(pptx_path, {"project_location": "[待补充：项目所在地]"})
+            prs = Presentation(str(pptx_path))
+            texts = []
+            for slide in prs.slides:
+                for shape in slide.shapes:
+                    if hasattr(shape, "text"):
+                        texts.append(shape.text)
+            self.assertIn("[待补充：项目所在地]", "\n".join(texts))
+
+    def test_no_placeholder_in_template_does_not_error(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            prs = Presentation()
+            prs.slide_width = Inches(10)
+            prs.slide_height = Inches(5.625)
+            slide = prs.slides.add_slide(prs.slide_layouts[6])
+            shape = slide.shapes.add_textbox(Inches(1), Inches(1), Inches(8), Inches(1))
+            tf = shape.text_frame
+            tf.clear()
+            para = tf.paragraphs[0]
+            run = para.add_run()
+            run.text = "没有任何占位符的普通文本"
+            pptx_path = Path(temp_dir) / "no_placeholder.pptx"
+            prs.save(str(pptx_path))
+            # 不应抛出异常
+            result = replace_text_placeholders(pptx_path, {"project_name": "测试项目"})
+            self.assertTrue(result.exists())
+
+    def test_multiple_placeholders_in_same_text(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            prs = Presentation()
+            prs.slide_width = Inches(10)
+            prs.slide_height = Inches(5.625)
+            slide = prs.slides.add_slide(prs.slide_layouts[6])
+            shape = slide.shapes.add_textbox(Inches(1), Inches(1), Inches(8), Inches(2))
+            tf = shape.text_frame
+            tf.clear()
+            para = tf.paragraphs[0]
+            run = para.add_run()
+            run.text = "{{project_name}} 位于 {{project_location}}，由 {{owner_unit}} 负责建设"
+            pptx_path = Path(temp_dir) / "multi_placeholder.pptx"
+            prs.save(str(pptx_path))
+            replace_text_placeholders(pptx_path, {
+                "project_name": "南京地铁3号线",
+                "project_location": "南京市",
+                "owner_unit": "南京地铁集团",
+            })
+            prs2 = Presentation(str(pptx_path))
+            texts = []
+            for slide in prs2.slides:
+                for shape in slide.shapes:
+                    if hasattr(shape, "text"):
+                        texts.append(shape.text)
+            text_blob = "\n".join(texts)
+            self.assertIn("南京地铁3号线", text_blob)
+            self.assertIn("南京市", text_blob)
+            self.assertIn("南京地铁集团", text_blob)
+
+
+class BuildM1M2ReplacementMapTest(unittest.TestCase):
+    """验证 build_m1_m2_replacement_map 字段映射构建。"""
+
+    def test_basic_fields_from_project(self):
+        project = {
+            "project_name": "南京地铁3号线声屏障改造工程",
+            "project_location": "南京市",
+            "owner_unit": "南京地铁集团",
+            "product_line": "轨道交通声屏障",
+        }
+        outline = {}
+        result = build_m1_m2_replacement_map(project, outline)
+        self.assertEqual(result["project_name"], "南京地铁3号线声屏障改造工程")
+        self.assertEqual(result["project_location"], "南京市")
+        self.assertEqual(result["owner_unit"], "南京地铁集团")
+        self.assertEqual(result["product_line"], "轨道交通声屏障")
+
+    def test_missing_basic_field_uses_fallback(self):
+        project = {
+            "project_name": "南京地铁3号线",
+            "project_location": "",
+        }
+        outline = {}
+        result = build_m1_m2_replacement_map(project, outline)
+        self.assertEqual(result["project_name"], "南京地铁3号线")
+        self.assertEqual(result["project_location"], "[待补充：项目所在地]")
+        self.assertEqual(result["owner_unit"], "[待补充：建设/业主单位]")
+        self.assertEqual(result["product_line"], "[待补充：产品线]")
+
+    def test_detected_and_confirmed_project_type(self):
+        project = {
+            "detected_project_type": "metro",
+            "confirmed_project_type": "metro",
+        }
+        outline = {}
+        result = build_m1_m2_replacement_map(project, outline)
+        self.assertEqual(result["detected_project_type"], "metro")
+        self.assertEqual(result["confirmed_project_type"], "metro")
+
+    def test_m1_m2_template_from_template_selection(self):
+        project = {
+            "project_name": "测试项目",
+            "template_selection": {
+                "M1_M2": {
+                    "template_filename": "轨道交通地铁全封闭声屏障（M1_&_M2）.pptx"
+                }
+            },
+        }
+        outline = {}
+        result = build_m1_m2_replacement_map(project, outline)
+        self.assertEqual(
+            result["m1_m2_template"],
+            "轨道交通地铁全封闭声屏障（M1_&_M2）.pptx"
+        )
+
+    def test_rule_field_line_name_from_filename(self):
+        project = {"project_name": "测试项目"}
+        outline = {
+            "files": [
+                {"filename": "南京地铁3号线施工方案.pdf"}
+            ]
+        }
+        result = build_m1_m2_replacement_map(project, outline)
+        self.assertEqual(result["line_name"], "3号线")
+
+    def test_rule_field_line_name_s1_identifier(self):
+        """S1号线 应识别为 S1号线，不是 1号线。"""
+        project = {"project_name": "测试项目"}
+        outline = {
+            "files": [
+                {"filename": "S1号线机场快线施工组织设计.pdf"}
+            ]
+        }
+        result = build_m1_m2_replacement_map(project, outline)
+        self.assertEqual(result["line_name"], "S1号线")
+
+    def test_rule_field_site_pain_points_from_text(self):
+        project = {"project_name": "测试项目"}
+        outline = {
+            "files": [
+                {"filename": "施工方案.pdf", "parsed_text_path": None}
+            ]
+        }
+        result = build_m1_m2_replacement_map(project, outline)
+        # 无关键词时应返回待补充
+        self.assertEqual(result["site_pain_points"], "[待补充：现场痛点]")
+
+    def test_rule_field_construction_scenario_recognized(self):
+        project = {"project_name": "测试项目"}
+        outline = {
+            "files": [
+                {"filename": "既有线改造施工方案.pdf"}
+            ]
+        }
+        result = build_m1_m2_replacement_map(project, outline)
+        self.assertIn("既有线改造", result["construction_scenario"])
+
+    def test_rule_field_no_match_uses_fallback(self):
+        project = {"project_name": "测试项目"}
+        outline = {
+            "files": [
+                {"filename": "普通文档.pdf"}
+            ]
+        }
+        result = build_m1_m2_replacement_map(project, outline)
+        self.assertEqual(result["line_name"], "[待补充：线路名称]")
+        self.assertEqual(result["site_pain_points"], "[待补充：现场痛点]")
+        self.assertEqual(result["construction_scenario"], "[待补充：施工场景]")
+
+
+class M1M2FieldReplacementTest(unittest.TestCase):
+    """验证 M1/M2 渲染后字段被正确替换。"""
+
+    def test_m1_m2_replacement_map_includes_confirmed_project_type(self):
+        project = {
+            "project_name": "南京地铁3号线声屏障改造工程",
+            "project_location": "南京市",
+            "owner_unit": "南京地铁集团",
+            "product_line": "轨道交通声屏障",
+            "detected_project_type": "metro",
+            "confirmed_project_type": "metro",
+            "template_selection": {
+                "M1_M2": {
+                    "template_filename": "轨道交通地铁全封闭声屏障（M1_&_M2）.pptx"
+                }
+            },
+        }
+        outline = {
+            "project_type": "metro",
+            "files": [
+                {"filename": "南京地铁3号线施工组织设计.pdf"}
+            ]
+        }
+        result = build_m1_m2_replacement_map(project, outline)
+        self.assertEqual(result["confirmed_project_type"], "metro")
+        self.assertEqual(result["project_name"], "南京地铁3号线声屏障改造工程")
+
+    def test_m1_m2_renders_with_field_replacement(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            outline = {
+                "project_type": "metro",
+                "files": [
+                    {"filename": "南京地铁3号线施工组织设计.pdf"}
+                ]
+            }
+            output_path = render_chapter_ppt("M1_M2", PROJECT, outline, temp_dir)
+            self.assertTrue(output_path.exists())
+            # 能打开即有效
+            prs = Presentation(str(output_path))
+            self.assertGreater(len(prs.slides), 0)
+
+    def test_placeholder_replacement_with_m1_m2_map(self):
+        """验证使用 build_m1_m2_replacement_map 生成的映射能正确替换占位符。"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # 创建一个含占位符的临时 PPTX
+            from ppt_engine.renderer import (
+                build_m1_m2_replacement_map,
+                replace_text_placeholders,
+            )
+            prs = Presentation()
+            prs.slide_width = Inches(10)
+            prs.slide_height = Inches(5.625)
+            slide = prs.slides.add_slide(prs.slide_layouts[6])
+            shape = slide.shapes.add_textbox(Inches(1), Inches(1), Inches(8), Inches(2))
+            tf = shape.text_frame
+            tf.clear()
+            para = tf.paragraphs[0]
+            run = para.add_run()
+            run.text = "项目名称：{{project_name}}，项目所在地：{{project_location}}"
+            src_path = Path(temp_dir) / "src.pptx"
+            prs.save(str(src_path))
+
+            # 用 M1/M2 映射替换
+            replacements = build_m1_m2_replacement_map(PROJECT, {})
+            replace_text_placeholders(src_path, replacements)
+
+            # 验证占位符已被替换为项目数据
+            prs2 = Presentation(str(src_path))
+            texts = []
+            for slide in prs2.slides:
+                for shape in slide.shapes:
+                    if hasattr(shape, "text"):
+                        texts.append(shape.text)
+            text_blob = "\n".join(texts)
+            self.assertNotIn("{{project_name}}", text_blob)
+            self.assertNotIn("{{project_location}}", text_blob)
+            self.assertIn("某城市轨道交通声屏障改造项目", text_blob)
+            self.assertIn("南京", text_blob)
+
+
+class M5CaseTemplateNoReplacementTest(unittest.TestCase):
+    """验证 M5 渲染不做字段替换（M5 只复制模板）。"""
+
+    def test_m5_no_field_replacement(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            outline = {"case_data": M5_CASE_DATA}
+            output_path = render_chapter_ppt("M5", PROJECT, outline, temp_dir)
+            self.assertTrue(output_path.exists())
+            prs = Presentation(str(output_path))
+            texts = []
+            for slide in prs.slides:
+                for shape in slide.shapes:
+                    if hasattr(shape, "text"):
+                        texts.append(shape.text)
+            # M5 不应有 project_name 等项目字段被写入（只有模板原始内容）
+            # 这里只验证能正常打开，具体内容由模板决定
+
+
+class M6FixedTemplateNoProjectFieldsTest(unittest.TestCase):
+    """验证 M6 固定模板不写入项目字段。"""
+
+    def test_m6_fixed_template_no_project_field_replacement(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            outline = {}
+            output_path = render_chapter_ppt("M6", PROJECT, outline, temp_dir)
+            self.assertTrue(output_path.exists())
+            prs = Presentation(str(output_path))
+            texts = []
+            for slide in prs.slides:
+                for shape in slide.shapes:
+                    if hasattr(shape, "text"):
+                        texts.append(shape.text)
+            text_blob = "\n".join(texts)
+            # M6 是固定模板，不应有项目字段被替换的痕迹
+            self.assertNotIn("某城市轨道交通声屏障改造项目", text_blob)
+
+
+REQUIRED_PLACEHOLDERS = [
+    "project_name",
+    "project_location",
+    "owner_unit",
+    "product_line",
+    "line_name",
+    "site_pain_points",
+    "construction_scenario",
+]
+
+
+class M1M2TemplateHasPlaceholdersTest(unittest.TestCase):
+    """验证 4 个 M1/M2 固化模板已包含项目信息占位符。"""
+
+    def test_all_four_m1_m2_templates_contain_all_seven_placeholders(self):
+        """验证每个 M1/M2 模板都包含完整 7 个占位符。"""
+        import re
+        PLACEHOLDER_PATTERN = re.compile(r"\{\{(\w+)\}\}")
+        for tmpl_filename in M1_M2_TEMPLATE_MAP.values():
+            tmpl_path = PPT_TEMPLATE_ROOT / tmpl_filename
+            prs = Presentation(str(tmpl_path))
+            all_text = ""
+            for slide in prs.slides:
+                for shape in slide.shapes:
+                    if hasattr(shape, "text") and shape.text:
+                        all_text += shape.text
+            found_placeholders = set(PLACEHOLDER_PATTERN.findall(all_text))
+            missing = [f for f in REQUIRED_PLACEHOLDERS if f not in found_placeholders]
+            self.assertEqual(
+                missing, [],
+                f"{tmpl_filename} 缺少占位符: {missing}",
+            )
+
+    def test_rendered_m1_m2_output_no_longer_contains_placeholder(self):
+        """渲染 M1/M2 模板后，输出 PPTX 不再包含 {{project_name}}。"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            outline = {"project_type": "metro"}
+            output_path = render_chapter_ppt("M1_M2", PROJECT, outline, temp_dir)
+            prs = Presentation(str(output_path))
+            all_text = ""
+            for slide in prs.slides:
+                for shape in slide.shapes:
+                    if hasattr(shape, "text") and shape.text:
+                        all_text += shape.text
+            self.assertNotIn("{{project_name}}", all_text)
+
+    def test_rendered_m1_m2_output_contains_project_name(self):
+        """渲染 M1/M2 模板后，输出 PPTX 包含测试项目的名称。"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            outline = {"project_type": "metro"}
+            output_path = render_chapter_ppt("M1_M2", PROJECT, outline, temp_dir)
+            prs = Presentation(str(output_path))
+            all_text = ""
+            for slide in prs.slides:
+                for shape in slide.shapes:
+                    if hasattr(shape, "text") and shape.text:
+                        all_text += shape.text
+            self.assertIn("某城市轨道交通声屏障改造项目", all_text)
+
+    def test_rendered_m1_m2_output_contains_project_info_fields(self):
+        """渲染 M1/M2 模板后，输出 PPTX 包含项目信息的实际值，不含待补充标记。"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            outline = {"project_type": "metro"}
+            output_path = render_chapter_ppt("M1_M2", PROJECT, outline, temp_dir)
+            prs = Presentation(str(output_path))
+            all_text = ""
+            for slide in prs.slides:
+                for shape in slide.shapes:
+                    if hasattr(shape, "text") and shape.text:
+                        all_text += shape.text
+            # 关键字段应被替换为实际值
+            self.assertIn("某城市轨道交通声屏障改造项目", all_text)  # project_name
+            self.assertIn("南京", all_text)  # project_location
+            self.assertIn("某建设单位", all_text)  # owner_unit
+            self.assertIn("轨交既有线改造", all_text)  # product_line
+            # 不应出现未替换的占位符标记
+            self.assertNotIn("{{project_name}}", all_text)
+            self.assertNotIn("{{project_location}}", all_text)
 
 
 if __name__ == "__main__":

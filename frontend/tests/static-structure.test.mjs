@@ -162,9 +162,9 @@ test("[静态] 创建项目表单为单列布局且标注可选字段", () => {
   const pageSourceText = pageSource();
   const styles = readFileSync(new URL("../app/styles.css", import.meta.url), "utf8");
 
-  assert.match(pageSourceText, /项目所在地（可选）/);
-  assert.match(pageSourceText, /建设\/业主单位（可选）/);
-  assert.match(pageSourceText, /产品线（可选）/);
+  assert.match(pageSourceText, /项目所在地（可选，建议填写）/);
+  assert.match(pageSourceText, /建设\/业主单位（可选，建议填写）/);
+  assert.match(pageSourceText, /产品线（可选，建议填写）/);
   assert.match(styles, /\.projectForm\s*{\s*display: grid;\s*grid-template-columns: minmax\(0, 1fr\);/);
 });
 

@@ -1,3 +1,4 @@
+import re
 from copy import deepcopy
 from io import BytesIO
 import os
@@ -58,10 +59,36 @@ LIGHT_BG = RGBColor(0xF7, 0xFA, 0xFC)
 BODY_TEXT = RGBColor(0x1F, 0x29, 0x37)
 EMU_PER_POINT = 12700
 
+# 占位符正则（用于识别未知占位符并替换为中文兜底）
+PLACEHOLDER_PATTERN = re.compile(r"\{\{(\w+)\}\}")
+
+# 规则识别候选占位符列表
+RULE_FIELD_NAMES = ("line_name", "site_pain_points", "construction_scenario")
+
+# 字段中文标签映射（用于兜底占位符显示）
+FIELD_LABELS: dict[str, str] = {
+    "project_name": "项目名称",
+    "project_location": "项目所在地",
+    "owner_unit": "建设/业主单位",
+    "product_line": "产品线",
+    "detected_project_type": "系统识别项目类型",
+    "confirmed_project_type": "人工确认项目类型",
+    "m1_m2_template": "M1/M2模板",
+    "line_name": "线路名称",
+    "site_pain_points": "现场痛点",
+    "construction_scenario": "施工场景",
+}
+
 
 # =============================================================================
 # 辅助函数
 # =============================================================================
+
+
+def _missing_placeholder(field_name: str) -> str:
+    """返回字段缺失时的中文兜底占位符。"""
+    label = FIELD_LABELS.get(field_name, field_name)
+    return f"[待补充：{label}]"
 
 
 def _validate_project_type(project_type: str) -> None:
@@ -80,8 +107,200 @@ def _validate_module(module_id: str) -> None:
 
 def _safe_text(value: Any, field_name: str) -> str:
     if value is None or value == "":
-        return f"[待补充：{field_name}]"
+        return _missing_placeholder(field_name)
     return str(value)
+
+
+# =============================================================================
+# 规则识别字段提取
+# =============================================================================
+
+
+def _extract_line_name(text: str) -> str:
+    """从文本中提取线路名称。
+
+    匹配模式：
+    - \\d+号线，如"3号线"、"10号线"
+    - S\\d+号线，如"S1号线"
+    - 昌平线
+    - K数字+数字~K数字+数字，如"K12+100~K15+200"
+    """
+    patterns = [
+        r'(S\d+)号线',
+        r'(\d+)号线',
+        r'昌平线',
+        r'(K\d+\+\d+~K\d+\+\d+)',
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text)
+        if match:
+            return match.group(0)
+    return ""
+
+
+def _extract_site_pain_points(text: str) -> str:
+    """从文本中归纳现场痛点。
+
+    关键词映射：
+    - 噪声、噪音、降噪 -> 噪声治理
+    - 夜间、天窗、施工窗口、短窗口 -> 施工窗口受限
+    - 工期、赶工、交付 -> 工期紧张
+    - 改造、既有线、运营线 -> 既有线改造约束
+    """
+    pain_points: list[str] = []
+    lower_text = text.lower()
+
+    if any(kw in lower_text for kw in ['噪声', '噪音', '降噪']):
+        pain_points.append("噪声治理")
+    if any(kw in lower_text for kw in ['夜间', '天窗', '施工窗口', '短窗口']):
+        pain_points.append("施工窗口受限")
+    if any(kw in lower_text for kw in ['工期', '赶工', '交付']):
+        pain_points.append("工期紧张")
+    if any(kw in lower_text for kw in ['改造', '既有线', '运营线']):
+        pain_points.append("既有线改造约束")
+
+    return "、".join(pain_points) if pain_points else ""
+
+
+def _extract_construction_scenario(text: str) -> str:
+    """从文本中判断施工场景。
+
+    关键词映射：
+    - 既有线、运营线、改造 -> 既有线改造
+    - 加装、增设、新增 -> 加装工程
+    - 新建 -> 新建工程
+    - 高速、公路 -> 公路声屏障
+    - 地铁、轨道交通、轨交 -> 轨道交通声屏障
+    - 铁路 -> 铁路声屏障
+    """
+    scenarios: list[str] = []
+    lower_text = text.lower()
+
+    if any(kw in lower_text for kw in ['既有线', '运营线', '改造']):
+        scenarios.append("既有线改造")
+    if any(kw in lower_text for kw in ['加装', '增设', '新增']):
+        scenarios.append("加装工程")
+    if '新建' in lower_text:
+        scenarios.append("新建工程")
+    if any(kw in lower_text for kw in ['高速', '公路']) and '声屏障' in lower_text:
+        scenarios.append("公路声屏障")
+    if any(kw in lower_text for kw in ['地铁', '轨道交通', '轨交']) and '声屏障' in lower_text:
+        scenarios.append("轨道交通声屏障")
+    if '铁路' in lower_text and '声屏障' in lower_text:
+        scenarios.append("铁路声屏障")
+
+    # 去重，保持顺序
+    seen = set()
+    unique = []
+    for s in scenarios:
+        if s not in seen:
+            seen.add(s)
+            unique.append(s)
+    return "、".join(unique) if unique else ""
+
+
+def _rule_based_field_value(field_name: str, project: dict[str, Any], outline: dict[str, Any]) -> str:
+    """对规则识别字段（line_name/site_pain_points/construction_scenario）进行提取。
+
+    优先从 project.project_name / project_location / owner_unit / product_line 提取，
+    其次从 outline（classification_result.files）中的文件名和解析文本提取。
+    规则识别不到则返回空字符串，由调用方统一填充 [待补充：字段名]。
+    """
+    # 收集候选文本
+    candidates: list[str] = []
+    for key in ("project_name", "project_location", "owner_unit", "product_line"):
+        val = project.get(key)
+        if val:
+            candidates.append(str(val))
+
+    # 从 outline 中获取文件信息（优先）
+    files = outline.get("files", []) if isinstance(outline, dict) else []
+    # 同时从 project.classification_result.files 获取（兼容旧流程）
+    if not files:
+        files = project.get("classification_result", {}).get("files", [])
+    for f in files:
+        fn = f.get("filename", "")
+        if fn:
+            candidates.append(fn)
+        parsed_text_path = f.get("parsed_text_path", "")
+        if parsed_text_path and Path(parsed_text_path).exists():
+            try:
+                candidates.append(Path(parsed_text_path).read_text(encoding="utf-8", errors="ignore"))
+            except OSError:
+                pass
+
+    combined = " ".join(candidates)
+
+    if field_name == "line_name":
+        return _extract_line_name(combined)
+    if field_name == "site_pain_points":
+        return _extract_site_pain_points(combined)
+    if field_name == "construction_scenario":
+        return _extract_construction_scenario(combined)
+    return ""
+
+
+# =============================================================================
+# M1/M2 字段替换映射构建
+# =============================================================================
+
+
+def build_m1_m2_replacement_map(
+    project: dict[str, Any],
+    outline: dict[str, Any],
+) -> dict[str, str]:
+    """构建 M1/M2 模板字段替换映射。
+
+    字段值来源优先级：
+    1. 项目基础信息：project_name、project_location、owner_unit、product_line
+    2. 系统识别和人工确认：detected_project_type、confirmed_project_type、template_selection
+    3. 规则识别字段：line_name、site_pain_points、construction_scenario
+    4. 兜底：[待补充：字段名]
+
+    Args:
+        project: 项目基础信息字典。
+        outline: 章节配置字典，可能包含 files（用于规则识别）。
+
+    Returns:
+        占位符 -> 替换值的字典。
+    """
+    replacements: dict[str, str] = {}
+
+    # 1. 项目基础信息字段
+    basic_fields = [
+        ("project_name", project.get("project_name")),
+        ("project_location", project.get("project_location")),
+        ("owner_unit", project.get("owner_unit")),
+        ("product_line", project.get("product_line")),
+    ]
+    for field_name, value in basic_fields:
+        if value is not None and value != "":
+            replacements[field_name] = str(value)
+        else:
+            replacements[field_name] = _missing_placeholder(field_name)
+
+    # 2. 系统识别和人工确认字段
+    replacements["detected_project_type"] = _safe_text(
+        project.get("detected_project_type"), "系统识别项目类型"
+    )
+    replacements["confirmed_project_type"] = _safe_text(
+        project.get("confirmed_project_type"), "人工确认项目类型"
+    )
+
+    # 模板文件名
+    template_selection = project.get("template_selection", {})
+    m1_m2_template = template_selection.get("M1_M2", {}).get("template_filename", "")
+    replacements["m1_m2_template"] = m1_m2_template or _missing_placeholder("m1_m2_template")
+
+    # 3. 规则识别字段（line_name、site_pain_points、construction_scenario）
+    for field_name in RULE_FIELD_NAMES:
+        value = _rule_based_field_value(field_name, project, outline)
+        if value:
+            replacements[field_name] = value
+        else:
+            replacements[field_name] = _missing_placeholder(field_name)
+
+    return replacements
 
 
 def _set_run(run, size: int, color: RGBColor = BODY_TEXT, bold: bool = False) -> None:
@@ -194,6 +413,57 @@ def _add_outline_slide(prs: Presentation, module_id: str, slide_data: dict[str, 
         _add_textbox(slide, Inches(0.85), Inches(6.0), Inches(11.5), Inches(0.4), marker_text, 13, ACCENT_GOLD, True)
 
 
+# =============================================================================
+# 通用占位符替换
+# =============================================================================
+
+
+def replace_text_placeholders(pptx_path: str | Path, replacements: dict[str, str]) -> Path:
+    """对 PPTX 中所有文本占位符进行替换。
+
+    支持任意 PPTX 中的 {{placeholder}} 形式占位符替换。
+    - 模板中没有占位符时不报错
+    - 字段为空时使用 [待补充：字段名] 兜底（由调用方保证）
+    - 替换后 PPTX 仍能被 python-pptx 和 PowerPoint 打开
+    - 不处理图片替换
+    - 支持普通文本框中完整出现的占位符（如 {{project_name}}）
+
+    Args:
+        pptx_path: 源 PPTX 文件路径（会被原地修改并保存到同名路径）。
+        replacements: 占位符 -> 替换值的字典。
+
+    Returns:
+        替换后的 PPTX 文件路径（与输入相同）。
+    """
+    path = Path(pptx_path)
+    prs = Presentation(str(path))
+
+    for slide in prs.slides:
+        for shape in slide.shapes:
+            if not hasattr(shape, "text_frame"):
+                continue
+            tf = shape.text_frame
+            for paragraph in tf.paragraphs:
+                for run in paragraph.runs:
+                    original_text = run.text
+                    new_text = original_text
+                    # 先替换已知的占位符
+                    for placeholder, value in replacements.items():
+                        pattern = f"{{{{{placeholder}}}}}"
+                        if pattern in new_text:
+                            new_text = new_text.replace(pattern, value)
+                    # 再处理未知占位符（模板有但 replacements 中没有的），替换为中文兜底
+                    for match in PLACEHOLDER_PATTERN.finditer(new_text):
+                        field_name = match.group(1)
+                        if field_name not in replacements:
+                            new_text = new_text.replace(match.group(0), _missing_placeholder(field_name))
+                    if new_text != original_text:
+                        run.text = new_text
+
+    prs.save(str(path))
+    return path
+
+
 def _copy_fixed_template(source_path: Path, dest_path: Path) -> None:
     """Copy fixed template PPTX to destination. Creates parent directories if needed."""
     dest_path.parent.mkdir(parents=True, exist_ok=True)
@@ -219,12 +489,12 @@ def _render_m6_fixed_template(project: dict[str, Any], output_dir: Path) -> Path
 
 
 def _render_m1_m2_fixed(
-    project_type: str, project: dict[str, Any], output_dir: Path
+    project_type: str, project: dict[str, Any], outline: dict[str, Any], output_dir: Path
 ) -> Path:
-    """渲染 M1/M2 固定模板（根据 project_type 选择，不做字段替换）。
+    """渲染 M1/M2 固定模板并执行字段替换。
 
     根据 confirmed_project_type 从 M1_M2_TEMPLATE_MAP 选择对应模板，
-    复制模板文件作为章节输出，不做字段替换。
+    复制模板文件后执行 M1/M2 字段替换。
     模板缺失时抛出异常，不生成静默占位页。
     """
     _validate_project_type(project_type)
@@ -239,6 +509,10 @@ def _render_m1_m2_fixed(
 
     file_path = output_dir / f"M1_M2_{MODULE_TITLES['M1_M2']}.pptx"
     _copy_fixed_template(source_template, file_path)
+
+    # 执行 M1/M2 字段替换
+    replacements = build_m1_m2_replacement_map(project, outline)
+    replace_text_placeholders(file_path, replacements)
     return file_path
 
 
@@ -286,9 +560,9 @@ def render_chapter_ppt(
     output_path.mkdir(parents=True, exist_ok=True)
 
     if module_id == "M1_M2":
-        # M1/M2：根据 project_type 选择固定模板，只复制不替换
+        # M1/M2：根据 project_type 选择固定模板并执行字段替换
         project_type = outline.get("project_type", "highway")
-        return _render_m1_m2_fixed(project_type, project, output_path)
+        return _render_m1_m2_fixed(project_type, project, outline, output_path)
 
     if module_id == "M5":
         # M5：案例模板填充入口，必须有有效的 case_data 才能渲染

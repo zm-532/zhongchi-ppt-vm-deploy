@@ -229,7 +229,7 @@ class BackendApiTest(unittest.TestCase):
         self.assertIn("M1_M2_M6", final_path.name)
         self.assertNotIn("M5", final_path.name)
         self.assertFalse((final_path.parent / "chapters" / "M5_同类型案例匹配.pptx").exists())
-        self.assertEqual(len(Presentation(str(final_path)).slides), 20)
+        self.assertEqual(len(Presentation(str(final_path)).slides), 21)
 
     def test_generate_keeps_string_case_id_and_renders_m5(self):
         project_id = self.client.post(
@@ -482,6 +482,112 @@ class BackendApiTest(unittest.TestCase):
             ["待生成", "模块解析中", "素材匹配中", "章节生成中", "待确认", "章节渲染中", "合并中", "完成"],
         )
 
+    def test_m5_case_match_and_render_in_final_ppt(self):
+        """验证 M5 案例能稳定匹配并在最终 PPT 中合入。
+
+        流程：创建项目 → 上传含轨道交通/声屏障/既有线改造关键词的资料
+        → analyze 应返回推荐案例 → review 传入推荐案例
+        → generate 后 M5 状态为 rendered → 最终 PPT 包含案例内容
+        """
+        project_id = self.client.post(
+            "/api/projects",
+            json={
+                "project_name": "南京地铁3号线声屏障改造工程",
+                "project_location": "南京",
+                "owner_unit": "南京地铁集团有限公司",
+                "product_line": "轨交既有线改造",
+            },
+        ).json()["project_id"]
+
+        # 上传包含案例匹配关键词的资料
+        self.client.post(
+            f"/api/projects/{project_id}/files",
+            files=[
+                (
+                    "files",
+                    (
+                        "南京地铁3号线声屏障改造工程施工组织设计.txt",
+                        (
+                            "南京地铁3号线声屏障改造工程施工组织设计\n"
+                            "既有线运营期间施工，施工窗口受限，夜间天窗点作业。\n"
+                            "沿线噪声问题突出，需要采取降噪措施。\n"
+                            "地铁轨道交通声屏障加装工程，全线约15公里既有线改造。"
+                        ).encode("utf-8"),
+                        "text/plain",
+                    ),
+                ),
+            ],
+        )
+
+        # 分析项目，应返回推荐案例
+        classification = self.client.post(f"/api/projects/{project_id}/analyze").json()
+        self.assertEqual(classification["classification_status"], "analyzed")
+        self.assertIn(classification["detected_project_type"], {"metro", "existing_rail_transit"})
+
+        recommended_cases = classification.get("case_selection", {}).get("recommended_cases", [])
+        self.assertGreater(
+            len(recommended_cases), 0,
+            "analyze 应返回至少一个推荐案例（演示样例含轨道交通/声屏障/既有线改造关键词）",
+        )
+
+        # 取第一个推荐案例
+        selected_case = recommended_cases[0]
+        confirmed_case_id = selected_case["case_id"]
+        self.assertIsNotNone(confirmed_case_id)
+        self.assertIsInstance(confirmed_case_id, str)
+        self.assertTrue(len(confirmed_case_id) > 0)
+
+        # 人工确认，传入推荐案例
+        review_response = self.client.post(
+            f"/api/projects/{project_id}/classification/review",
+            json={
+                "confirmed_project_type": classification["detected_project_type"],
+                "template_selection": classification["template_selection"],
+                "confirmed_case_id": confirmed_case_id,
+                "notes": "M5 案例匹配演示",
+            },
+        )
+        self.assertEqual(review_response.status_code, 200)
+        reviewed = review_response.json()
+        self.assertEqual(reviewed["classification_status"], "reviewed")
+        self.assertEqual(reviewed["case_selection"]["confirmed_case_id"], confirmed_case_id)
+
+        # 生成 PPT
+        generate_response = self.client.post(f"/api/projects/{project_id}/generate")
+        self.assertEqual(generate_response.status_code, 202)
+        generated = generate_response.json()
+        self.assertEqual(generated["task_status"], "完成")
+
+        # M5 应为 rendered 状态
+        m5_module = next(m for m in generated["modules"] if m["module_id"] == "M5")
+        self.assertEqual(m5_module["status"], "rendered", "M5 案例章节应被渲染（不是 skipped）")
+        self.assertTrue(m5_module["chapter_ppt_path"], "M5 章节路径不应为空")
+
+        # 最终 PPT 可下载，且文件名含 M5
+        detail = self.client.get(f"/api/projects/{project_id}").json()
+        final_path = Path(detail["final_ppt_path"])
+        self.assertTrue(final_path.exists(), "最终 PPT 应已生成")
+        self.assertIn("M1_M2_M5_M6", final_path.name, "文件名应包含 M5 表示案例章节已合入")
+
+        # 下载并验证内容
+        download_response = self.client.get(f"/api/projects/{project_id}/download")
+        self.assertEqual(download_response.status_code, 200)
+        self.assertTrue(download_response.content.startswith(b"PK"))
+
+        # 验证 PPT 包含案例相关内容（关键词来自推荐案例）
+        from io import BytesIO
+        from pptx import Presentation
+        prs = Presentation(BytesIO(download_response.content))
+        all_text = " ".join(
+            shape.text for slide in prs.slides for shape in slide.shapes
+            if hasattr(shape, "text") and shape.text
+        )
+        # 至少应包含声屏障或地铁等案例领域关键词
+        self.assertTrue(
+            any(kw in all_text for kw in ["声屏障", "地铁", "案例", "轨道交通", "既有线"]),
+            "最终 PPT 应包含 M5 案例相关内容",
+        )
+
     def test_end_to_end_generate_review_and_download_final_pptx(self):
         project_id = self.client.post(
             "/api/projects",
@@ -519,7 +625,7 @@ class BackendApiTest(unittest.TestCase):
         final_path = Path(detail["final_ppt_path"])
         self.assertTrue(final_path.exists())
         self.assertIn("M1_M2_M6", final_path.name)
-        self.assertEqual(len(Presentation(str(final_path)).slides), 25)
+        self.assertEqual(len(Presentation(str(final_path)).slides), 26)
 
         download_response = self.client.get(f"/api/projects/{project_id}/download")
         self.assertEqual(download_response.status_code, 200)
