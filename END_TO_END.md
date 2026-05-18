@@ -12,8 +12,11 @@ uv run uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 后端提供：
 
 - 项目创建/查询。
-- M1/M2/M5/M6 分模块上传。
-- Mock 大纲生成。
+- 统一上传全部项目资料。
+- 后端自动解析资料、识别项目类型、判断资料可服务模块。
+- M1/M2 模板选择。
+- M5 案例匹配。
+- M6 企业背书模板选择。
 - 人工确认。
 - 章节 PPTX 渲染。
 - 最终 PPTX 合并。
@@ -33,16 +36,16 @@ npm run dev -- --hostname 127.0.0.1 --port 3001
 http://127.0.0.1:3001
 ```
 
-当前前端已接入后端 API，可在页面中完成创建项目、M1/M2/M5/M6 分模块上传、启动生成、人工确认和下载最终 PPTX。默认后端地址为：
+当前前端已接入后端 API，可在页面中完成创建项目、统一上传项目资料、启动分析、人工确认、生成并下载最终 PPTX。默认后端地址为：
 
 ```text
-http://127.0.0.1:8000
+http://127.0.0.1:8010
 ```
 
 如需修改地址，启动前端前设置：
 
 ```powershell
-$env:NEXT_PUBLIC_API_BASE_URL='http://127.0.0.1:8000'
+$env:NEXT_PUBLIC_API_BASE_URL='http://127.0.0.1:8010'
 ```
 
 ## 3. 自动化验收命令
@@ -94,22 +97,22 @@ uv run python -m asset_tools.cli 'D:\中驰股份\SR智能PPT拆分' --output 'D
 ```powershell
 cd D:\中驰股份\code\frontend
 npm test
-npm run build
+.\node_modules\.bin\tsc.cmd --noEmit
 npm run test:e2e
 ```
 
 ## 4. 后端 API 演示流程
 
 1. `POST /api/projects` 创建项目。
-2. `POST /api/projects/{project_id}/modules/M1/files` 上传 M1 材料。
-3. `POST /api/projects/{project_id}/modules/M2/files` 上传 M2 材料。
-4. `POST /api/projects/{project_id}/modules/M5/files` 上传 M5 材料。
-5. `POST /api/projects/{project_id}/modules/M6/files` 上传 M6 材料。
-6. `POST /api/projects/{project_id}/generate` 生成 Mock 章节大纲，状态进入 `待确认`。
-7. `POST /api/projects/{project_id}/review` 提交人工确认，系统渲染章节 PPTX 并合并最终 PPTX。
-8. `GET /api/projects/{project_id}/download` 下载最终 PPTX。
+2. `POST /api/projects/{project_id}/files` 统一上传全部项目资料，不要求前端传 `module_id`。
+3. `POST /api/projects/{project_id}/analyze` 后端解析资料、识别项目类型、判断资料可服务模块，并推荐 M1/M2 模板和 M5 案例。
+4. `POST /api/projects/{project_id}/classification/review` 提交人工确认结果。
+5. `POST /api/projects/{project_id}/generate` 按确认结果生成章节 PPTX，并合并最终 PPTX。
+6. `GET /api/projects/{project_id}/download` 下载最终 PPTX。
 
-自动化测试 `test_end_to_end_generate_review_and_download_final_pptx` 已覆盖以上闭环，并验证最终 PPTX 可被 `python-pptx` 打开。
+旧版 `POST /api/projects/{project_id}/modules/{module_id}/files` 分模块上传接口仍保留为兼容旧 Demo，不作为新版主流程。
+
+自动化测试已覆盖统一上传、资料分析、人工确认、生成、下载等关键链路；其中旧版分模块上传闭环测试仅用于兼容性验证，不代表新版主流程。
 
 浏览器端到端测试 `tests/e2e.spec.ts` 已覆盖前端真实点击链路，并验证最终 PPTX 下载事件。
 

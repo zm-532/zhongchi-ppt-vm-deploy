@@ -16,6 +16,7 @@ from ppt_engine.renderer import (
     PPT_TEMPLATE_ROOT,
     build_m1_m2_replacement_map,
     merge_pptx,
+    move_project_info_slide_to_front,
     render_chapter_ppt,
     render_final_ppt,
     replace_text_placeholders,
@@ -807,6 +808,47 @@ class M1M2TemplateHasPlaceholdersTest(unittest.TestCase):
             # 不应出现未替换的占位符标记
             self.assertNotIn("{{project_name}}", all_text)
             self.assertNotIn("{{project_location}}", all_text)
+
+
+class ProjectInfoSlideReorderTest(unittest.TestCase):
+    """验证"项目生成信息"页被移动到 M1/M2 章节第一页。"""
+
+    def test_project_info_slide_is_first_after_render(self):
+        """渲染后第1页应为"项目生成信息"页，且字段已替换。"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            outline = {"project_type": "metro"}
+            output_path = render_chapter_ppt("M1_M2", PROJECT, outline, temp_dir)
+            prs = Presentation(str(output_path))
+            first_slide = prs.slides[0]
+            first_text = ""
+            for shape in first_slide.shapes:
+                if hasattr(shape, "text") and shape.text:
+                    first_text += shape.text
+            self.assertIn("项目生成信息", first_text)
+            self.assertIn("某城市轨道交通声屏障改造项目", first_text)
+            self.assertNotIn("{{project_name}}", first_text)
+
+    def test_move_project_info_slide_to_front_is_idempotent(self):
+        """连续调用两次 move_project_info_slide_to_front 不会产生重复页。"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            outline = {"project_type": "metro"}
+            output_path = render_chapter_ppt("M1_M2", PROJECT, outline, temp_dir)
+            move_project_info_slide_to_front(output_path)
+            move_project_info_slide_to_front(output_path)
+            prs = Presentation(str(output_path))
+            # 统计包含"项目生成信息"的幻灯片数量（按 slide 计，非按文本出现次数）
+            slides_with_project_info = sum(
+                1 for slide in prs.slides
+                if any("项目生成信息" in shape.text for shape in slide.shapes
+                      if hasattr(shape, "text") and shape.text)
+            )
+            self.assertEqual(slides_with_project_info, 1)
+            # 第一页仍是"项目生成信息"
+            first_slide = prs.slides[0]
+            first_text = "".join(
+                shape.text for shape in first_slide.shapes if hasattr(shape, "text") and shape.text
+            )
+            self.assertIn("项目生成信息", first_text)
 
 
 if __name__ == "__main__":

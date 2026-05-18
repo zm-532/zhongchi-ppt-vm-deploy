@@ -46,6 +46,7 @@ test("[静态] page.tsx 源码中包含主要 workflow section 的文本标记",
     "识别结果确认",
     "确认项目类型与模板",
     "案例库管理",
+    "功能测试",
     "M1/M2选择测试",
     "M1/M2 选用模板",
     "M5 推荐案例",
@@ -55,6 +56,27 @@ test("[静态] page.tsx 源码中包含主要 workflow section 的文本标记",
     "生成状态",
     "下载最终 PPTX",
   ].forEach((text) => assert.match(source, new RegExp(text)));
+});
+
+test("[静态] page.tsx 将开发测试收纳到功能测试入口并包含大模型测试", () => {
+  const source = pageSource();
+  [
+    'type ViewId = "projects" | "create" | "cases" | "function-tests"',
+    "#function-tests",
+    "功能测试",
+    "开发过程验证入口",
+    "M1/M2选择测试",
+    "M5选择测试",
+    "文档解析测试",
+    "大模型测试",
+    "runLlmConnectionTest",
+    "/api/dev/llm-test",
+    "llmTestPrompt",
+  ].forEach((text) => assert.match(source, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))));
+
+  assert.doesNotMatch(source, /href="#m1m2-test">M1\/M2选择测试/);
+  assert.doesNotMatch(source, /href="#m5-test">M5选择测试/);
+  assert.doesNotMatch(source, /href="#document-parse-test">文档解析测试/);
 });
 
 test("[静态] page.tsx 源码中包含 M1/M2 测试视图的关键 UI 元素标记", () => {
@@ -130,7 +152,7 @@ test("[静态] page.tsx 调用了所需的 backend API 端点字符串", () => {
 
 test("[静态] page.tsx 保留 case_id 为字符串格式和默认端口配置", () => {
   const source = pageSource();
-  assert.match(source, /http:\/\/127\.0\.0\.1:8000/);
+  assert.match(source, /http:\/\/127\.0\.0\.1:8010/);
   assert.doesNotMatch(source, /Number\(reviewForm\.caseId\)/);
   assert.match(source, /confirmed_case_id: reviewForm\.caseId \|\| null/);
   assert.match(source, /caseId: undefined/);
@@ -138,11 +160,18 @@ test("[静态] page.tsx 保留 case_id 为字符串格式和默认端口配置",
 
 test("[静态] page.tsx 包含项目列表展开/收起控制逻辑", () => {
   const source = pageSource();
-  assert.match(source, /PROJECT_LIST_PREVIEW_LIMIT = 10/);
+  assert.match(source, /PROJECT_LIST_PREVIEW_LIMIT = 5/);
+  assert.match(source, /PROJECT_LIST_PAGE_SIZE = 10/);
   assert.match(source, /visibleProjects/);
+  assert.match(source, /projectListPage/);
+  assert.match(source, /totalProjectPages/);
   assert.match(source, /projects\.slice\(0, PROJECT_LIST_PREVIEW_LIMIT\)/);
   assert.match(source, /显示更多/);
   assert.match(source, /收起/);
+  assert.match(source, /setProjectListExpanded\(\(expanded\) => !expanded\)/);
+  assert.match(source, /上一页/);
+  assert.match(source, /下一页/);
+  assert.match(source, /第 \$\{projectListPage\} \/ /);
 });
 
 test("[静态] page.tsx 支持多选项目管理删除功能", () => {
@@ -183,6 +212,17 @@ test("[静态] page.tsx 调用完整 demo workflow 的 API 端点字符串", () 
     "fetch(",
     "FormData",
   ].forEach((text) => assert.match(source, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))));
+});
+
+test("[静态] page.tsx 包含编辑已有项目基础信息的功能", () => {
+  const source = pageSource();
+  assert.match(source, /编辑基础信息/);
+  // PATCH 请求：method 在 requestJson 第二个参数中，URL 中含 project_id
+  assert.match(source, /method: "PATCH"/);
+  assert.match(source, /\/api\/projects\/\$\{currentProject\.project_id\}/);
+  assert.match(source, /updateProjectBasicInfo/);
+  assert.match(source, /isEditingProject/);
+  assert.match(source, /setIsEditingProject/);
 });
 
 test("[静态] page.tsx 包含文档解析测试视图的 UI 元素（使用真实项目流程）", () => {

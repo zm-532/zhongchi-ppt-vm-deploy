@@ -35,7 +35,8 @@ a {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
@@ -405,6 +406,12 @@ input:disabled {
   font-size: 13px;
 }
 
+.projectListFooterActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 label {
   display: grid;
   gap: 7px;
@@ -414,7 +421,8 @@ label {
 }
 
 input,
-select {
+select,
+textarea {
   width: 100%;
   min-height: 40px;
   padding: 0 12px;
@@ -426,8 +434,16 @@ select {
   transition: border-color 0.16s ease, box-shadow 0.16s ease;
 }
 
+textarea {
+  min-height: 104px;
+  padding: 10px 12px;
+  resize: vertical;
+  line-height: 1.55;
+}
+
 input:focus,
-select:focus {
+select:focus,
+textarea:focus {
   border-color: #8bb6e4;
   box-shadow: 0 0 0 3px rgba(31, 102, 177, 0.1);
 }
@@ -481,6 +497,12 @@ select:focus {
   min-height: auto;
   padding: 0;
   border: 0;
+}
+
+.uploadHint {
+  font-size: 12px;
+  color: #666;
+  margin-top: 6px;
 }
 
 .uploadPanel {
@@ -591,6 +613,10 @@ select:focus {
   color: var(--primary-dark);
   line-height: 1.45;
   font-size: 15px;
+}
+
+.resultCard.wide {
+  grid-column: span 2;
 }
 
 .evidencePanel {
@@ -760,6 +786,12 @@ select:focus {
   margin-top: 18px;
   padding-top: 18px;
   border-top: 1px solid var(--line);
+}
+
+.downloadActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .actions {

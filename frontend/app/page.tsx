@@ -18,7 +18,7 @@ const m1m2Templates = [
   { value: "railway", label: "铁路声屏障行业背景与技术发展（M1_&_M2）.pptx" },
 ];
 
-type ViewId = "projects" | "create" | "cases" | "m1m2-test" | "m5-test" | "document-parse-test";
+type ViewId = "projects" | "create" | "cases" | "function-tests" | "m1m2-test" | "m5-test" | "document-parse-test" | "llm-test";
 type Project = {
   project_id: number;
   project_name: string;
@@ -54,16 +54,20 @@ type ClassificationResult = {
 type TaskState = { project_id: number; task_status: string; status_history: string[] };
 type ReviewForm = { projectType: string; m1m2Template: string; caseId?: string; notes: string };
 type RecommendedCase = { case_id: number | string; title: string; match_reason?: string; matched_tags?: string[]; source_path?: string };
+type LlmTestResult = { ok: boolean; status_code: number; model: string; reply: string; error: string; configured: Record<string, boolean> };
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
-const PROJECT_LIST_PREVIEW_LIMIT = 10;
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8010";
+const PROJECT_LIST_PREVIEW_LIMIT = 5;
+const PROJECT_LIST_PAGE_SIZE = 10;
 const viewTitles: Record<ViewId, { title: string; description: string }> = {
   projects: { title: "我的项目", description: "创建项目、统一上传项目资料，并确认系统识别结果。" },
   create: { title: "新建项目", description: "填写基础信息后创建一个新的售前 PPT 项目。" },
   cases: { title: "案例库管理", description: "维护历史案例，供系统按项目标签推荐引用。" },
+  "function-tests": { title: "功能测试", description: "开发过程验证入口，收纳内部功能测试页面，普通前端用户无需使用。" },
   "m1m2-test": { title: "M1/M2选择测试", description: "上传测试资料，根据文件名和解析文本识别项目类型并选择对应 M1/M2 固化模板。" },
   "m5-test": { title: "M5选择测试", description: "上传测试资料，根据项目标签从案例库匹配相似案例并显示匹配理由。" },
   "document-parse-test": { title: "文档解析测试", description: "用于测试不同格式资料的文本与结构化解析效果。" },
+  "llm-test": { title: "大模型测试", description: "调用后端开发测试接口，验证当前 LLM 环境变量和中转站请求是否可用。" },
 };
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
@@ -114,17 +118,28 @@ export default function HomePage() {
   const [docParseTestProjectId, setDocParseTestProjectId] = useState<number | null>(null);
   const [docParseTestResult, setDocParseTestResult] = useState<ClassificationResult | null>(null);
   const [docParseTestMessage, setDocumentParseTestMessage] = useState("请上传文件以测试解析效果。");
+  const [llmTestPrompt, setLlmTestPrompt] = useState("请用一句话回复：LLM连接成功，并说明你收到了中驰售前PPT助手的页面测试请求。");
+  const [llmTestResult, setLlmTestResult] = useState<LlmTestResult | null>(null);
+  const [llmTestMessage, setLlmTestMessage] = useState("点击按钮后将通过后端调用大模型测试接口。");
+
+  // 项目基础信息编辑
+  const [isEditingProject, setIsEditingProject] = useState(false);
+  const [editForm, setEditForm] = useState({ project_name: "", project_location: "", owner_unit: "", product_line: "" });
 
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("请先创建项目，再统一上传项目资料。");
   const [projectListExpanded, setProjectListExpanded] = useState(false);
+  const [projectListPage, setProjectListPage] = useState(1);
   const [isManagingProjects, setIsManagingProjects] = useState(false);
   const [selectedProjectIds, setSelectedProjectIds] = useState<number[]>([]);
   const activeStatus = task?.task_status ?? currentProject?.task_status ?? "待上传";
   const recommendedCases = useMemo(() => classification?.case_selection?.recommended_cases ?? [], [classification]);
   const hasMoreProjects = projects.length > PROJECT_LIST_PREVIEW_LIMIT;
-  const visibleProjects = projectListExpanded ? projects : projects.slice(0, PROJECT_LIST_PREVIEW_LIMIT);
+  const totalProjectPages = Math.ceil(projects.length / PROJECT_LIST_PAGE_SIZE);
+  const visibleProjects = projectListExpanded
+    ? projects.slice((projectListPage - 1) * PROJECT_LIST_PAGE_SIZE, projectListPage * PROJECT_LIST_PAGE_SIZE)
+    : projects.slice(0, PROJECT_LIST_PREVIEW_LIMIT);
 
   const statusHistory = useMemo(
     () => (task?.status_history ?? currentProject?.status_history ?? ["待上传"]).join(" -> "),
@@ -134,7 +149,17 @@ export default function HomePage() {
   useEffect(() => {
     function syncViewFromHash() {
       const nextView = window.location.hash.replace("#", "");
-      setActiveView(nextView === "create" || nextView === "cases" || nextView === "m1m2-test" || nextView === "m5-test" || nextView === "document-parse-test" ? nextView : "projects");
+      setActiveView(
+        nextView === "create" ||
+        nextView === "cases" ||
+        nextView === "function-tests" ||
+        nextView === "m1m2-test" ||
+        nextView === "m5-test" ||
+        nextView === "document-parse-test" ||
+        nextView === "llm-test"
+          ? nextView
+          : "projects"
+      );
     }
 
     syncViewFromHash();
@@ -148,7 +173,7 @@ export default function HomePage() {
         setProjects(items);
         if (items[0]) setCurrentProject(items[0]);
       })
-      .catch(() => setMessage("后端未连接，请确认 FastAPI 运行在 127.0.0.1:8000。"));
+      .catch(() => setMessage("后端未连接，请确认 FastAPI 运行在 127.0.0.1:8010。"));
   }, []);
 
   useEffect(() => {
@@ -332,6 +357,8 @@ export default function HomePage() {
       const remainingProjects = projects.filter((project) => !idsToDelete.includes(project.project_id));
       setProjects(remainingProjects);
       setSelectedProjectIds([]);
+      const newTotalPages = Math.ceil(remainingProjects.length / PROJECT_LIST_PAGE_SIZE);
+      if (projectListPage > newTotalPages) setProjectListPage(Math.max(1, newTotalPages));
       if (currentProject && idsToDelete.includes(currentProject.project_id)) {
         setCurrentProject(remainingProjects[0] ?? null);
         setTask(null);
@@ -340,6 +367,25 @@ export default function HomePage() {
       setMessage(`已删除 ${idsToDelete.length} 个项目。`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "删除项目失败");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function updateProjectBasicInfo() {
+    if (!currentProject) return;
+    setBusy(true);
+    try {
+      const updated = await requestJson<Project>(
+        `/api/projects/${currentProject.project_id}`,
+        { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(editForm) },
+      );
+      setCurrentProject(updated);
+      setProjects((items) => items.map((p) => (p.project_id === updated.project_id ? updated : p)));
+      setIsEditingProject(false);
+      setMessage("项目信息已更新，若已生成 PPT，请重新启动生成以应用最新字段。");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "更新项目信息失败");
     } finally {
       setBusy(false);
     }
@@ -551,12 +597,33 @@ export default function HomePage() {
     }
   }
 
+  async function runLlmConnectionTest() {
+    const prompt = llmTestPrompt.trim();
+    if (!prompt) return setLlmTestMessage("请先填写测试提示词。");
+    setBusy(true);
+    setLlmTestResult(null);
+    try {
+      const result = await requestJson<LlmTestResult>("/api/dev/llm-test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt }),
+      });
+      setLlmTestResult(result);
+      setLlmTestMessage(result.ok ? "大模型调用成功。" : `大模型调用失败：${result.error || result.status_code}`);
+    } catch (error) {
+      setLlmTestMessage(error instanceof Error ? error.message : "大模型测试失败");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function downloadFinal() {
     if (!currentProject) return setMessage("请先创建项目。");
     window.location.href = `${API_BASE}/api/projects/${currentProject.project_id}/download`;
   }
 
   const pageTitle = viewTitles[activeView];
+  const isFunctionTestView = activeView === "function-tests" || activeView === "m1m2-test" || activeView === "m5-test" || activeView === "document-parse-test" || activeView === "llm-test";
 
   return (
     <main className="shell">
@@ -566,9 +633,7 @@ export default function HomePage() {
           <a className={activeView === "projects" ? "navItem active" : "navItem"} href="#projects">我的项目</a>
           <a className={activeView === "create" ? "navItem active" : "navItem"} href="#create">新建项目</a>
           <a className={activeView === "cases" ? "navItem active" : "navItem"} href="#cases">案例库管理</a>
-          <a className={activeView === "m1m2-test" ? "navItem active" : "navItem"} href="#m1m2-test">M1/M2选择测试</a>
-          <a className={activeView === "m5-test" ? "navItem active" : "navItem"} href="#m5-test">M5选择测试</a>
-          <a className={activeView === "document-parse-test" ? "navItem active" : "navItem"} href="#document-parse-test">文档解析测试</a>
+          <a className={isFunctionTestView ? "navItem active" : "navItem"} href="#function-tests">功能测试</a>
         </nav>
       </aside>
       <section className="content">
@@ -594,10 +659,18 @@ export default function HomePage() {
                   ))}</div>
                   {hasMoreProjects ? (
                     <div className="projectListFooter">
-                      <span>{projectListExpanded ? `已显示全部 ${projects.length} 个项目` : `已显示前 ${PROJECT_LIST_PREVIEW_LIMIT} 个，共 ${projects.length} 个项目`}</span>
-                      <button className="secondaryButton" onClick={() => setProjectListExpanded((value) => !value)} type="button">
-                        {projectListExpanded ? "收起" : "显示更多"}
-                      </button>
+                      <span>{projectListExpanded ? `第 ${projectListPage} / ${totalProjectPages} 页，共 ${projects.length} 个项目` : `已显示前 ${PROJECT_LIST_PREVIEW_LIMIT} 个，共 ${projects.length} 个项目`}</span>
+                      <div className="projectListFooterActions">
+                        {projectListExpanded && totalProjectPages > 1 ? (
+                          <>
+                            <button className="secondaryButton" disabled={projectListPage <= 1} onClick={() => setProjectListPage((p) => Math.max(1, p - 1))} type="button">上一页</button>
+                            <button className="secondaryButton" disabled={projectListPage >= totalProjectPages} onClick={() => setProjectListPage((p) => Math.min(totalProjectPages, p + 1))} type="button">下一页</button>
+                          </>
+                        ) : null}
+                        <button className="secondaryButton" onClick={() => { setProjectListExpanded((expanded) => !expanded); setProjectListPage(1); }} type="button">
+                          {projectListExpanded ? "收起" : "显示更多"}
+                        </button>
+                      </div>
                     </div>
                   ) : null}
                 </>
@@ -610,8 +683,60 @@ export default function HomePage() {
                   <div className="sectionHeader"><h2>统一资料上传</h2><span className="badge">支持多文件</span></div>
                   <div className="uploadPanel">
                     <div>
-                      <h3>{currentProject.project_name}</h3>
+                      {isEditingProject ? (
+                        <div style={{ display: "flex", flexDirection: "column", gap: "6px", padding: "10px", border: "1px solid var(--line)", borderRadius: "6px" }}>
+                          <input
+                            value={editForm.project_name}
+                            onChange={(e) => setEditForm((f) => ({ ...f, project_name: e.target.value }))}
+                            placeholder="项目名称"
+                            style={{ padding: "4px 8px", fontSize: "13px" }}
+                          />
+                          <input
+                            value={editForm.project_location}
+                            onChange={(e) => setEditForm((f) => ({ ...f, project_location: e.target.value }))}
+                            placeholder="项目所在地"
+                            style={{ padding: "4px 8px", fontSize: "13px" }}
+                          />
+                          <input
+                            value={editForm.owner_unit}
+                            onChange={(e) => setEditForm((f) => ({ ...f, owner_unit: e.target.value }))}
+                            placeholder="建设/业主单位"
+                            style={{ padding: "4px 8px", fontSize: "13px" }}
+                          />
+                          <input
+                            value={editForm.product_line}
+                            onChange={(e) => setEditForm((f) => ({ ...f, product_line: e.target.value }))}
+                            placeholder="产品线"
+                            style={{ padding: "4px 8px", fontSize: "13px" }}
+                          />
+                          <div style={{ display: "flex", gap: "6px" }}>
+                            <button className="primaryButton" style={{ fontSize: "12px", padding: "4px 12px" }} disabled={busy} onClick={updateProjectBasicInfo} type="button">保存</button>
+                            <button className="secondaryButton" style={{ fontSize: "12px", padding: "4px 12px" }} disabled={busy} onClick={() => setIsEditingProject(false)} type="button">取消</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <h3>{currentProject.project_name}</h3>
+                          <button
+                            className="secondaryButton"
+                            style={{ fontSize: "12px", padding: "2px 10px" }}
+                            onClick={() => {
+                              setEditForm({
+                                project_name: currentProject.project_name || "",
+                                project_location: currentProject.project_location || "",
+                                owner_unit: currentProject.owner_unit || "",
+                                product_line: currentProject.product_line || "",
+                              });
+                              setIsEditingProject(true);
+                            }}
+                            type="button"
+                          >
+                            编辑基础信息
+                          </button>
+                        </div>
+                      )}
                       <p>系统将自动识别资料用途，上传时无需选择资料归属章节。</p>
+                      <p className="uploadHint">支持格式：.ppt / .pptx / .pdf / .doc / .docx / .xls / .xlsx / .png / .jpg / .jpeg</p>
                     </div>
                     <label className="uploadBox">
                       <span>选择项目资料</span>
@@ -682,11 +807,11 @@ export default function HomePage() {
                 </section>
 
                 <section className="section statusSection">
-                  <div className="sectionHeader"><h2>生成状态</h2><div className="actions"><button className="primaryButton" disabled={busy} onClick={generate} type="button">启动生成</button><button className="secondaryButton" disabled={busy} onClick={downloadFinal} type="button">下载最终 PPTX</button></div></div>
+                  <div className="sectionHeader"><h2>生成状态</h2><div className="actions"><button className="primaryButton" disabled={busy} onClick={generate} type="button">启动生成</button></div></div>
                   <ol className="statusList">{statuses.map((status, index) => <li className={status === activeStatus ? "current" : ""} key={status}><span>{index + 1}</span>{status}</li>)}</ol>
                   <div className="historyBox"><strong>状态历史</strong><span>{statusHistory}</span></div>
                   <p className="messageLine">{message}</p>
-                  <div className="downloadRow"><div><h3>最终文件</h3><p id="finalFileDesc">生成完成后可下载 PPTX</p></div><span className="badge">{activeStatus}</span></div>
+                  <div className="downloadRow"><div><h3>最终文件</h3><p id="finalFileDesc">生成完成后可下载 PPTX</p></div><div className="downloadActions"><button className="secondaryButton" disabled={busy} onClick={downloadFinal} type="button">下载最终 PPTX</button><span className="badge">{activeStatus}</span></div></div>
                 </section>
               </>
             ) : null}
@@ -714,6 +839,41 @@ export default function HomePage() {
 
         {activeView === "cases" ? (
           <section id="cases" className="section"><div className="sectionHeader"><h2>案例库管理</h2><button className="secondaryButton" type="button">新增案例</button></div><div className="emptyState compact"><h3>案例库为空</h3><p>添加历史项目案例后，系统会根据项目标签自动匹配相似案例。</p><button className="secondaryButton" type="button">添加第一个案例</button></div></section>
+        ) : null}
+
+        {activeView === "function-tests" ? (
+          <section id="function-tests" className="section">
+            <div className="sectionHeader">
+              <h2>功能测试</h2>
+              <span className="badge">开发过程验证入口</span>
+            </div>
+            <div className="resultGrid">
+              <article className="resultCard">
+                <span>模板识别</span>
+                <strong>M1/M2选择测试</strong>
+                <p>验证项目类型识别与 M1/M2 固化模板选择。</p>
+                <a className="secondaryButton" href="#m1m2-test">打开测试</a>
+              </article>
+              <article className="resultCard">
+                <span>案例匹配</span>
+                <strong>M5选择测试</strong>
+                <p>验证项目标签、案例库匹配与推荐理由。</p>
+                <a className="secondaryButton" href="#m5-test">打开测试</a>
+              </article>
+              <article className="resultCard">
+                <span>资料解析</span>
+                <strong>文档解析测试</strong>
+                <p>验证上传资料解析状态、资料角色和模块分配。</p>
+                <a className="secondaryButton" href="#document-parse-test">打开测试</a>
+              </article>
+              <article className="resultCard">
+                <span>LLM 连通性</span>
+                <strong>大模型测试</strong>
+                <p>通过后端读取环境变量并调用配置好的接口。</p>
+                <a className="secondaryButton" href="#llm-test">打开测试</a>
+              </article>
+            </div>
+          </section>
         ) : null}
 
         {activeView === "m1m2-test" ? (
@@ -1042,6 +1202,52 @@ export default function HomePage() {
                     </table>
                   </div>
                 ) : null}
+              </div>
+            ) : null}
+          </section>
+        ) : null}
+
+        {activeView === "llm-test" ? (
+          <section id="llm-test" className="section">
+            <div className="sectionHeader">
+              <h2>大模型测试</h2>
+              <span className="badge">页面调用验证</span>
+            </div>
+            <div className="testPanel">
+              <label>
+                测试提示词
+                <textarea
+                  value={llmTestPrompt}
+                  onChange={(event) => setLlmTestPrompt(event.target.value)}
+                  rows={4}
+                />
+              </label>
+              <button className="primaryButton" disabled={busy} onClick={runLlmConnectionTest} type="button">调用大模型测试</button>
+              <p className="messageLine">{llmTestMessage}</p>
+            </div>
+
+            {llmTestResult ? (
+              <div className="resultGrid">
+                <article className="resultCard">
+                  <span>调用状态</span>
+                  <strong>{llmTestResult.ok ? "成功" : "失败"}</strong>
+                  <p>HTTP status：{llmTestResult.status_code || "无响应"}</p>
+                </article>
+                <article className="resultCard">
+                  <span>模型</span>
+                  <strong>{llmTestResult.model || "未返回"}</strong>
+                  <p>由后端读取 ZHONGCHI_LLM_MODEL。</p>
+                </article>
+                <article className="resultCard wide">
+                  <span>模型回复</span>
+                  <strong>{llmTestResult.reply || "无回复"}</strong>
+                  <p>{llmTestResult.error ? `错误信息：${llmTestResult.error}` : "后端不会向前端返回 API Key。"}</p>
+                </article>
+                <article className="resultCard">
+                  <span>配置检查</span>
+                  <strong>{llmTestResult.configured?.base_url && llmTestResult.configured?.api_key && llmTestResult.configured?.model ? "完整" : "缺失"}</strong>
+                  <p>base_url：{String(Boolean(llmTestResult.configured?.base_url))}；api_key：{String(Boolean(llmTestResult.configured?.api_key))}；model：{String(Boolean(llmTestResult.configured?.model))}</p>
+                </article>
               </div>
             ) : null}
           </section>

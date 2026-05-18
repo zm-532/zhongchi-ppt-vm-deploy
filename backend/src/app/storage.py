@@ -152,6 +152,29 @@ class JsonStore:
         self.save(state)
         return True
 
+    def update_project(self, project_id: int, payload: dict[str, Any]) -> dict[str, Any] | None:
+        """部分更新项目基础信息。None 值不覆盖原值，空字符串视具体情况处理。"""
+        state = self.load()
+        project = next((item for item in state["projects"] if item["project_id"] == project_id), None)
+        if project is None:
+            return None
+
+        # 只允许更新的字段
+        allowed_fields = ("project_name", "project_location", "owner_unit", "product_line")
+        for field in allowed_fields:
+            if field in payload:
+                value = payload[field]
+                # None 表示不更新，保留原值
+                if value is None:
+                    continue
+                # project_name 不允许空字符串
+                if field == "project_name" and isinstance(value, str) and value.strip() == "":
+                    continue
+                project[field] = value
+
+        self.save(state)
+        return project
+
     def add_file(self, project_id: int, module_id: str, filename: str, content_type: str, content: bytes) -> dict[str, Any] | None:
         state = self.load()
         project = next((item for item in state["projects"] if item["project_id"] == project_id), None)

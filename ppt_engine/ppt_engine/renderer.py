@@ -488,6 +488,46 @@ def _render_m6_fixed_template(project: dict[str, Any], output_dir: Path) -> Path
     return file_path
 
 
+def move_project_info_slide_to_front(pptx_path: str | Path) -> Path:
+    """将包含"项目生成信息"的幻灯片移动到 PPTX 第一页。
+
+    如果该页已在第一页或找不到"项目生成信息"页，保持幂等（直接返回）。
+    使用 Presentation.slides._sldIdLst 操作 slide 顺序，不复制页面。
+    """
+    path = Path(pptx_path)
+    prs = Presentation(str(path))
+
+    target_index = None
+    for idx, slide in enumerate(prs.slides):
+        for shape in slide.shapes:
+            if not hasattr(shape, "text_frame"):
+                continue
+            tf = shape.text_frame
+            for para in tf.paragraphs:
+                for run in para.runs:
+                    if "项目生成信息" in run.text:
+                        target_index = idx
+                        break
+                if target_index is not None:
+                    break
+            if target_index is not None:
+                break
+        if target_index is not None:
+            break
+
+    if target_index is None or target_index == 0:
+        prs.save(str(path))
+        return path
+
+    sldIdLst = prs.slides._sldIdLst
+    slide_id = sldIdLst[target_index]
+    sldIdLst.remove(slide_id)
+    sldIdLst.insert(0, slide_id)
+
+    prs.save(str(path))
+    return path
+
+
 def _render_m1_m2_fixed(
     project_type: str, project: dict[str, Any], outline: dict[str, Any], output_dir: Path
 ) -> Path:
@@ -509,6 +549,9 @@ def _render_m1_m2_fixed(
 
     file_path = output_dir / f"M1_M2_{MODULE_TITLES['M1_M2']}.pptx"
     _copy_fixed_template(source_template, file_path)
+
+    # 将"项目生成信息"页移动到第一页
+    move_project_info_slide_to_front(file_path)
 
     # 执行 M1/M2 字段替换
     replacements = build_m1_m2_replacement_map(project, outline)

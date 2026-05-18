@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
 from .constants import ALLOWED_EXTENSIONS, ALLOWED_MODULE_IDS, PROJECT_TYPES
-from .schemas import ClassificationResult, ClassificationReviewRequest, DocumentParseTestResult, Project, ProjectCreate, ReviewRequest, StoredFile, VectorIndexRequest, VectorIndexResponse
+from .schemas import ClassificationResult, ClassificationReviewRequest, DocumentParseTestResult, LlmTestRequest, LlmTestResponse, Project, ProjectCreate, ProjectUpdate, ReviewRequest, StoredFile, VectorIndexRequest, VectorIndexResponse
 from .storage import get_store
 
 app = FastAPI(title="中驰智能PPT Demo API")
@@ -69,6 +69,14 @@ def delete_project(project_id: int) -> None:
     deleted = get_store().delete_project(project_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="项目不存在")
+
+
+@app.patch("/api/projects/{project_id}", response_model=Project)
+def patch_project(project_id: int, payload: ProjectUpdate) -> dict:
+    updated = get_store().update_project(project_id, payload.model_dump(exclude_none=True))
+    if updated is None:
+        raise HTTPException(status_code=404, detail="项目不存在")
+    return updated
 
 
 @app.post("/api/projects/{project_id}/modules/{module_id}/files", response_model=StoredFile, status_code=status.HTTP_201_CREATED)
@@ -213,6 +221,13 @@ def list_assets(module_id: str | None = None) -> list[dict]:
 @app.get("/api/cases")
 def list_cases() -> list[dict]:
     return get_store().get_cases()
+
+
+@app.post("/api/dev/llm-test", response_model=LlmTestResponse)
+def dev_llm_test(payload: LlmTestRequest) -> dict:
+    from .llm import test_llm_connection
+
+    return test_llm_connection(payload.prompt)
 
 
 # =============================================================================

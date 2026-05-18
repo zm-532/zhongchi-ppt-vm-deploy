@@ -108,3 +108,24 @@ class DocumentParseTestResult(BaseModel):
     slides: list[dict[str, Any]] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
     error_message: str = ""
+
+
+class ProjectUpdate(BaseModel):
+    """用于部分更新项目基础信息的请求体。"""
+    project_name: str | None = None
+    project_location: str | None = None
+    owner_unit: str | None = None
+    product_line: str | None = None
+
+
+class LlmTestRequest(BaseModel):
+    prompt: str = "请用一句话回复：LLM连接成功，并说明你收到了中驰售前PPT助手的测试请求。"
+
+
+class LlmTestResponse(BaseModel):
+    ok: bool
+    status_code: int
+    model: str = ""
+    reply: str = ""
+    error: str = ""
+    configured: dict[str, bool] = Field(default_factory=dict)

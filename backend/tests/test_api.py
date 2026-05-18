@@ -83,6 +83,62 @@ class BackendApiTest(unittest.TestCase):
         detail_response = self.client.get(f"/api/projects/{first_id}")
         self.assertEqual(detail_response.status_code, 404)
 
+    def test_dev_llm_test_uses_configured_url_without_appending_path(self):
+        class FakeResponse:
+            status_code = 200
+
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return {
+                    "model": "fake-model",
+                    "choices": [{"message": {"content": "LLM连接成功"}}],
+                }
+
+        calls = []
+
+        class FakeClient:
+            def __init__(self, *args, **kwargs):
+                self.kwargs = kwargs
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def post(self, url, headers=None, json=None):
+                calls.append({"url": url, "headers": headers, "json": json, "kwargs": self.kwargs})
+                return FakeResponse()
+
+        old_base = os.environ.get("ZHONGCHI_LLM_BASE_URL")
+        old_key = os.environ.get("ZHONGCHI_LLM_API_KEY")
+        old_model = os.environ.get("ZHONGCHI_LLM_MODEL")
+        os.environ["ZHONGCHI_LLM_BASE_URL"] = "https://example.test/custom/chat"
+        os.environ["ZHONGCHI_LLM_API_KEY"] = "test-key"
+        os.environ["ZHONGCHI_LLM_MODEL"] = "test-model"
+        try:
+            importlib.import_module("app.llm")
+            with patch("app.llm.httpx.Client", FakeClient):
+                response = self.client.post("/api/dev/llm-test", json={"prompt": "测试提示词"})
+        finally:
+            for name, old_value in (
+                ("ZHONGCHI_LLM_BASE_URL", old_base),
+                ("ZHONGCHI_LLM_API_KEY", old_key),
+                ("ZHONGCHI_LLM_MODEL", old_model),
+            ):
+                if old_value is None:
+                    os.environ.pop(name, None)
+                else:
+                    os.environ[name] = old_value
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["reply"], "LLM连接成功")
+        self.assertEqual(calls[0]["url"], "https://example.test/custom/chat")
+        self.assertEqual(calls[0]["json"]["model"], "test-model")
+        self.assertEqual(calls[0]["json"]["messages"][-1]["content"], "测试提示词")
+
     def test_upload_records_file_against_allowed_module(self):
         project_id = self.client.post("/api/projects", json={"project_name": "上传测试项目"}).json()["project_id"]
 
@@ -587,6 +643,141 @@ class BackendApiTest(unittest.TestCase):
             any(kw in all_text for kw in ["声屏障", "地铁", "案例", "轨道交通", "既有线"]),
             "最终 PPT 应包含 M5 案例相关内容",
         )
+
+    def test_m1_m2_placeholder_replacement_in_final_ppt(self):
+        """验证主流程最终 PPT 不含 {{...}} 占位符，所有字段均被正确替换。
+
+        回归测试：防止 template copy + replace 链路断裂导致占位符泄漏。
+        """
+        project_id = self.client.post(
+            "/api/projects",
+            json={
+                "project_name": "南京地铁3号线既有线声屏障改造工程",
+                "project_location": "南京",
+                "owner_unit": "南京地铁集团有限公司",
+                "product_line": "轨交既有线改造",
+            },
+        ).json()["project_id"]
+
+        self.client.post(
+            f"/api/projects/{project_id}/files",
+            files=[
+                (
+                    "files",
+                    (
+                        "南京地铁3号线声屏障改造工程施工组织设计.txt",
+                        (
+                            "南京地铁3号线声屏障改造工程施工组织设计\n"
+                            "既有线运营期间施工，施工窗口受限，夜间天窗点作业。\n"
+                            "沿线噪声问题突出，需要采取降噪措施。\n"
+                            "地铁轨道交通声屏障加装工程，全线约15公里既有线改造。\n"
+                            "工期紧张，需在短窗口内完成噪声治理施工。"
+                        ).encode("utf-8"),
+                        "text/plain",
+                    ),
+                ),
+            ],
+        )
+
+        classification = self.client.post(f"/api/projects/{project_id}/analyze").json()
+        recommended_cases = classification.get("case_selection", {}).get("recommended_cases", [])
+        confirmed_case_id = recommended_cases[0]["case_id"] if recommended_cases else None
+
+        self.client.post(
+            f"/api/projects/{project_id}/classification/review",
+            json={
+                "confirmed_project_type": classification["detected_project_type"],
+                "template_selection": classification["template_selection"],
+                "confirmed_case_id": confirmed_case_id,
+                "notes": "占位符回归测试",
+            },
+        )
+
+        self.client.post(f"/api/projects/{project_id}/generate")
+
+        detail = self.client.get(f"/api/projects/{project_id}").json()
+        download = self.client.get(f"/api/projects/{project_id}/download")
+        self.assertEqual(download.status_code, 200)
+
+        from io import BytesIO
+        from pptx import Presentation
+        prs = Presentation(BytesIO(download.content))
+        all_text = " ".join(
+            shape.text for slide in prs.slides for shape in slide.shapes
+            if hasattr(shape, "text") and shape.text
+        )
+
+        # 负面断言：不应包含任何 {{ 或 }}
+        self.assertNotIn("{{", all_text, "PPTX 不应包含 '{{' 占位符")
+        self.assertNotIn("}}", all_text, "PPTX 不应包含 '}}' 占位符")
+        self.assertNotIn("{{project_name}}", all_text)
+
+        # 正面断言：项目基础字段应被替换
+        self.assertIn("南京地铁3号线既有线声屏障改造工程", all_text)
+        self.assertIn("南京", all_text)
+        self.assertIn("南京地铁集团有限公司", all_text)
+        self.assertIn("轨交既有线改造", all_text)
+
+        # 规则识别字段应被替换或兜底
+        self.assertIn("3号线", all_text)
+        self.assertTrue(
+            any(kw in all_text for kw in ["噪声治理", "施工窗口受限", "工期紧张", "既有线改造约束"]),
+            "现场痛点字段应被提取或兜底",
+        )
+        self.assertTrue(
+            any(kw in all_text for kw in ["既有线改造", "轨道交通声屏障", "公路声屏障"]),
+            "施工场景字段应被提取或兜底",
+        )
+
+    def test_update_project_basic_info(self):
+        """验证 PATCH /api/projects/{id} 可部分更新项目基础信息。"""
+        project_id = self.client.post(
+            "/api/projects",
+            json={
+                "project_name": "原始项目名",
+                "project_location": "原始城市",
+                "owner_unit": "原始单位",
+                "product_line": "原始产品线",
+            },
+        ).json()["project_id"]
+
+        # 更新部分字段
+        updated = self.client.patch(
+            f"/api/projects/{project_id}",
+            json={
+                "project_name": "更新后的项目名",
+                "project_location": "新城市",
+            },
+        ).json()
+        self.assertEqual(updated["project_name"], "更新后的项目名")
+        self.assertEqual(updated["project_location"], "新城市")
+        self.assertEqual(updated["owner_unit"], "原始单位")  # 未传值，保留原值
+        self.assertEqual(updated["product_line"], "原始产品线")  # 未传值，保留原值
+
+        # 再次更新，仅改 product_line
+        updated2 = self.client.patch(
+            f"/api/projects/{project_id}",
+            json={"product_line": "新公路声屏障"},
+        ).json()
+        self.assertEqual(updated2["project_name"], "更新后的项目名")  # 保持不变
+        self.assertEqual(updated2["product_line"], "新公路声屏障")
+
+        # project_name 传空字符串应被拒绝（保留原值）
+        updated3 = self.client.patch(
+            f"/api/projects/{project_id}",
+            json={"project_name": "  "},
+        ).json()
+        self.assertEqual(updated3["project_name"], "更新后的项目名")  # 空字符串不覆盖
+
+        # 不存在的项目返回 404
+        not_found = self.client.patch("/api/projects/99999", json={"project_location": "某地"})
+        self.assertEqual(not_found.status_code, 404)
+
+        # 验证项目列表中的数据也已更新
+        listed = self.client.get("/api/projects").json()
+        found = next(p for p in listed if p["project_id"] == project_id)
+        self.assertEqual(found["project_name"], "更新后的项目名")
+        self.assertEqual(found["product_line"], "新公路声屏障")
 
     def test_end_to_end_generate_review_and_download_final_pptx(self):
         project_id = self.client.post(

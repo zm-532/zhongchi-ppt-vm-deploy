@@ -16,7 +16,7 @@ Next.js 前端目录。
 - 案例库管理空状态。
 - 创建、上传、生成、人工确认和下载均调用后端 API。
 
-默认 API 地址为 `http://127.0.0.1:8000`，可通过 `NEXT_PUBLIC_API_BASE_URL` 覆盖。
+默认 API 地址为 `http://127.0.0.1:8010`，可通过 `NEXT_PUBLIC_API_BASE_URL` 覆盖。
 
 ## 运行
 
