@@ -1,7 +1,7 @@
 {
   "counters": {
-    "project_id": 31,
-    "file_id": 77,
+    "project_id": 32,
+    "file_id": 78,
     "case_id": 1
   },
   "projects": [
@@ -6143,6 +6143,356 @@
       "classification_status": "pending",
       "template_selection": {},
       "case_selection": {}
+    },
+    {
+      "project_name": "M1/M2选择测试项目",
+      "project_location": "",
+      "owner_unit": "",
+      "product_line": "",
+      "project_fields": {},
+      "project_id": 31,
+      "task_status": "完成",
+      "status_history": [
+        "待生成",
+        "待分析",
+        "资料解析中",
+        "类型识别中",
+        "案例匹配中",
+        "待确认",
+        "生成中",
+        "合并中",
+        "完成"
+      ],
+      "modules": [
+        {
+          "module_id": "M1",
+          "status": "rendered",
+          "status_history": [
+            "pending",
+            "outlined",
+            "rendered"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {
+            "slides": [
+              {
+                "module_id": "M1",
+                "page_number": 1,
+                "page_title": "行业背景与技术标准",
+                "core_insight": "行业背景与技术标准按确认后的项目类型、模板和案例进入 Demo 生成。",
+                "bullet_points": [
+                  "[待补充：项目关键信息]",
+                  "[待补充：模板字段]",
+                  "[待补充：案例确认]"
+                ],
+                "asset_ids": [],
+                "case_ids": [],
+                "visual_suggestion": "使用确认后的固化模板和占位字段",
+                "missing_fields": [
+                  "项目关键信息",
+                  "模板字段",
+                  "案例确认"
+                ]
+              }
+            ]
+          },
+          "chapter_ppt_path": "D:\\中驰股份\\code\\data\\outputs\\project_31\\chapters\\M1_M2_行业背景与技术标准.pptx",
+          "error_message": ""
+        },
+        {
+          "module_id": "M2",
+          "status": "rendered",
+          "status_history": [
+            "pending",
+            "outlined",
+            "rendered"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {
+            "slides": [
+              {
+                "module_id": "M2",
+                "page_number": 1,
+                "page_title": "项目概况与现场挑战",
+                "core_insight": "项目概况与现场挑战按确认后的项目类型、模板和案例进入 Demo 生成。",
+                "bullet_points": [
+                  "[待补充：项目关键信息]",
+                  "[待补充：模板字段]",
+                  "[待补充：案例确认]"
+                ],
+                "asset_ids": [],
+                "case_ids": [],
+                "visual_suggestion": "使用确认后的固化模板和占位字段",
+                "missing_fields": [
+                  "项目关键信息",
+                  "模板字段",
+                  "案例确认"
+                ]
+              }
+            ]
+          },
+          "chapter_ppt_path": "D:\\中驰股份\\code\\data\\outputs\\project_31\\chapters\\M1_M2_行业背景与技术标准.pptx",
+          "error_message": ""
+        },
+        {
+          "module_id": "M5",
+          "status": "skipped",
+          "status_history": [
+            "pending",
+            "outlined",
+            "skipped"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {
+            "slides": [
+              {
+                "module_id": "M5",
+                "page_number": 1,
+                "page_title": "同类型案例匹配",
+                "core_insight": "同类型案例匹配按确认后的项目类型、模板和案例进入 Demo 生成。",
+                "bullet_points": [
+                  "[待补充：项目关键信息]",
+                  "[待补充：模板字段]",
+                  "[待补充：案例确认]"
+                ],
+                "asset_ids": [],
+                "case_ids": [],
+                "visual_suggestion": "使用确认后的固化模板和占位字段",
+                "missing_fields": [
+                  "项目关键信息",
+                  "模板字段",
+                  "案例确认"
+                ]
+              }
+            ]
+          },
+          "chapter_ppt_path": "",
+          "error_message": ""
+        },
+        {
+          "module_id": "M6",
+          "status": "rendered",
+          "status_history": [
+            "pending",
+            "outlined",
+            "rendered"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {
+            "slides": [
+              {
+                "module_id": "M6",
+                "page_number": 1,
+                "page_title": "企业背书与荣誉",
+                "core_insight": "企业背书与荣誉按确认后的项目类型、模板和案例进入 Demo 生成。",
+                "bullet_points": [
+                  "[待补充：项目关键信息]",
+                  "[待补充：模板字段]",
+                  "[待补充：案例确认]"
+                ],
+                "asset_ids": [],
+                "case_ids": [],
+                "visual_suggestion": "使用确认后的固化模板和占位字段",
+                "missing_fields": [
+                  "项目关键信息",
+                  "模板字段",
+                  "案例确认"
+                ]
+              }
+            ]
+          },
+          "chapter_ppt_path": "D:\\中驰股份\\code\\data\\outputs\\project_31\\chapters\\M6_企业背书与荣誉.pptx",
+          "error_message": ""
+        }
+      ],
+      "final_ppt_path": "D:\\中驰股份\\code\\data\\outputs\\project_31\\M1_M2选择测试项目_M1_M2_M6_最终稿.pptx",
+      "detected_project_type": "metro",
+      "confirmed_project_type": "metro",
+      "classification_status": "reviewed",
+      "template_selection": {
+        "M1_M2": {
+          "template_key": "metro",
+          "template_filename": "轨道交通地铁全封闭声屏障（M1_&_M2）.pptx"
+        },
+        "M5": {
+          "template_key": "case",
+          "template_filename": "南昌轨道交通4号线声屏障工程项目案例模板（M5）.pptx"
+        },
+        "M6": {
+          "template_key": "enterprise",
+          "template_filename": "中驰企业介绍合并初版（M6）.pptx"
+        }
+      },
+      "case_selection": {
+        "recommended_cases": [
+          {
+            "case_id": "sr_PPT_S1_bb0819b658",
+            "title": "PPT 标前 综合交付方案 合肥新桥机场S1号线声屏障工程交流会资料",
+            "match_reason": "同为轨道交通项目，施工场景相近：新建、既有线改造，痛点相近：噪声治理、工期紧张、技术难度高，同一城市：广州、北京、宁波、重庆、上海、济南、深圳、西安、合肥、武汉",
+            "matched_tags": [
+              "项目类型:metro",
+              "城市:广州",
+              "城市:北京",
+              "城市:宁波",
+              "城市:重庆",
+              "城市:上海",
+              "城市:济南",
+              "城市:深圳",
+              "城市:西安",
+              "城市:合肥"
+            ],
+            "source_path": "D:\\中驰股份\\SR智能PPT拆分\\PPT 标前 综合交付方案 合肥新桥机场S1号线声屏障工程交流会资料"
+          },
+          {
+            "case_id": "sr_PPT_4_0822V1_1bb287ec43",
+            "title": "PPT 标前 综合交付方案 南昌轨道交通4号线新增及改造 声屏障专项方案汇报0822V1",
+            "match_reason": "同为轨道交通项目，施工场景相近：新建、既有线改造、加装，痛点相近：噪声治理、工期紧张，同一城市：广州、上海、深圳、南昌、合肥、武汉",
+            "matched_tags": [
+              "项目类型:metro",
+              "城市:广州",
+              "城市:上海",
+              "城市:深圳",
+              "城市:南昌",
+              "城市:合肥",
+              "城市:武汉",
+              "场景:新建",
+              "场景:既有线改造",
+              "场景:加装"
+            ],
+            "source_path": "D:\\中驰股份\\SR智能PPT拆分\\PPT 标前 综合交付方案 南昌轨道交通4号线新增及改造 声屏障专项方案汇报0822V1"
+          }
+        ],
+        "confirmed_case_id": null,
+        "status": "matched",
+        "message": "找到 2 个相似案例"
+      },
+      "classification_result": {
+        "project_id": 31,
+        "classification_status": "reviewed",
+        "detected_project_type": "metro",
+        "confirmed_project_type": "metro",
+        "confidence": 0.95,
+        "matched_keywords": [
+          "地铁",
+          "轨道交通",
+          "城市轨道",
+          "轨交"
+        ],
+        "detection_evidence": [
+          {
+            "project_type": "metro",
+            "keyword": "地铁",
+            "source": "解析文本：4.pptx",
+            "snippet": "...连接件失效 传统声屏障大量采用角钢、螺栓、铆钉等连接方式，在长期地铁振动下极易发生松动失效。 紧固件螺栓松动脱落 限位板弹簧卡失效 ..."
+          },
+          {
+            "project_type": "metro",
+            "keyword": "轨道交通",
+            "source": "解析文本：4.pptx",
+            "snippet": "...屏障声学构件》 TB/T 3122-2019 核心行业洞察 国内轨道交通声屏障标准尚不完善，目前 无针对性、系 统性的国家或行业专门标准..."
+          },
+          {
+            "project_type": "metro",
+            "keyword": "城市轨道",
+            "source": "解析文本：4.pptx",
+            "snippet": "...声屏障改造及新增工程 西藏中驰集团股份有限公司 企业项目案例库 城市轨道交通 · 全封闭声屏障工程项目案例 01 项目概况 项目案例-轨..."
+          },
+          {
+            "project_type": "metro",
+            "keyword": "轨交",
+            "source": "解析文本：4.pptx",
+            "snippet": "中驰股份 01 M1：行业技术标准与规范现状 轨交声屏障面临的“标准缺失”挑战 国家标准 (公路适用) 《声屏障结..."
+          }
+        ],
+        "template_selection": {
+          "M1_M2": {
+            "template_key": "metro",
+            "template_filename": "轨道交通地铁全封闭声屏障（M1_&_M2）.pptx"
+          },
+          "M5": {
+            "template_key": "case",
+            "template_filename": "南昌轨道交通4号线声屏障工程项目案例模板（M5）.pptx"
+          },
+          "M6": {
+            "template_key": "enterprise",
+            "template_filename": "中驰企业介绍合并初版（M6）.pptx"
+          }
+        },
+        "case_selection": {
+          "recommended_cases": [
+            {
+              "case_id": "sr_PPT_S1_bb0819b658",
+              "title": "PPT 标前 综合交付方案 合肥新桥机场S1号线声屏障工程交流会资料",
+              "match_reason": "同为轨道交通项目，施工场景相近：新建、既有线改造，痛点相近：噪声治理、工期紧张、技术难度高，同一城市：广州、北京、宁波、重庆、上海、济南、深圳、西安、合肥、武汉",
+              "matched_tags": [
+                "项目类型:metro",
+                "城市:广州",
+                "城市:北京",
+                "城市:宁波",
+                "城市:重庆",
+                "城市:上海",
+                "城市:济南",
+                "城市:深圳",
+                "城市:西安",
+                "城市:合肥"
+              ],
+              "source_path": "D:\\中驰股份\\SR智能PPT拆分\\PPT 标前 综合交付方案 合肥新桥机场S1号线声屏障工程交流会资料"
+            },
+            {
+              "case_id": "sr_PPT_4_0822V1_1bb287ec43",
+              "title": "PPT 标前 综合交付方案 南昌轨道交通4号线新增及改造 声屏障专项方案汇报0822V1",
+              "match_reason": "同为轨道交通项目，施工场景相近：新建、既有线改造、加装，痛点相近：噪声治理、工期紧张，同一城市：广州、上海、深圳、南昌、合肥、武汉",
+              "matched_tags": [
+                "项目类型:metro",
+                "城市:广州",
+                "城市:上海",
+                "城市:深圳",
+                "城市:南昌",
+                "城市:合肥",
+                "城市:武汉",
+                "场景:新建",
+                "场景:既有线改造",
+                "场景:加装"
+              ],
+              "source_path": "D:\\中驰股份\\SR智能PPT拆分\\PPT 标前 综合交付方案 南昌轨道交通4号线新增及改造 声屏障专项方案汇报0822V1"
+            }
+          ],
+          "confirmed_case_id": null,
+          "status": "matched",
+          "message": "找到 2 个相似案例"
+        },
+        "missing_fields": [
+          "线路名称",
+          "现场痛点确认"
+        ],
+        "files": [
+          {
+            "file_id": 77,
+            "project_id": 31,
+            "module_id": null,
+            "filename": "4.pptx",
+            "content_type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "stored_path": "D:\\中驰股份\\code\\data\\uploads\\31\\unclassified\\77_4.pptx",
+            "document_role": "enterprise_material",
+            "assigned_modules": [
+              "M6"
+            ],
+            "parse_status": "parsed",
+            "parsed_text_path": "D:\\中驰股份\\code\\data\\parsed_text\\31\\77.txt",
+            "error_message": "",
+            "vector_status": "not_indexed",
+            "vector_chunk_count": 0,
+            "vector_error_message": ""
+          }
+        ]
+      },
+      "classification_review": {
+        "notes": "M1/M2 测试视图自动确认"
+      }
     }
   ],
   "files": [
@@ -7018,6 +7368,24 @@
       ],
       "parse_status": "parsed",
       "parsed_text_path": "D:\\中驰股份\\code\\data\\parsed_text\\3\\76.txt",
+      "error_message": "",
+      "vector_status": "not_indexed",
+      "vector_chunk_count": 0,
+      "vector_error_message": ""
+    },
+    {
+      "file_id": 77,
+      "project_id": 31,
+      "module_id": null,
+      "filename": "4.pptx",
+      "content_type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      "stored_path": "D:\\中驰股份\\code\\data\\uploads\\31\\unclassified\\77_4.pptx",
+      "document_role": "enterprise_material",
+      "assigned_modules": [
+        "M6"
+      ],
+      "parse_status": "parsed",
+      "parsed_text_path": "D:\\中驰股份\\code\\data\\parsed_text\\31\\77.txt",
       "error_message": "",
       "vector_status": "not_indexed",
       "vector_chunk_count": 0,

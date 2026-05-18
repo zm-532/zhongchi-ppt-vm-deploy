@@ -215,7 +215,15 @@ def list_cases() -> list[dict]:
     return get_store().get_cases()
 
 
-@app.post("/api/document-parse-test", response_model=list[DocumentParseTestResult], status_code=status.HTTP_200_OK)
+# =============================================================================
+# DEPRECATED ENDPOINT — 前端已不再调用此端点
+# 文档解析测试现已改为调用真实业务流程：
+#   POST /api/projects/{id}/files  →  上传文件到真实项目
+#   POST /api/projects/{id}/analyze  →  走 document_analysis + _detect_project_type + match_cases 全流程
+#   GET  /api/projects/{id}/classification  →  获取包含每个文件 parse_status/document_role/assigned_modules 的结果
+# 此端点保留用于向后兼容，不建议在生产流程中使用。
+# =============================================================================
+@app.post("/api/document-parse-test", response_model=list[DocumentParseTestResult], status_code=status.HTTP_200_OK, deprecated=True)
 async def document_parse_test(files: list[UploadFile] = File(...)) -> list[dict]:
     from .document_analysis import analyze_document, classify_document
     from .storage import get_store

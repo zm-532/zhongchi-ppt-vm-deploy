@@ -29,7 +29,7 @@ type Project = {
   status_history?: string[];
   final_ppt_path?: string;
 };
-type StoredFile = { file_id: number; filename: string; content_type?: string; document_role?: string; assigned_modules?: string[] };
+type StoredFile = { file_id: number; filename: string; content_type?: string; document_role?: string; assigned_modules?: string[]; parse_status?: string };
 type CaseSelection = {
   recommended_cases?: Array<{ case_id: number | string; title: string; match_reason?: string; matched_tags?: string[]; source_path?: string }>;
   confirmed_case_id?: number | string | null;
@@ -49,17 +49,11 @@ type ClassificationResult = {
   };
   case_selection?: CaseSelection;
   missing_fields?: string[];
+  files?: StoredFile[];
 };
 type TaskState = { project_id: number; task_status: string; status_history: string[] };
 type ReviewForm = { projectType: string; m1m2Template: string; caseId?: string; notes: string };
 type RecommendedCase = { case_id: number | string; title: string; match_reason?: string; matched_tags?: string[]; source_path?: string };
-type DocumentParseSlide = { slide_index?: number; sheet_name?: string; title?: string; rows?: number; columns?: number; preview_rows?: string[][]; texts?: string[]; text?: string };
-type DocumentParseTestResult = {
-  filename: string; suffix: string; content_type: string; parse_status: string;
-  document_role: string; assigned_modules: string[]; text: string;
-  text_preview: string; sections: string[]; tables: Array<Record<string, unknown>>;
-  slides: DocumentParseSlide[]; metadata: Record<string, unknown>; error_message: string;
-};
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 const PROJECT_LIST_PREVIEW_LIMIT = 10;
@@ -102,14 +96,25 @@ export default function HomePage() {
   const [m1m2TestResult, setM1m2TestResult] = useState<ClassificationResult | null>(null);
   const [m1m2TestUploadedFiles, setM1m2TestUploadedFiles] = useState<StoredFile[]>([]);
   const [m1m2TestMessage, setM1m2TestMessage] = useState("请选择一个或多个资料文件后开始测试。");
+  // M1/M2 完整流程状态：analyze → review → generate
+  const [m1m2TestReviewStatus, setM1m2TestReviewStatus] = useState<"idle" | "success" | "error">("idle");
+  const [m1m2TestGenerateStatus, setM1m2TestGenerateStatus] = useState<"idle" | "starting" | "success" | "error">("idle");
+  const [m1m2TestTaskStatus, setM1m2TestTaskStatus] = useState<string>("");
   const [m5TestFiles, setM5TestFiles] = useState<File[]>([]);
   const [m5TestProjectName, setM5TestProjectName] = useState("M5案例匹配测试项目");
   const [m5TestResult, setM5TestResult] = useState<ClassificationResult | null>(null);
   const [m5TestUploadedFiles, setM5TestUploadedFiles] = useState<StoredFile[]>([]);
   const [m5TestMessage, setM5TestMessage] = useState("请上传项目资料，系统将根据案例库匹配相似案例。");
-  const [documentParseTestFiles, setDocumentParseTestFiles] = useState<File[]>([]);
-  const [documentParseTestResults, setDocumentParseTestResults] = useState<DocumentParseTestResult[]>([]);
-  const [documentParseTestMessage, setDocumentParseTestMessage] = useState("请上传文件以测试解析效果。");
+  const [m5TestReviewStatus, setM5TestReviewStatus] = useState<"idle" | "success" | "error">("idle");
+  const [m5TestGenerateStatus, setM5TestGenerateStatus] = useState<"idle" | "starting" | "success" | "error">("idle");
+  const [m5TestTaskStatus, setM5TestTaskStatus] = useState<string>("");
+
+  // Document Parse Test - now uses real project flow (analyze via real project API, not /api/document-parse-test)
+  const [docParseTestFiles, setDocumentParseTestFiles] = useState<File[]>([]);
+  const [docParseTestProjectId, setDocParseTestProjectId] = useState<number | null>(null);
+  const [docParseTestResult, setDocParseTestResult] = useState<ClassificationResult | null>(null);
+  const [docParseTestMessage, setDocumentParseTestMessage] = useState("请上传文件以测试解析效果。");
+
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("请先创建项目，再统一上传项目资料。");
@@ -345,7 +350,11 @@ export default function HomePage() {
     setBusy(true);
     setM1m2TestResult(null);
     setM1m2TestUploadedFiles([]);
+    setM1m2TestReviewStatus("idle");
+    setM1m2TestGenerateStatus("idle");
+    setM1m2TestTaskStatus("");
     try {
+      // 1. 创建临时项目
       const project = await requestJson<Project>("/api/projects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -356,14 +365,57 @@ export default function HomePage() {
           product_line: "",
         }),
       });
+      // 2. 上传文件
       const body = new FormData();
       m1m2TestFiles.forEach((file) => body.append("files", file));
       const stored = await requestJson<StoredFile[]>(`/api/projects/${project.project_id}/files`, { method: "POST", body });
-      const result = await requestJson<ClassificationResult>(`/api/projects/${project.project_id}/analyze`, { method: "POST" });
       setM1m2TestUploadedFiles(stored);
+      // 3. 调用 analyze（真实业务流程入口）
+      const result = await requestJson<ClassificationResult>(`/api/projects/${project.project_id}/analyze`, { method: "POST" });
       setM1m2TestResult(result);
       setProjects((items) => [project, ...items]);
-      setM1m2TestMessage("M1/M2 类型识别与模板选择已完成。");
+      setM1m2TestMessage("已完成：上传文件 + 分析识别。下一步：提交人工确认...");
+
+      // 4. 提交人工确认（使用检测到的项目类型和模板）
+      const detectedType = result.detected_project_type || result.confirmed_project_type || "metro";
+      const templateKey = result.template_selection?.M1_M2?.template_key || detectedType;
+      try {
+        await requestJson(`/api/projects/${project.project_id}/classification/review`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            confirmed_project_type: detectedType,
+            template_selection: {
+              M1_M2: { template_key: templateKey },
+              M5: result.template_selection?.M5,
+              M6: result.template_selection?.M6,
+            },
+            confirmed_case_id: null,
+            notes: "M1/M2 测试视图自动确认",
+          }),
+        });
+        setM1m2TestReviewStatus("success");
+        setM1m2TestMessage("已完成：上传 + 分析 + 人工确认。下一步：启动生成...");
+      } catch (reviewError) {
+        setM1m2TestReviewStatus("error");
+        setM1m2TestMessage("已完成分析(review 失败: " + (reviewError instanceof Error ? reviewError.message : "未知错误") + ")。可手动在\"我的项目\"中继续。");
+        setBusy(false);
+        return;
+      }
+
+      // 5. 启动生成
+      setM1m2TestGenerateStatus("starting");
+      try {
+        await requestJson(`/api/projects/${project.project_id}/generate`, { method: "POST" });
+        // 查询任务状态
+        const taskState = await requestJson<{ task_status: string; status_history: string[] }>(`/api/projects/${project.project_id}/task`);
+        setM1m2TestTaskStatus(taskState.task_status || "生成中");
+        setM1m2TestGenerateStatus("success");
+        setM1m2TestMessage("完整流程完成: 上传 -> 分析 -> 确认 -> 生成已启动(状态: " + taskState.task_status + ")。");
+      } catch (generateError) {
+        setM1m2TestGenerateStatus("error");
+        setM1m2TestMessage("已完成分析+确认，但启动生成失败: " + (generateError instanceof Error ? generateError.message : "未知错误") + "。");
+      }
     } catch (error) {
       setM1m2TestMessage(error instanceof Error ? error.message : "M1/M2 选择测试失败");
     } finally {
@@ -376,7 +428,11 @@ export default function HomePage() {
     setBusy(true);
     setM5TestResult(null);
     setM5TestUploadedFiles([]);
+    setM5TestReviewStatus("idle");
+    setM5TestGenerateStatus("idle");
+    setM5TestTaskStatus("");
     try {
+      // 1. 创建临时项目
       const project = await requestJson<Project>("/api/projects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -387,18 +443,65 @@ export default function HomePage() {
           product_line: "",
         }),
       });
+      // 2. 上传文件
       const body = new FormData();
       m5TestFiles.forEach((file) => body.append("files", file));
       const stored = await requestJson<StoredFile[]>(`/api/projects/${project.project_id}/files`, { method: "POST", body });
-      const result = await requestJson<ClassificationResult>(`/api/projects/${project.project_id}/analyze`, { method: "POST" });
       setM5TestUploadedFiles(stored);
+      // 3. 调用 analyze（真实业务流程入口）
+      const result = await requestJson<ClassificationResult>(`/api/projects/${project.project_id}/analyze`, { method: "POST" });
       setM5TestResult(result);
       setProjects((items) => [project, ...items]);
       const cases = result.case_selection?.recommended_cases;
-      if (cases && cases.length > 0) {
-        setM5TestMessage(`案例匹配完成，找到 ${cases.length} 个相似案例。`);
-      } else {
-        setM5TestMessage("未找到高匹配案例，请检查案例库或上传更完整的项目资料。");
+      if (!cases || cases.length === 0) {
+        // 完整流程测试未覆盖：分析阶段无推荐案例，review/generate 步骤被跳过
+        setM5TestReviewStatus("idle");
+        setM5TestGenerateStatus("idle");
+        setM5TestMessage("分析完成但未找到推荐案例。完整流程测试未覆盖 review/generate 步骤。需使用包含匹配关键词的 fixture 文件重试。");
+        setBusy(false);
+        return;
+      }
+      setM5TestMessage("分析完成，找到 " + cases.length + " 个推荐案例。下一步: 提交人工确认...");
+
+      // 4. 提交人工确认（带上推荐案例中第一个）
+      const detectedType = result.detected_project_type || result.confirmed_project_type || "metro";
+      const firstCase = cases[0];
+      const confirmedCaseId = firstCase?.case_id != null ? String(firstCase.case_id) : null;
+      try {
+        await requestJson(`/api/projects/${project.project_id}/classification/review`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            confirmed_project_type: detectedType,
+            template_selection: {
+              M1_M2: result.template_selection?.M1_M2,
+              M5: result.template_selection?.M5,
+              M6: result.template_selection?.M6,
+            },
+            confirmed_case_id: confirmedCaseId,
+            notes: "M5 测试视图自动确认并选用推荐案例",
+          }),
+        });
+        setM5TestReviewStatus("success");
+        setM5TestMessage("已完成: 上传 + 分析 + 确认(选用案例: " + (firstCase?.title || confirmedCaseId) + ")。下一步: 启动生成...");
+      } catch (reviewError) {
+        setM5TestReviewStatus("error");
+        setM5TestMessage("已完成分析(review 失败: " + (reviewError instanceof Error ? reviewError.message : "未知错误") + ")。");
+        setBusy(false);
+        return;
+      }
+
+      // 5. 启动生成
+      setM5TestGenerateStatus("starting");
+      try {
+        await requestJson(`/api/projects/${project.project_id}/generate`, { method: "POST" });
+        const taskState = await requestJson<{ task_status: string; status_history: string[] }>(`/api/projects/${project.project_id}/task`);
+        setM5TestTaskStatus(taskState.task_status || "生成中");
+        setM5TestGenerateStatus("success");
+        setM5TestMessage("完整流程完成: 上传 -> 分析 -> 确认(含案例) -> 生成已启动(状态: " + taskState.task_status + ")。");
+      } catch (generateError) {
+        setM5TestGenerateStatus("error");
+        setM5TestMessage("已完成分析+确认，但启动生成失败: " + (generateError instanceof Error ? generateError.message : "未知错误") + "。");
       }
     } catch (error) {
       setM5TestMessage(error instanceof Error ? error.message : "M5 案例匹配测试失败");
@@ -408,15 +511,39 @@ export default function HomePage() {
   }
 
   async function runDocumentParseTest() {
-    if (documentParseTestFiles.length === 0) return setDocumentParseTestMessage("请先选择要测试的文件。");
+    if (docParseTestFiles.length === 0) return setDocumentParseTestMessage("请先选择要测试的文件。");
     setBusy(true);
-    setDocumentParseTestResults([]);
+    setDocParseTestResult(null);
+    setDocParseTestProjectId(null);
     try {
+      // 1. 创建临时项目（与真实业务流程一致：必须先有项目才能上传和分析）
+      const project = await requestJson<Project>("/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          project_name: "文档解析测试项目",
+          project_location: "",
+          owner_unit: "",
+          product_line: "",
+        }),
+      });
+      setDocParseTestProjectId(project.project_id);
+      // 2. 上传到真实项目（走 POST /api/projects/{id}/files，与主流程完全一致）
       const body = new FormData();
-      documentParseTestFiles.forEach((file) => body.append("files", file));
-      const results = await requestJson<DocumentParseTestResult[]>("/api/document-parse-test", { method: "POST", body });
-      setDocumentParseTestResults(results);
-      setDocumentParseTestMessage(`解析完成，共 ${results.length} 个文件。`);
+      docParseTestFiles.forEach((file) => body.append("files", file));
+      await requestJson(`/api/projects/${project.project_id}/files`, { method: "POST", body });
+      // 3. 调用 analyze（真实业务流程：经过 document_analysis.analyze_document + _detect_project_type + match_cases 全流程）
+      const result = await requestJson<ClassificationResult>(`/api/projects/${project.project_id}/analyze`, { method: "POST" });
+      // 4. 从 classification 结果中提取每个文件的解析信息
+      //    classification.files 中每个文件记录了 parse_status、document_role、assigned_modules、filename 等
+      setDocParseTestResult(result);
+      const parsedFiles = result.files ?? [];
+      const successCount = parsedFiles.filter((f) => f.parse_status === "parsed").length;
+      const pendingCount = parsedFiles.filter((f) => f.parse_status === "pending_enhancement").length;
+      const failedCount = parsedFiles.filter((f) => f.parse_status === "failed").length;
+      setDocumentParseTestMessage(
+        "解析完成, 共 " + parsedFiles.length + " 个文件(成功: " + successCount + ", 待增强: " + pendingCount + ", 失败: " + failedCount + "). " + "项目类型: " + labelForProjectType(result.detected_project_type) + "; 匹配关键词: " + (result.matched_keywords?.join(", ") || "暂无") + "."
+      );
     } catch (error) {
       setDocumentParseTestMessage(error instanceof Error ? error.message : "解析测试失败");
     } finally {
@@ -669,6 +796,34 @@ export default function HomePage() {
                 <p className="messageLine">未返回明确命中依据，请检查 PDF 是否可提取文本。</p>
               )}
             </div>
+
+            {/* 完整流程状态：analyze → review → generate */}
+            {m1m2TestResult ? (
+              <div className="flowStatusPanel" style={{ marginTop: "18px", padding: "14px", border: "1px solid var(--line)", borderRadius: "8px", background: "var(--surface-soft)" }}>
+                <div className="sectionHeader">
+                  <h3>完整流程状态</h3>
+                </div>
+                <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", marginTop: "10px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span style={{ width: "20px", height: "20px", borderRadius: "50%", background: m1m2TestResult ? "var(--success)" : "var(--line)", display: "inline-block" }} />
+                    <span style={{ fontSize: "13px" }}>① 分析识别</span>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span style={{ width: "20px", height: "20px", borderRadius: "50%", background: m1m2TestReviewStatus === "success" ? "var(--success)" : m1m2TestReviewStatus === "error" ? "#e74c3c" : "var(--line)", display: "inline-block" }} />
+                    <span style={{ fontSize: "13px" }}>② 人工确认</span>
+                    {m1m2TestReviewStatus === "success" && <span style={{ fontSize: "12px", color: "var(--success)" }}>✅</span>}
+                    {m1m2TestReviewStatus === "error" && <span style={{ fontSize: "12px", color: "#e74c3c" }}>❌</span>}
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span style={{ width: "20px", height: "20px", borderRadius: "50%", background: m1m2TestGenerateStatus === "success" ? "var(--success)" : m1m2TestGenerateStatus === "error" ? "#e74c3c" : m1m2TestGenerateStatus === "starting" ? "var(--accent)" : "var(--line)", display: "inline-block" }} />
+                    <span style={{ fontSize: "13px" }}>③ 启动生成</span>
+                    {m1m2TestGenerateStatus === "success" && <span style={{ fontSize: "12px", color: "var(--success)" }}>✅ {m1m2TestTaskStatus}</span>}
+                    {m1m2TestGenerateStatus === "error" && <span style={{ fontSize: "12px", color: "#e74c3c" }}>❌</span>}
+                    {m1m2TestGenerateStatus === "starting" && <span style={{ fontSize: "12px", color: "var(--accent)" }}>进行中...</span>}
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </section>
         ) : null}
 
@@ -776,6 +931,34 @@ export default function HomePage() {
                 </div>
               </div>
             )}
+
+            {/* 完整流程状态：analyze → review → generate */}
+            {m5TestResult ? (
+              <div className="flowStatusPanel" style={{ marginTop: "18px", padding: "14px", border: "1px solid var(--line)", borderRadius: "8px", background: "var(--surface-soft)" }}>
+                <div className="sectionHeader">
+                  <h3>完整流程状态</h3>
+                </div>
+                <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", marginTop: "10px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span style={{ width: "20px", height: "20px", borderRadius: "50%", background: m5TestResult ? "var(--success)" : "var(--line)", display: "inline-block" }} />
+                    <span style={{ fontSize: "13px" }}>① 分析识别</span>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span style={{ width: "20px", height: "20px", borderRadius: "50%", background: m5TestReviewStatus === "success" ? "var(--success)" : m5TestReviewStatus === "error" ? "#e74c3c" : "var(--line)", display: "inline-block" }} />
+                    <span style={{ fontSize: "13px" }}>② 人工确认</span>
+                    {m5TestReviewStatus === "success" && <span style={{ fontSize: "12px", color: "var(--success)" }}>✅</span>}
+                    {m5TestReviewStatus === "error" && <span style={{ fontSize: "12px", color: "#e74c3c" }}>❌</span>}
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span style={{ width: "20px", height: "20px", borderRadius: "50%", background: m5TestGenerateStatus === "success" ? "var(--success)" : m5TestGenerateStatus === "error" ? "#e74c3c" : m5TestGenerateStatus === "starting" ? "var(--accent)" : "var(--line)", display: "inline-block" }} />
+                    <span style={{ fontSize: "13px" }}>③ 启动生成</span>
+                    {m5TestGenerateStatus === "success" && <span style={{ fontSize: "12px", color: "var(--success)" }}>✅ {m5TestTaskStatus}</span>}
+                    {m5TestGenerateStatus === "error" && <span style={{ fontSize: "12px", color: "#e74c3c" }}>❌</span>}
+                    {m5TestGenerateStatus === "starting" && <span style={{ fontSize: "12px", color: "var(--accent)" }}>进行中...</span>}
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </section>
         ) : null}
 
@@ -783,7 +966,7 @@ export default function HomePage() {
           <section id="document-parse-test" className="section">
             <div className="sectionHeader">
               <h2>文档解析测试</h2>
-              <span className="badge">多格式解析验证</span>
+              <span className="badge">真实流程验证</span>
             </div>
             <div className="testPanel">
               <label className="uploadBox">
@@ -797,87 +980,68 @@ export default function HomePage() {
                 />
               </label>
               <div className="fileList">
-                {documentParseTestFiles.map((file) => <span key={file.name}>{file.name}</span>)}
+                {docParseTestFiles.map((file) => <span key={file.name}>{file.name}</span>)}
               </div>
               <button className="primaryButton" disabled={busy} onClick={runDocumentParseTest} type="button">开始解析测试</button>
-              <p className="messageLine">{documentParseTestMessage}</p>
+              <p className="messageLine">{docParseTestMessage}</p>
             </div>
 
-            {documentParseTestResults.length > 0 ? (
+            {docParseTestResult ? (
               <div className="parseTestResults">
-                {documentParseTestResults.map((result, index) => (
-                  <article className="parseResultCard" key={index}>
-                    <div className="parseResultHeader">
-                      <strong>{result.filename}</strong>
-                      <span className="badge">{result.suffix}</span>
-                      <span className={`parseStatus ${result.parse_status}`}>{result.parse_status}</span>
-                      {result.parse_status === "pending_enhancement" && <span className="badge warn">pending_enhancement</span>}
-                      {result.parse_status === "pending_ocr" && <span className="badge warn">pending_ocr</span>}
-                    </div>
-                    <div className="parseResultMeta">
-                      <span>资料角色: {result.document_role}</span>
-                      <span>可服务模块: {result.assigned_modules.join(", ") || "暂无"}</span>
-                      <span>Content-Type: {result.content_type}</span>
-                    </div>
-                    {result.error_message ? (
-                      <div className={`parseError ${result.parse_status}`}>{result.error_message}</div>
-                    ) : null}
-                    {result.text ? (
-                      <div className="parseTextPreview">
-                        <strong>解析文本</strong>
-                        <pre className="parseTextBox">{result.text.length > 2000 ? result.text.slice(0, 2000) + "\n...(已截断)" : result.text}</pre>
-                        <div className="parseStats">
-                          <span>字符数: {result.text.length}</span>
-                          <span>行数: {result.sections?.length || result.text.split("\n").length}</span>
-                        </div>
-                      </div>
-                    ) : null}
-                    {result.slides && result.slides.length > 0 ? (
-                      <div className="parseSlides">
-                        <strong>结构化结果 ({result.slides.length} 项):</strong>
-                        {result.slides.map((slide: DocumentParseSlide, slideIdx: number) => (
-                          <div key={slideIdx} className={`slideItem ${slide.title ? "hasTitle" : ""}`}>
-                            <div className="slideItemHeader">
-                              <span className="slideIndex">{slideIdx + 1}</span>
-                              {slide.sheet_name ? <span className="sheetName">{slide.sheet_name}</span> : null}
-                              {slide.title ? <strong className="slideTitle">{slide.title}</strong> : null}
-                              {slide.rows !== undefined ? <span className="slideMeta">行{slide.rows} × 列{slide.columns}</span> : null}
-                            </div>
-                            {slide.preview_rows && slide.preview_rows.length > 0 ? (
-                              <div className="tableScrollWrapper">
-                                <table className="previewTable">
-                                  <tbody>
-                                    {slide.preview_rows.slice(0, 10).map((row: string[], rowIdx: number) => (
-                                      <tr key={rowIdx}>
-                                        <td className="rowNum">{rowIdx + 1}</td>
-                                        {row.map((cell: string, cellIdx: number) => <td key={cellIdx}>{cell}</td>)}
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              </div>
-                            ) : null}
-                            {slide.texts && slide.texts.length > 0 ? (
-                              <div className="slideTexts">
-                                {slide.texts.slice(0, 10).map((t: string, i: number) => <p key={i} className="slideTextItem">{t}</p>)}
-                              </div>
-                            ) : null}
-                            {slide.text ? <p className="slideTextItem">{slide.text}</p> : null}
-                          </div>
-                        ))}
-                      </div>
-                    ) : null}
-                    {result.sections && result.sections.length > 0 ? (
-                      <div className="parseSections">
-                        <strong>段落/行预览</strong>
-                        <ul className="sectionsList">
-                          {result.sections.slice(0, 20).map((sec: string, i: number) => <li key={i}>{sec}</li>)}
-                        </ul>
-                        {result.sections.length > 20 ? <p className="sectionsMore">... 共 {result.sections.length} 条</p> : null}
-                      </div>
-                    ) : null}
+                <div className="resultGrid" style={{ marginTop: "18px" }}>
+                  <article className="resultCard">
+                    <span>项目类型</span>
+                    <strong>{labelForProjectType(docParseTestResult.detected_project_type)}</strong>
+                    <p>置信度: {docParseTestResult.confidence ? `${Math.round(docParseTestResult.confidence * 100)}%` : "N/A"}</p>
                   </article>
-                ))}
+                  <article className="resultCard">
+                    <span>匹配关键词</span>
+                    <strong>{docParseTestResult.matched_keywords?.join("、") || "暂无"}</strong>
+                    <p>用于判断向量相关性</p>
+                  </article>
+                  <article className="resultCard">
+                    <span>M1/M2 模板</span>
+                    <strong>{firstTemplateName(docParseTestResult.template_selection?.M1_M2)}</strong>
+                    <p>模板选择结果</p>
+                  </article>
+                  <article className="resultCard">
+                    <span>M5 案例数</span>
+                    <strong>{docParseTestResult.case_selection?.recommended_cases?.length ?? 0} 个</strong>
+                    <p>{docParseTestResult.case_selection?.status || ""}</p>
+                  </article>
+                </div>
+                {docParseTestResult.files && docParseTestResult.files.length > 0 ? (
+                  <div style={{ marginTop: "18px" }}>
+                    <h3 style={{ fontSize: "14px", color: "var(--primary-dark)", marginBottom: "10px" }}>
+                      文件解析详情（共 {docParseTestResult.files.length} 个文件）
+                    </h3>
+                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                      <thead>
+                        <tr style={{ background: "var(--surface-soft)" }}>
+                          <th style={{ padding: "8px 12px", textAlign: "left", borderBottom: "1px solid var(--line)", fontSize: "12px", color: "var(--muted)" }}>文件名</th>
+                          <th style={{ padding: "8px 12px", textAlign: "left", borderBottom: "1px solid var(--line)", fontSize: "12px", color: "var(--muted)" }}>解析状态</th>
+                          <th style={{ padding: "8px 12px", textAlign: "left", borderBottom: "1px solid var(--line)", fontSize: "12px", color: "var(--muted)" }}>资料角色</th>
+                          <th style={{ padding: "8px 12px", textAlign: "left", borderBottom: "1px solid var(--line)", fontSize: "12px", color: "var(--muted)" }}>服务模块</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {docParseTestResult.files.map((f, idx) => (
+                          <tr key={idx} style={{ borderBottom: "1px solid var(--line)" }}>
+                            <td style={{ padding: "8px 12px", fontSize: "13px" }}>{f.filename}</td>
+                            <td style={{ padding: "8px 12px" }}>
+                              <span className={`parseStatus ${f.parse_status}`}>{f.parse_status}</span>
+                              {f.parse_status === "pending_enhancement" && <span className="badge warn" style={{ marginLeft: "6px" }}>待增强</span>}
+                              {f.parse_status === "pending_ocr" && <span className="badge warn" style={{ marginLeft: "6px" }}>待OCR</span>}
+                              {f.parse_status === "failed" && <span className="badge warn" style={{ marginLeft: "6px" }}>失败</span>}
+                            </td>
+                            <td style={{ padding: "8px 12px", fontSize: "13px", color: "var(--muted)" }}>{f.document_role || "未知"}</td>
+                            <td style={{ padding: "8px 12px", fontSize: "13px", color: "var(--muted)" }}>{(f.assigned_modules || []).join(", ") || "未分配"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : null}
               </div>
             ) : null}
           </section>
