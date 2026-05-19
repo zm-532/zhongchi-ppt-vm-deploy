@@ -1125,6 +1125,299 @@ class BackendApiTest(unittest.TestCase):
             self.assertIn("vector_chunk_count", f)
             self.assertIn("vector_error_message", f)
 
+    def test_analyze_project_returns_text_preview_for_parsed_files(self):
+        """验证 analyze_project 返回的 files 中每个 parsed 文件包含 text_preview。"""
+        project_id = self.client.post(
+            "/api/projects",
+            json={
+                "project_name": "文本预览测试",
+                "project_location": "北京",
+                "product_line": "公路声屏障",
+            },
+        ).json()["project_id"]
+
+        self.client.post(
+            f"/api/projects/{project_id}/files",
+            files=[
+                ("files", ("技术标书.docx", _docx_bytes("招标文件 技术标准 高速 公路 声屏障"), "application/vnd.openxmlformats-officedocument.wordprocessingml.document")),
+            ],
+        )
+
+        classification = self.client.post(f"/api/projects/{project_id}/analyze").json()
+
+        files_by_name = {item["filename"]: item for item in classification["files"]}
+        docx_file = files_by_name["技术标书.docx"]
+        self.assertEqual(docx_file["parse_status"], "parsed")
+        self.assertIn("text_preview", docx_file)
+        self.assertTrue(len(docx_file["text_preview"]) > 0)
+        # text_preview 是截断文本，不应等于完整文本（如果有的话）
+        self.assertLessEqual(len(docx_file["text_preview"]), 1500)
+
+    def test_analyze_project_pending_file_has_empty_text_preview(self):
+        """验证 pending_enhancement 文件 text_preview 为空字符串。"""
+        project_id = self.client.post(
+            "/api/projects",
+            json={"project_name": "待增强文件测试", "product_line": "公路声屏障"},
+        ).json()["project_id"]
+
+        self.client.post(
+            f"/api/projects/{project_id}/files",
+            files=[("files", ("总平面图.png", b"\x89PNG\r\n\x1a\n", "image/png"))],
+        )
+
+        classification = self.client.post(f"/api/projects/{project_id}/analyze").json()
+        png_file = next(item for item in classification["files"] if item["filename"] == "总平面图.png")
+        self.assertEqual(png_file["parse_status"], "pending_enhancement")
+        self.assertIn("text_preview", png_file)
+        self.assertEqual(png_file["text_preview"], "")
+
+    def test_get_parsed_text_returns_file_text(self):
+        """验证 GET /api/projects/{id}/files/{file_id}/parsed-text 返回完整文本。"""
+        project_id = self.client.post(
+            "/api/projects",
+            json={
+                "project_name": "全文接口测试",
+                "project_location": "北京",
+                "product_line": "公路声屏障",
+            },
+        ).json()["project_id"]
+
+        self.client.post(
+            f"/api/projects/{project_id}/files",
+            files=[
+                ("files", ("技术标书.docx", _docx_bytes("招标文件 技术标准 高速 公路 声屏障"), "application/vnd.openxmlformats-officedocument.wordprocessingml.document")),
+            ],
+        )
+        self.client.post(f"/api/projects/{project_id}/analyze")
+
+        classification = self.client.get(f"/api/projects/{project_id}/classification").json()
+        file_id = next(item["file_id"] for item in classification["files"] if item["filename"] == "技术标书.docx")
+
+        response = self.client.get(f"/api/projects/{project_id}/files/{file_id}/parsed-text")
+        self.assertEqual(response.status_code, 200)
+        result = response.json()
+        self.assertEqual(result["file_id"], file_id)
+        self.assertEqual(result["parse_status"], "parsed")
+        self.assertIn("招标文件", result["text"])
+        self.assertEqual(result["error_message"], "")
+
+    def test_get_parsed_text_returns_empty_for_unparsed_file(self):
+        """验证未解析文件返回空文本和非 parsed 状态，不报错误。"""
+        project_id = self.client.post(
+            "/api/projects",
+            json={"project_name": "未解析文件测试", "product_line": "公路声屏障"},
+        ).json()["project_id"]
+
+        self.client.post(
+            f"/api/projects/{project_id}/files",
+            files=[("files", ("总平面图.png", b"\x89PNG\r\n\x1a\n", "image/png"))],
+        )
+        self.client.post(f"/api/projects/{project_id}/analyze")
+
+        classification = self.client.get(f"/api/projects/{project_id}/classification").json()
+        file_id = next(item["file_id"] for item in classification["files"] if item["filename"] == "总平面图.png")
+
+        response = self.client.get(f"/api/projects/{project_id}/files/{file_id}/parsed-text")
+        self.assertEqual(response.status_code, 200)
+        result = response.json()
+        self.assertEqual(result["file_id"], file_id)
+        self.assertEqual(result["parse_status"], "pending_enhancement")
+        self.assertEqual(result["text"], "")
+        self.assertNotEqual(result["error_message"], "")
+
+    def test_get_parsed_text_404_for_nonexistent_project(self):
+        """验证不存在的项目返回 404。"""
+        response = self.client.get("/api/projects/99999/files/1/parsed-text")
+        self.assertEqual(response.status_code, 404)
+
+    def test_get_parsed_text_404_for_nonexistent_file(self):
+        """验证不存在的文件返回 404。"""
+        project_id = self.client.post(
+            "/api/projects",
+            json={"project_name": "不存在文件测试", "product_line": "公路声屏障"},
+        ).json()["project_id"]
+
+        response = self.client.get(f"/api/projects/{project_id}/files/99999/parsed-text")
+        self.assertEqual(response.status_code, 404)
+
+
+class M3RenderTest(unittest.TestCase):
+    """验证 M3 独立测试接口。"""
+
+    def setUp(self):
+        test_tmp_root = Path(__file__).resolve().parents[1] / "test_tmp"
+        test_tmp_root.mkdir(exist_ok=True)
+        self.temp_dir = tempfile.TemporaryDirectory(dir=test_tmp_root)
+        os.environ["ZHONGCHI_DATA_DIR"] = self.temp_dir.name
+
+        from fastapi.testclient import TestClient
+
+        app_module = importlib.import_module("app.main")
+        self.client = TestClient(app_module.app)
+
+    def tearDown(self):
+        self.temp_dir.cleanup()
+        os.environ.pop("ZHONGCHI_DATA_DIR", None)
+
+    def test_m3_render_returns_ok_true(self):
+        """POST /api/test/m3-render 应返回 ok=true 并包含 download_url。"""
+        response = self.client.post(
+            "/api/test/m3-render",
+            json={
+                "project_name": "南京地铁3号线声屏障改造工程",
+                "project_location": "南京",
+                "owner_unit": "南京地铁集团",
+                "product_line": "轨道交通声屏障",
+                "parsed_sources": [
+                    "项目位于南京地铁3号线既有线区间，涉及多个敏感点路段。",
+                    "现场踏勘发现施工窗口受限，部分区段需要桥下吊装。",
+                ],
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["ok"], True)
+        self.assertTrue(payload["download_url"])
+        self.assertIn("/api/test/m3-render/download/", payload["download_url"])
+
+    def test_m3_render_returns_replacements(self):
+        """POST /api/test/m3-render 应返回 replacements（非空字典）。"""
+        response = self.client.post(
+            "/api/test/m3-render",
+            json={
+                "project_name": "南京地铁3号线声屏障改造工程",
+                "project_location": "南京",
+                "owner_unit": "南京地铁集团",
+                "product_line": "轨道交通声屏障",
+                "parsed_sources": [
+                    "项目位于南京地铁3号线既有线区间，涉及多个敏感点路段。",
+                    "现场踏勘发现施工窗口受限，部分区段需要桥下吊装。",
+                ],
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertIsInstance(payload["replacements"], dict)
+        self.assertGreater(len(payload["replacements"]), 0)
+        # 9 个 M3 字段都应存在
+        for field in (
+            "m3_basic_summary", "m3_line_summary", "m3_sensitive_points_summary",
+            "m3_quantity_summary", "m3_structure_summary", "m3_site_survey_summary",
+            "m3_investigation_summary", "m3_risk_summary", "m3_solution_summary",
+        ):
+            self.assertIn(field, payload["replacements"])
+
+    def test_m3_render_generates_pptx_file(self):
+        """POST /api/test/m3-render 应在 data/outputs/m3_test/ 目录下生成 PPTX 文件。"""
+        response = self.client.post(
+            "/api/test/m3-render",
+            json={
+                "project_name": "南京地铁3号线声屏障改造工程",
+                "project_location": "南京",
+                "owner_unit": "南京地铁集团",
+                "product_line": "轨道交通声屏障",
+                "parsed_sources": [
+                    "项目位于南京地铁3号线既有线区间，涉及多个敏感点路段。",
+                    "现场踏勘发现施工窗口受限，部分区段需要桥下吊装。",
+                ],
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["ok"], True)
+        pptx_path = Path(payload["pptx_path"])
+        self.assertTrue(pptx_path.exists())
+        self.assertEqual(pptx_path.suffix.lower(), ".pptx")
+
+    def test_m3_render_uses_zhongchi_data_dir(self):
+        """POST /api/test/m3-render 应尊重 ZHONGCHI_DATA_DIR 环境变量。"""
+        response = self.client.post(
+            "/api/test/m3-render",
+            json={
+                "project_name": "南京地铁3号线声屏障改造工程",
+                "project_location": "南京",
+                "owner_unit": "南京地铁集团",
+                "product_line": "轨道交通声屏障",
+                "parsed_sources": [],
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        pptx_path = Path(payload["pptx_path"])
+        # 文件应落在 temp_dir（受 ZHONGCHI_DATA_DIR 控制）而非 backend/data/
+        self.assertTrue(str(pptx_path).startswith(self.temp_dir.name))
+        self.assertTrue((pptx_path.parent).name == "m3_test")
+
+    def test_m3_render_rejects_empty_project_name(self):
+        """POST /api/test/m3-render 空 project_name 应返回 400。"""
+        response = self.client.post(
+            "/api/test/m3-render",
+            json={
+                "project_name": "   ",
+                "project_location": "南京",
+                "owner_unit": "南京地铁集团",
+                "product_line": "轨道交通声屏障",
+                "parsed_sources": [],
+            },
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("project_name", response.json()["detail"])
+
+    def test_m3_render_rejects_illegal_filename_chars(self):
+        """POST /api/test/m3-render 项目名含非法字符时应正常处理（不报 500）。"""
+        response = self.client.post(
+            "/api/test/m3-render",
+            json={
+                "project_name": "南京地铁:K1/K2?段",
+                "project_location": "南京",
+                "owner_unit": "南京地铁集团",
+                "product_line": "轨道交通声屏障",
+                "parsed_sources": [],
+            },
+        )
+        # 应成功而非 500（非法字符被清洗）
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["ok"], True)
+        self.assertTrue(Path(payload["pptx_path"]).exists())
+
+    def test_m3_render_download_returns_pptx_file(self):
+        """GET /api/test/m3-render/download/{filename} 应返回 PPTX 文件内容。"""
+        # 首先生成一个 M3 PPTX
+        create_response = self.client.post(
+            "/api/test/m3-render",
+            json={
+                "project_name": "南京地铁3号线声屏障改造工程",
+                "project_location": "南京",
+                "owner_unit": "南京地铁集团",
+                "product_line": "轨道交通声屏障",
+                "parsed_sources": [
+                    "项目位于南京地铁3号线既有线区间，涉及多个敏感点路段。",
+                    "现场踏勘发现施工窗口受限。",
+                ],
+            },
+        )
+        self.assertEqual(create_response.status_code, 200)
+        download_url = create_response.json()["download_url"]
+        filename = download_url.split("/")[-1]
+
+        # 下载
+        download_response = self.client.get(f"/api/test/m3-render/download/{filename}")
+        self.assertEqual(download_response.status_code, 200)
+        self.assertTrue(download_response.content.startswith(b"PK"))  # PPTX 是 ZIP 格式
+
+    def test_m3_render_download_rejects_path_traversal(self):
+        """路径穿越下载请求应被拒绝。"""
+        # FastAPI 路由将路径中的 .. 解析为普通字符，使用 URL 编码穿越
+        response = self.client.get("/api/test/m3-render/download/..%2F..%2F..%2Ftest.pptx")
+        # 路由层面 reject 或 resolve 后 is_relative_to reject
+        self.assertIn(response.status_code, (400, 404))
+
+    def test_m3_render_download_rejects_nonexistent_file(self):
+        """下载不存在的文件应返回 404。"""
+        response = self.client.get("/api/test/m3-render/download/nonexistent_file.pptx")
+        self.assertEqual(response.status_code, 404)
+
 
 if __name__ == "__main__":
     unittest.main()

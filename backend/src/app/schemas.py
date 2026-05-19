@@ -46,6 +46,7 @@ class StoredFile(BaseModel):
     assigned_modules: list[str] = Field(default_factory=list)
     parse_status: str = "pending"
     parsed_text_path: str = ""
+    text_preview: str = ""  # 解析文本预览，截断至约1500字
     error_message: str = ""
     # Vector store fields
     vector_status: str = "not_indexed"  # not_indexed, indexed, skipped, failed
@@ -129,3 +130,18 @@ class LlmTestResponse(BaseModel):
     reply: str = ""
     error: str = ""
     configured: dict[str, bool] = Field(default_factory=dict)
+
+
+class M3RenderTestRequest(BaseModel):
+    project_name: str
+    project_location: str = ""
+    owner_unit: str = ""
+    product_line: str = ""
+    parsed_sources: list[str] = Field(default_factory=list)
+
+
+class M3RenderTestResponse(BaseModel):
+    ok: bool
+    pptx_path: str = ""
+    download_url: str = ""
+    replacements: dict[str, str] = Field(default_factory=dict)

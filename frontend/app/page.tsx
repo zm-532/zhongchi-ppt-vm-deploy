@@ -18,7 +18,15 @@ const m1m2Templates = [
   { value: "railway", label: "铁路声屏障行业背景与技术发展（M1_&_M2）.pptx" },
 ];
 
-type ViewId = "projects" | "create" | "cases" | "function-tests" | "m1m2-test" | "m5-test" | "document-parse-test" | "llm-test";
+const M3_ACTIVE_REPLACEMENT_FIELDS = [
+  "m3_basic_summary",
+  "m3_quantity_summary",
+  "m3_site_survey_summary",
+  "m3_risk_summary",
+  "m3_solution_summary",
+];
+
+type ViewId = "projects" | "create" | "cases" | "function-tests" | "m1m2-test" | "m5-test" | "document-parse-test" | "llm-test" | "m3-test";
 type Project = {
   project_id: number;
   project_name: string;
@@ -29,7 +37,7 @@ type Project = {
   status_history?: string[];
   final_ppt_path?: string;
 };
-type StoredFile = { file_id: number; filename: string; content_type?: string; document_role?: string; assigned_modules?: string[]; parse_status?: string };
+type StoredFile = { file_id: number; filename: string; content_type?: string; document_role?: string; assigned_modules?: string[]; parse_status?: string; text_preview?: string; error_message?: string };
 type CaseSelection = {
   recommended_cases?: Array<{ case_id: number | string; title: string; match_reason?: string; matched_tags?: string[]; source_path?: string }>;
   confirmed_case_id?: number | string | null;
@@ -68,6 +76,7 @@ const viewTitles: Record<ViewId, { title: string; description: string }> = {
   "m5-test": { title: "M5选择测试", description: "上传测试资料，根据项目标签从案例库匹配相似案例并显示匹配理由。" },
   "document-parse-test": { title: "文档解析测试", description: "用于测试不同格式资料的文本与结构化解析效果。" },
   "llm-test": { title: "大模型测试", description: "调用后端开发测试接口，验证当前 LLM 环境变量和中转站请求是否可用。" },
+  "m3-test": { title: "M3文字替换测试", description: "将模拟资料文本替换到 M3 项目深化方案模板，验证独立 M3 文字替换功能。" },
 };
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
@@ -118,9 +127,23 @@ export default function HomePage() {
   const [docParseTestProjectId, setDocParseTestProjectId] = useState<number | null>(null);
   const [docParseTestResult, setDocParseTestResult] = useState<ClassificationResult | null>(null);
   const [docParseTestMessage, setDocumentParseTestMessage] = useState("请上传文件以测试解析效果。");
+  const [docParseTestFullTextMap, setDocParseTestFullTextMap] = useState<Record<number, string>>({});
+  const [docParseTestLoadingFullText, setDocParseTestLoadingFullText] = useState<Record<number, boolean>>({});
+  const [docParseTestExpandedFiles, setDocParseTestExpandedFiles] = useState<Record<number, boolean>>({});
   const [llmTestPrompt, setLlmTestPrompt] = useState("请用一句话回复：LLM连接成功，并说明你收到了中驰售前PPT助手的页面测试请求。");
   const [llmTestResult, setLlmTestResult] = useState<LlmTestResult | null>(null);
   const [llmTestMessage, setLlmTestMessage] = useState("点击按钮后将通过后端调用大模型测试接口。");
+
+  // M3 Text Replacement Test
+  const [m3TestProjectName, setM3TestProjectName] = useState("南京地铁3号线声屏障改造工程");
+  const [m3TestProjectLocation, setM3TestProjectLocation] = useState("南京");
+  const [m3TestOwnerUnit, setM3TestOwnerUnit] = useState("南京地铁集团");
+  const [m3TestProductLine, setM3TestProductLine] = useState("轨道交通声屏障");
+  const [m3TestSources, setM3TestSources] = useState(
+    "项目位于南京地铁3号线既有线区间，涉及多个敏感点路段，全线约15公里。\n现场踏勘发现施工窗口受限，部分区段需要桥下吊装，采用全封闭声屏障结构形式。\n工程量统计：声屏障长度约12km，护栏吸声板约2000㎡。\n风险分析：工期紧张，夜间施工风压控制是重难点，需要工装TEKLA定位和抗风支架防松动措施。"
+  );
+  const [m3TestResult, setM3TestResult] = useState<{ok: boolean; pptx_path: string; download_url: string; replacements: Record<string, string>} | null>(null);
+  const [m3TestMessage, setM3TestMessage] = useState("请填写项目信息和模拟资料文本，点击按钮开始 M3 文字替换测试。");
 
   // 项目基础信息编辑
   const [isEditingProject, setIsEditingProject] = useState(false);
@@ -156,7 +179,8 @@ export default function HomePage() {
         nextView === "m1m2-test" ||
         nextView === "m5-test" ||
         nextView === "document-parse-test" ||
-        nextView === "llm-test"
+        nextView === "llm-test" ||
+        nextView === "m3-test"
           ? nextView
           : "projects"
       );
@@ -597,6 +621,31 @@ export default function HomePage() {
     }
   }
 
+  async function loadDocParseTestFullText(fileId: number) {
+    if (!docParseTestProjectId) return;
+    setDocParseTestLoadingFullText((prev) => ({ ...prev, [fileId]: true }));
+    try {
+      const result = await requestJson<{ text: string; error_message: string }>(
+        `/api/projects/${docParseTestProjectId}/files/${fileId}/parsed-text`,
+      );
+      setDocParseTestFullTextMap((prev) => ({ ...prev, [fileId]: result.text || result.error_message || "" }));
+    } catch {
+      setDocParseTestFullTextMap((prev) => ({ ...prev, [fileId]: "加载失败" }));
+    } finally {
+      setDocParseTestLoadingFullText((prev) => ({ ...prev, [fileId]: false }));
+    }
+  }
+
+  function toggleDocParseTestFileExpanded(fileId: number) {
+    setDocParseTestExpandedFiles((prev) => {
+      const isExpanding = !prev[fileId];
+      if (isExpanding && !docParseTestFullTextMap[fileId]) {
+        loadDocParseTestFullText(fileId);
+      }
+      return { ...prev, [fileId]: isExpanding };
+    });
+  }
+
   async function runLlmConnectionTest() {
     const prompt = llmTestPrompt.trim();
     if (!prompt) return setLlmTestMessage("请先填写测试提示词。");
@@ -617,13 +666,41 @@ export default function HomePage() {
     }
   }
 
+  async function runM3RenderTest() {
+    if (!m3TestProjectName.trim()) return setM3TestMessage("请先填写项目名称。");
+    setBusy(true);
+    setM3TestResult(null);
+    try {
+      const result = await requestJson<{ok: boolean; pptx_path: string; download_url: string; replacements: Record<string, string>}>(
+        "/api/test/m3-render",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            project_name: m3TestProjectName,
+            project_location: m3TestProjectLocation,
+            owner_unit: m3TestOwnerUnit,
+            product_line: m3TestProductLine,
+            parsed_sources: m3TestSources.split("\n").filter((s) => s.trim()),
+          }),
+        }
+      );
+      setM3TestResult(result);
+      setM3TestMessage(result.ok ? "M3 PPTX 已生成，点击下载链接获取文件。" : "M3 渲染失败，请检查后端日志。");
+    } catch (error) {
+      setM3TestMessage(error instanceof Error ? error.message : "M3 测试失败");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function downloadFinal() {
     if (!currentProject) return setMessage("请先创建项目。");
     window.location.href = `${API_BASE}/api/projects/${currentProject.project_id}/download`;
   }
 
   const pageTitle = viewTitles[activeView];
-  const isFunctionTestView = activeView === "function-tests" || activeView === "m1m2-test" || activeView === "m5-test" || activeView === "document-parse-test" || activeView === "llm-test";
+  const isFunctionTestView = activeView === "function-tests" || activeView === "m1m2-test" || activeView === "m5-test" || activeView === "document-parse-test" || activeView === "llm-test" || activeView === "m3-test";
 
   return (
     <main className="shell">
@@ -871,6 +948,12 @@ export default function HomePage() {
                 <strong>大模型测试</strong>
                 <p>通过后端读取环境变量并调用配置好的接口。</p>
                 <a className="secondaryButton" href="#llm-test">打开测试</a>
+              </article>
+              <article className="resultCard">
+                <span>M3 文字替换</span>
+                <strong>M3文字替换测试</strong>
+                <p>将模拟资料文本替换到 M3 项目深化方案模板。</p>
+                <a className="secondaryButton" href="#m3-test">打开测试</a>
               </article>
             </div>
           </section>
@@ -1182,21 +1265,64 @@ export default function HomePage() {
                           <th style={{ padding: "8px 12px", textAlign: "left", borderBottom: "1px solid var(--line)", fontSize: "12px", color: "var(--muted)" }}>解析状态</th>
                           <th style={{ padding: "8px 12px", textAlign: "left", borderBottom: "1px solid var(--line)", fontSize: "12px", color: "var(--muted)" }}>资料角色</th>
                           <th style={{ padding: "8px 12px", textAlign: "left", borderBottom: "1px solid var(--line)", fontSize: "12px", color: "var(--muted)" }}>服务模块</th>
+                          <th style={{ padding: "8px 12px", textAlign: "left", borderBottom: "1px solid var(--line)", fontSize: "12px", color: "var(--muted)" }}>解析文本</th>
                         </tr>
                       </thead>
                       <tbody>
                         {docParseTestResult.files.map((f, idx) => (
-                          <tr key={idx} style={{ borderBottom: "1px solid var(--line)" }}>
-                            <td style={{ padding: "8px 12px", fontSize: "13px" }}>{f.filename}</td>
-                            <td style={{ padding: "8px 12px" }}>
-                              <span className={`parseStatus ${f.parse_status}`}>{f.parse_status}</span>
-                              {f.parse_status === "pending_enhancement" && <span className="badge warn" style={{ marginLeft: "6px" }}>待增强</span>}
-                              {f.parse_status === "pending_ocr" && <span className="badge warn" style={{ marginLeft: "6px" }}>待OCR</span>}
-                              {f.parse_status === "failed" && <span className="badge warn" style={{ marginLeft: "6px" }}>失败</span>}
-                            </td>
-                            <td style={{ padding: "8px 12px", fontSize: "13px", color: "var(--muted)" }}>{f.document_role || "未知"}</td>
-                            <td style={{ padding: "8px 12px", fontSize: "13px", color: "var(--muted)" }}>{(f.assigned_modules || []).join(", ") || "未分配"}</td>
-                          </tr>
+                          <>
+                            <tr key={idx} style={{ borderBottom: "1px solid var(--line)" }}>
+                              <td style={{ padding: "8px 12px", fontSize: "13px" }}>{f.filename}</td>
+                              <td style={{ padding: "8px 12px" }}>
+                                <span className={`parseStatus ${f.parse_status}`}>{f.parse_status}</span>
+                                {f.parse_status === "pending_enhancement" && <span className="badge warn" style={{ marginLeft: "6px" }}>待增强</span>}
+                                {f.parse_status === "pending_ocr" && <span className="badge warn" style={{ marginLeft: "6px" }}>待OCR</span>}
+                                {f.parse_status === "failed" && <span className="badge warn" style={{ marginLeft: "6px" }}>失败</span>}
+                              </td>
+                              <td style={{ padding: "8px 12px", fontSize: "13px", color: "var(--muted)" }}>{f.document_role || "未知"}</td>
+                              <td style={{ padding: "8px 12px", fontSize: "13px", color: "var(--muted)" }}>{(f.assigned_modules || []).join(", ") || "未分配"}</td>
+                              <td style={{ padding: "8px 12px", fontSize: "12px" }}>
+                                {f.parse_status === "parsed" ? (
+                                  f.text_preview ? (
+                                    <button
+                                      style={{ fontSize: "11px", padding: "2px 8px", background: "var(--surface-soft)", border: "1px solid var(--line)", borderRadius: "4px", cursor: "pointer" }}
+                                      onClick={() => toggleDocParseTestFileExpanded(f.file_id)}
+                                      type="button"
+                                    >
+                                      {docParseTestExpandedFiles[f.file_id] ? "收起" : "查看文本"}
+                                    </button>
+                                  ) : (
+                                    <span style={{ color: "var(--muted)", fontSize: "12px" }}>解析成功，无文本内容</span>
+                                  )
+                                ) : f.error_message ? (
+                                  <span style={{ color: "#e74c3c", fontSize: "12px" }} title={f.error_message}>{f.error_message.length > 30 ? f.error_message.slice(0, 30) + "…" : f.error_message}</span>
+                                ) : (
+                                  <span style={{ color: "var(--muted)", fontSize: "12px" }}>暂无解析文本</span>
+                                )}
+                              </td>
+                            </tr>
+                            {docParseTestExpandedFiles[f.file_id] ? (
+                              <tr key={`${idx}-text`}>
+                                <td colSpan={5} style={{ padding: "8px 12px", background: "var(--surface-soft)", borderBottom: "1px solid var(--line)" }}>
+                                  {docParseTestLoadingFullText[f.file_id] ? (
+                                    <span style={{ fontSize: "12px", color: "var(--muted)" }}>加载中…</span>
+                                  ) : (
+                                    <pre style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word", fontSize: "12px", maxHeight: "300px", overflowY: "auto", background: "var(--bg)", padding: "8px", borderRadius: "4px", border: "1px solid var(--line)" }}>
+                                      {docParseTestFullTextMap[f.file_id] || "（空）"}
+                                    </pre>
+                                  )}
+                                </td>
+                              </tr>
+                            ) : null}
+                            {f.parse_status === "parsed" && f.text_preview && !docParseTestExpandedFiles[f.file_id] ? (
+                              <tr key={`${idx}-preview`}>
+                                <td colSpan={5} style={{ padding: "4px 12px 8px 12px", borderBottom: "1px solid var(--line)", background: "var(--surface-soft)" }}>
+                                  <span style={{ fontSize: "11px", color: "var(--muted)" }}>文本预览：</span>
+                                  <span style={{ fontSize: "12px", color: "var(--text)", display: "block", marginTop: "2px" }}>{f.text_preview}{f.text_preview.length >= 1500 ? "…" : ""}</span>
+                                </td>
+                              </tr>
+                            ) : null}
+                          </>
                         ))}
                       </tbody>
                     </table>
@@ -1248,6 +1374,77 @@ export default function HomePage() {
                   <strong>{llmTestResult.configured?.base_url && llmTestResult.configured?.api_key && llmTestResult.configured?.model ? "完整" : "缺失"}</strong>
                   <p>base_url：{String(Boolean(llmTestResult.configured?.base_url))}；api_key：{String(Boolean(llmTestResult.configured?.api_key))}；model：{String(Boolean(llmTestResult.configured?.model))}</p>
                 </article>
+              </div>
+            ) : null}
+          </section>
+        ) : null}
+
+        {activeView === "m3-test" ? (
+          <section id="m3-test" className="section">
+            <div className="sectionHeader">
+              <h2>M3文字替换测试</h2>
+              <span className="badge">独立测试</span>
+            </div>
+            <div className="testPanel">
+              <div className="testInputs">
+                <label>项目名称<input value={m3TestProjectName} onChange={(event) => setM3TestProjectName(event.target.value)} /></label>
+                <label>项目所在地<input value={m3TestProjectLocation} onChange={(event) => setM3TestProjectLocation(event.target.value)} /></label>
+                <label>建设/业主单位<input value={m3TestOwnerUnit} onChange={(event) => setM3TestOwnerUnit(event.target.value)} /></label>
+                <label>产品线<input value={m3TestProductLine} onChange={(event) => setM3TestProductLine(event.target.value)} /></label>
+              </div>
+              <label>
+                模拟资料文本（多行，每行一段）
+                <textarea
+                  value={m3TestSources}
+                  onChange={(event) => setM3TestSources(event.target.value)}
+                  rows={6}
+                  placeholder="每行一段资料文本，用于 M3 字段提取测试..."
+                />
+              </label>
+              <button className="primaryButton" disabled={busy} onClick={runM3RenderTest} type="button">执行 M3 文字替换测试</button>
+              <p className="messageLine" style={m3TestMessage && m3TestMessage.includes("失败") ? {color: "#e74c3c"} : {}}>{m3TestMessage}</p>
+            </div>
+
+            {m3TestResult && m3TestResult.ok ? (
+              <div className="resultGrid">
+                <article className="resultCard">
+                  <span>渲染状态</span>
+                  <strong>成功</strong>
+                  <p>文件路径：{m3TestResult.pptx_path || "无"}</p>
+                </article>
+                {m3TestResult.download_url ? (
+                  <article className="resultCard wide">
+                    <span>下载链接</span>
+                    <strong>M3 PPTX 已生成</strong>
+                    <p>
+                      <a href={`${API_BASE}${m3TestResult.download_url}`} download>点击下载生成的 M3 PPTX</a>
+                    </p>
+                  </article>
+                ) : null}
+              </div>
+            ) : null}
+
+            {m3TestResult && m3TestResult.ok && m3TestResult.replacements && Object.keys(m3TestResult.replacements).length > 0 ? (
+              <div style={{ marginTop: "16px" }}>
+                <h3 style={{ fontSize: "14px", color: "var(--primary-dark)", marginBottom: "8px" }}>字段替换摘要</h3>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
+                  <thead>
+                    <tr style={{ background: "var(--surface-soft)" }}>
+                      <th style={{ padding: "6px 10px", textAlign: "left", borderBottom: "1px solid var(--line)" }}>字段</th>
+                      <th style={{ padding: "6px 10px", textAlign: "left", borderBottom: "1px solid var(--line)" }}>替换值</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(m3TestResult.replacements)
+                      .filter(([key]) => M3_ACTIVE_REPLACEMENT_FIELDS.includes(key))
+                      .map(([key, value]) => (
+                      <tr key={key} style={{ borderBottom: "1px solid var(--line)" }}>
+                        <td style={{ padding: "6px 10px", color: "var(--muted)" }}>{key}</td>
+                        <td style={{ padding: "6px 10px", wordBreak: "break-word" }}>{String(value).slice(0, 120)}{String(value).length > 120 ? "…" : ""}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             ) : null}
           </section>

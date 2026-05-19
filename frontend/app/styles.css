@@ -330,7 +330,7 @@ input:disabled {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 16px;
-  margin-top: 18px;
+  margin: 18px auto 0;
   max-width: 680px;
 }
 

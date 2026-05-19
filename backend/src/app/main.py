@@ -5,8 +5,28 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
 from .constants import ALLOWED_EXTENSIONS, ALLOWED_MODULE_IDS, PROJECT_TYPES
-from .schemas import ClassificationResult, ClassificationReviewRequest, DocumentParseTestResult, LlmTestRequest, LlmTestResponse, Project, ProjectCreate, ProjectUpdate, ReviewRequest, StoredFile, VectorIndexRequest, VectorIndexResponse
-from .storage import get_store
+from .schemas import ClassificationResult, ClassificationReviewRequest, DocumentParseTestResult, LlmTestRequest, LlmTestResponse, M3RenderTestRequest, M3RenderTestResponse, Project, ProjectCreate, ProjectUpdate, ReviewRequest, StoredFile, VectorIndexRequest, VectorIndexResponse
+from .storage import get_data_dir, get_store
+
+# 在模块加载时将 ppt_engine 路径注入 sys.path（供 TestClient 共享）
+import sys as _sys
+_ppt_engine_root = Path(__file__).resolve().parents[3] / "ppt_engine"
+if str(_ppt_engine_root) not in _sys.path:
+    _sys.path.insert(0, str(_ppt_engine_root))
+del _sys, _ppt_engine_root
+
+
+def _m3_safe_filename(name: str) -> str:
+    """清洗文件名，移除 Windows 非法字符。"""
+    illegal = '\\/:*?"<>|'
+    for ch in illegal:
+        name = name.replace(ch, "_")
+    return name or "unnamed"
+
+
+def _get_m3_test_output_dir() -> Path:
+    """获取 M3 测试输出目录，运行时解析（受 ZHONGCHI_DATA_DIR 影响）。"""
+    return get_data_dir() / "outputs" / "m3_test"
 
 app = FastAPI(title="中驰智能PPT Demo API")
 
@@ -218,6 +238,74 @@ def list_assets(module_id: str | None = None) -> list[dict]:
     return get_store().get_assets(module_id)
 
 
+@app.get("/api/projects/{project_id}/files/{file_id}/parsed-text")
+def get_file_parsed_text(project_id: int, file_id: int) -> dict:
+    """
+    获取指定文件的完整解析文本。
+
+    安全约束：
+    - 必须根据 project_id 找到项目
+    - 必须根据 file_id 找到该项目下的文件
+    - 只读取该文件记录里的 parsed_text_path
+    - 文件不存在、未解析、无文本时返回清晰错误或空结果
+    """
+    store = get_store()
+    project = store.get_project(project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="项目不存在")
+
+    state = store.load()
+    file_record = next(
+        (f for f in state["files"] if f["file_id"] == file_id and f["project_id"] == project_id),
+        None,
+    )
+    if file_record is None:
+        raise HTTPException(status_code=404, detail="文件不存在")
+
+    parse_status = file_record.get("parse_status", "")
+    if parse_status not in ("parsed",):
+        return {
+            "file_id": file_id,
+            "filename": file_record.get("filename", ""),
+            "parse_status": parse_status,
+            "text": "",
+            "error_message": f"文件 parse_status={parse_status}，尚无解析文本",
+        }
+
+    parsed_text_path = file_record.get("parsed_text_path", "")
+    if not parsed_text_path:
+        return {
+            "file_id": file_id,
+            "filename": file_record.get("filename", ""),
+            "parse_status": parse_status,
+            "text": "",
+            "error_message": "文件无 parsed_text_path",
+        }
+
+    path = Path(parsed_text_path)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="解析文本文件不存在")
+
+    try:
+        text = path.read_text(encoding="utf-8", errors="ignore")
+    except OSError as exc:
+        return {
+            "file_id": file_id,
+            "filename": file_record.get("filename", ""),
+            "parse_status": parse_status,
+            "text": "",
+            "error_message": f"读取解析文本失败：{exc}",
+        }
+
+    return {
+        "file_id": file_id,
+        "filename": file_record.get("filename", ""),
+        "parse_status": parse_status,
+        "text": text,
+        "error_message": "",
+    }
+
+
 @app.get("/api/cases")
 def list_cases() -> list[dict]:
     return get_store().get_cases()
@@ -228,6 +316,88 @@ def dev_llm_test(payload: LlmTestRequest) -> dict:
     from .llm import test_llm_connection
 
     return test_llm_connection(payload.prompt)
+
+
+def _ensure_ppt_engine_path() -> None:
+    import sys
+    from pathlib import Path as PP
+
+    code_dir = Path(__file__).resolve().parents[3]
+    ppt_engine_dir = code_dir / "ppt_engine"
+    if str(ppt_engine_dir) not in sys.path:
+        sys.path.insert(0, str(ppt_engine_dir))
+
+
+@app.post("/api/test/m3-render", response_model=M3RenderTestResponse)
+def m3_render_test(payload: M3RenderTestRequest) -> dict:
+    """M3 独立测试接口：将模拟资料文本替换到 M3 PPT 模板并输出独立 PPTX。
+
+    不接入正式生产流程，不修改 render_project_ppt() 的行为。
+    输出文件存放在 data/outputs/m3_test/ 目录下（受 ZHONGCHI_DATA_DIR 影响）。
+    """
+    _ensure_ppt_engine_path()
+    from ppt_engine.renderer import build_m3_replacement_map, render_m3_test_ppt
+
+    if not payload.project_name or not payload.project_name.strip():
+        raise HTTPException(status_code=400, detail="project_name 不能为空")
+
+    safe_name = _m3_safe_filename(payload.project_name)
+    project = {
+        "project_name": payload.project_name,
+        "project_location": payload.project_location,
+        "owner_unit": payload.owner_unit,
+        "product_line": payload.product_line,
+    }
+
+    output_dir = _get_m3_test_output_dir()
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    try:
+        # 构建替换映射（用于返回给前端）
+        replacements = build_m3_replacement_map(project, payload.parsed_sources)
+
+        pptx_path = render_m3_test_ppt(project, payload.parsed_sources, output_dir)
+        filename = pptx_path.name
+        return {
+            "ok": True,
+            "pptx_path": str(pptx_path),
+            "download_url": f"/api/test/m3-render/download/{filename}",
+            "replacements": replacements,
+        }
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=500, detail=f"M3 模板缺失：{exc}")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"M3 渲染失败：{exc}")
+
+
+@app.get("/api/test/m3-render/download/{filename}")
+def m3_render_download(filename: str) -> FileResponse:
+    """下载 M3 测试生成的 PPTX 文件。
+
+    安全约束：
+    - 只允许下载 data/outputs/m3_test 目录下的文件
+    - 防止路径穿越（不允许 .. 或绝对路径）
+    """
+    # 防止路径穿越：禁止包含 .. 或绝对路径标记
+    if ".." in filename or filename.startswith("/") or "\\" in filename:
+        raise HTTPException(status_code=400, detail="无效的文件名")
+
+    # 白名单：限制在 m3_test 目录（运行时解析，受 ZHONGCHI_DATA_DIR 影响）
+    safe_dir = _get_m3_test_output_dir().resolve()
+    file_path = safe_dir / filename
+
+    # 确保文件在安全目录内
+    try:
+        resolved = file_path.resolve()
+        if not resolved.is_relative_to(safe_dir):
+            raise HTTPException(status_code=400, detail="无效的文件名")
+    except Exception:
+        raise HTTPException(status_code=400, detail="无效的文件名")
+
+    if not resolved.exists():
+        raise HTTPException(status_code=404, detail="文件不存在")
+
+    return FileResponse(resolved, filename=filename)
 
 
 # =============================================================================
@@ -293,8 +463,8 @@ async def document_parse_test(files: list[UploadFile] = File(...)) -> list[dict]
             })
             continue
 
-        # Handle pending_enhancement types (images, CAD)
-        if suffix in {".png", ".jpg", ".jpeg", ".dwg", ".dxf"}:
+        # Handle CAD (not images — images now go through analyze_document)
+        if suffix in {".dwg", ".dxf"}:
             context_text = ""
             role, modules = classify_document(filename, "", context_text)
             results.append({
@@ -310,7 +480,7 @@ async def document_parse_test(files: list[UploadFile] = File(...)) -> list[dict]
                 "tables": [],
                 "slides": [],
                 "metadata": {"original_size_bytes": len(content)},
-                "error_message": "图片和 CAD 文件当前返回 pending_enhancement，不接入大模型，不编造内容。",
+                "error_message": "CAD 文件当前返回 pending_enhancement，不接入大模型，不编造内容。",
             })
             continue
 
@@ -336,23 +506,23 @@ async def document_parse_test(files: list[UploadFile] = File(...)) -> list[dict]
             elif suffix == ".pdf":
                 text = analysis.extracted_text
                 sections = [line.strip() for line in text.split("\n") if line.strip()][:50]
-                if not text.strip():
-                    results.append({
-                        "filename": filename,
-                        "suffix": suffix,
-                        "content_type": content_type,
-                        "parse_status": "pending_ocr",
-                        "document_role": analysis.document_role,
-                        "assigned_modules": analysis.assigned_modules,
-                        "text": "",
-                        "text_preview": "",
-                        "sections": [],
-                        "tables": [],
-                        "slides": [],
-                        "metadata": {"original_size_bytes": len(content)},
-                        "error_message": "疑似扫描件或图片型 PDF，无法提取可复制文本。",
-                    })
-                    continue
+                # Use MinerU parse status directly; no longer infer "pending_ocr" from empty text
+                results.append({
+                    "filename": filename,
+                    "suffix": suffix,
+                    "content_type": content_type,
+                    "parse_status": analysis.parse_status,
+                    "document_role": analysis.document_role,
+                    "assigned_modules": analysis.assigned_modules,
+                    "text": text,
+                    "text_preview": text[:200] if text else "",
+                    "sections": sections,
+                    "tables": [],
+                    "slides": [],
+                    "metadata": {"original_size_bytes": len(content)},
+                    "error_message": analysis.error_message,
+                })
+                continue
 
             elif suffix == ".docx":
                 text = analysis.extracted_text
