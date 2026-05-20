@@ -95,6 +95,16 @@ function firstTemplateName(item?: { template_path?: string; template_name?: stri
   return item.template_filename || item.template_name || item.template_path?.split(/[\\/]/).pop() || item.template_key || "待识别";
 }
 
+function getProjectStatusClass(status: string) {
+  if (!status) return "status-idle";
+  if (status === "完成") return "status-done";
+  if (status === "待确认") return "status-review";
+  if (status === "待上传") return "status-idle";
+  if (status.includes("失败") || status.includes("错误")) return "status-error";
+  if (status.includes("中")) return "status-running";
+  return "status-idle";
+}
+
 export default function HomePage() {
   const [activeView, setActiveView] = useState<ViewId>("projects");
   const [projects, setProjects] = useState<Project[]>([]);
@@ -709,7 +719,7 @@ export default function HomePage() {
     <main className="shell">
       <aside className="sidebar" aria-label="主导航">
         <div className="brand"><div className="brandMark" aria-hidden="true" /><div><strong>中驰售前PPT助手</strong></div></div>
-        <nav>
+        <nav className="sidebar-nav">
           <a className={activeView === "projects" ? "navItem active" : "navItem"} href="#projects">我的项目</a>
           <a className={activeView === "create" ? "navItem active" : "navItem"} href="#create">新建项目</a>
           <a className={activeView === "cases" ? "navItem active" : "navItem"} href="#cases">案例库管理</a>
@@ -717,7 +727,7 @@ export default function HomePage() {
         </nav>
       </aside>
       <section className="content">
-        <header className="topbar"><div><h1>{pageTitle.title}</h1><p>{pageTitle.description}</p></div>{activeView === "projects" ? <div className="topbarActions"><button className="secondaryButton" onClick={toggleProjectManagement} type="button">{isManagingProjects ? "取消管理" : "管理项目"}</button><a className="primaryButton" href="#create">新建项目</a></div> : null}</header>
+        <header className="topbar"><div className="topbar-title-area"><h1>{pageTitle.title}</h1><p>{pageTitle.description}</p></div>{activeView === "projects" ? <div className="topbarActions"><button className="secondaryButton" onClick={toggleProjectManagement} type="button">{isManagingProjects ? "取消管理" : "管理项目"}</button><a className="primaryButton" href="#create">新建项目</a></div> : null}</header>
 
         {activeView === "projects" ? (
           <>
@@ -732,10 +742,10 @@ export default function HomePage() {
                     <label className={selectedProjectIds.includes(project.project_id) ? "projectItem manageItem selected" : "projectItem manageItem"} key={project.project_id}>
                       <input checked={selectedProjectIds.includes(project.project_id)} onChange={() => toggleProjectSelection(project.project_id)} type="checkbox" />
                       <strong>{project.project_name}</strong>
-                      <span>{project.task_status}</span>
+                      <span className={`project-status-badge ${getProjectStatusClass(project.task_status)}`}>{project.task_status}</span>
                     </label>
                   ) : (
-                    <button className={currentProject?.project_id === project.project_id ? "projectItem selected" : "projectItem"} key={project.project_id} onClick={() => { setCurrentProject(project); setTask(null); setClassification(null); }} type="button"><strong>{project.project_name}</strong><span>{project.task_status}</span></button>
+                    <button className={currentProject?.project_id === project.project_id ? "projectItem selected" : "projectItem"} key={project.project_id} onClick={() => { setCurrentProject(project); setTask(null); setClassification(null); }} type="button"><strong>{project.project_name}</strong><span className={`project-status-badge ${getProjectStatusClass(project.task_status)}`}>{project.task_status}</span></button>
                   ))}</div>
                   {hasMoreProjects ? (
                     <div className="projectListFooter">
@@ -830,7 +840,7 @@ export default function HomePage() {
                     <div className="fileList">
                       {(selectedFiles.length ? selectedFiles : uploadedFiles).map((file) => <span key={"name" in file ? file.name : file.file_id}>{"name" in file ? file.name : file.filename}</span>)}
                     </div>
-                    <div className="actions">
+                    <div className="upload-actions-bar">
                       <button className="primaryButton" disabled={busy} onClick={uploadProjectFiles} type="button">统一上传项目资料</button>
                       <button className="secondaryButton" disabled={busy} onClick={analyzeProject} type="button">开始识别资料</button>
                     </div>
@@ -865,7 +875,7 @@ export default function HomePage() {
                           <p>默认使用企业背书与荣誉固定模板，可由后端补充替换字段。</p>
                         </article>
                       </div>
-                      <div className="missingFields">
+                      <div className="missingFields compact-warning">
                         <strong>缺失字段</strong>
                         <div>{classification.missing_fields?.length ? classification.missing_fields.map((field) => <span key={field}>{field}</span>) : <span>暂无缺失字段</span>}</div>
                       </div>
@@ -887,11 +897,11 @@ export default function HomePage() {
                 </section>
 
                 <section className="section statusSection">
-                  <div className="sectionHeader"><h2>生成状态</h2><div className="actions"><button className="primaryButton" disabled={busy} onClick={generate} type="button">启动生成</button></div></div>
-                  <ol className="statusList">{statuses.map((status, index) => <li className={status === activeStatus ? "current" : ""} key={status}><span>{index + 1}</span>{status}</li>)}</ol>
+                  <div className="sectionHeader"><h2>生成状态</h2><div className="actions"><button className="primaryButton btn-xs" disabled={busy} onClick={generate} type="button">启动生成</button></div></div>
+                  <ol className="statusList">{statuses.map((status, index) => <li className={status === activeStatus ? "current" : (statuses.indexOf(status) < statuses.indexOf(activeStatus) ? "completed" : "pending")} key={status}><span>{index + 1}</span>{status}</li>)}</ol>
                   <div className="historyBox"><strong>状态历史</strong><span>{statusHistory}</span></div>
                   <p className="messageLine">{message}</p>
-                  <div className="downloadRow"><div><h3>最终文件</h3><p id="finalFileDesc">生成完成后可下载 PPTX</p></div><div className="downloadActions"><button className="secondaryButton" disabled={busy} onClick={downloadFinal} type="button">下载最终 PPTX</button><span className="badge">{activeStatus}</span></div></div>
+                  <div className="downloadRow"><div><h3>最终文件</h3><p id="finalFileDesc">生成完成后可下载 PPTX</p></div><div className="downloadActions"><button className="secondaryButton btn-xs" disabled={busy} onClick={downloadFinal} type="button">下载最终 PPTX</button><span className="badge">{activeStatus}</span></div></div>
                 </section>
               </>
             ) : null}
@@ -918,7 +928,18 @@ export default function HomePage() {
         ) : null}
 
         {activeView === "cases" ? (
-          <section id="cases" className="section"><div className="sectionHeader"><h2>案例库管理</h2><button className="secondaryButton" type="button">新增案例</button></div><div className="emptyState compact"><h3>案例库为空</h3><p>添加历史项目案例后，系统会根据项目标签自动匹配相似案例。</p><button className="secondaryButton" type="button">添加第一个案例</button></div></section>
+          <section id="cases" className="section">
+            <div className="sectionHeader"><h2>案例库管理</h2><button className="secondaryButton" type="button">新增案例</button></div>
+            <div className="cases-empty-panel">
+              <h3 className="cases-empty-title">案例库暂未配置</h3>
+              <p className="cases-empty-desc">添加历史项目案例后，系统会根据项目类型、场景标签和匹配理由推荐 M5 案例。</p>
+              <div className="cases-capability-list">
+                <div className="cases-capability-item">历史项目案例归档</div>
+                <div className="cases-capability-item">项目标签与场景匹配</div>
+                <div className="cases-capability-item">M5 推荐案例辅助生成</div>
+              </div>
+            </div>
+          </section>
         ) : null}
 
         {activeView === "function-tests" ? (
@@ -927,36 +948,46 @@ export default function HomePage() {
               <h2>功能测试</h2>
               <span className="badge">开发过程验证入口</span>
             </div>
-            <div className="resultGrid">
-              <article className="resultCard">
-                <span>模板识别</span>
-                <strong>M1/M2选择测试</strong>
-                <p>验证项目类型识别与 M1/M2 固化模板选择。</p>
-                <a className="secondaryButton" href="#m1m2-test">打开测试</a>
+            <div className="test-hub-grid">
+              <article className="test-hub-card">
+                <div className="test-hub-card-header">
+                  <strong>M1/M2选择测试</strong>
+                  <span className="test-hub-badge">模板识别</span>
+                </div>
+                <p className="test-hub-desc">验证项目类型识别与 M1/M2 固化模板选择。</p>
+                <a className="secondaryButton test-hub-action" href="#m1m2-test">打开测试</a>
               </article>
-              <article className="resultCard">
-                <span>案例匹配</span>
-                <strong>M5选择测试</strong>
-                <p>验证项目标签、案例库匹配与推荐理由。</p>
-                <a className="secondaryButton" href="#m5-test">打开测试</a>
+              <article className="test-hub-card">
+                <div className="test-hub-card-header">
+                  <strong>M5选择测试</strong>
+                  <span className="test-hub-badge">案例匹配</span>
+                </div>
+                <p className="test-hub-desc">验证项目标签、案例库匹配与推荐理由。</p>
+                <a className="secondaryButton test-hub-action" href="#m5-test">打开测试</a>
               </article>
-              <article className="resultCard">
-                <span>资料解析</span>
-                <strong>文档解析测试</strong>
-                <p>验证上传资料解析状态、资料角色和模块分配。</p>
-                <a className="secondaryButton" href="#document-parse-test">打开测试</a>
+              <article className="test-hub-card">
+                <div className="test-hub-card-header">
+                  <strong>文档解析测试</strong>
+                  <span className="test-hub-badge">解析验证</span>
+                </div>
+                <p className="test-hub-desc">验证上传资料解析状态、资料角色和模块分配。</p>
+                <a className="secondaryButton test-hub-action" href="#document-parse-test">打开测试</a>
               </article>
-              <article className="resultCard">
-                <span>LLM 连通性</span>
-                <strong>大模型测试</strong>
-                <p>通过后端读取环境变量并调用配置好的接口。</p>
-                <a className="secondaryButton" href="#llm-test">打开测试</a>
+              <article className="test-hub-card">
+                <div className="test-hub-card-header">
+                  <strong>大模型测试</strong>
+                  <span className="test-hub-badge">LLM</span>
+                </div>
+                <p className="test-hub-desc">通过后端读取环境变量并调用配置好的接口。</p>
+                <a className="secondaryButton test-hub-action" href="#llm-test">打开测试</a>
               </article>
-              <article className="resultCard">
-                <span>M3 文字替换</span>
-                <strong>M3文字替换测试</strong>
-                <p>将模拟资料文本替换到 M3 项目深化方案模板。</p>
-                <a className="secondaryButton" href="#m3-test">打开测试</a>
+              <article className="test-hub-card">
+                <div className="test-hub-card-header">
+                  <strong>M3文字替换测试</strong>
+                  <span className="test-hub-badge">M3</span>
+                </div>
+                <p className="test-hub-desc">将模拟资料文本替换到 M3 项目深化方案模板。</p>
+                <a className="secondaryButton test-hub-action" href="#m3-test">打开测试</a>
               </article>
             </div>
           </section>
