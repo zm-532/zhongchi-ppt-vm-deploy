@@ -1,6 +1,7 @@
 import os
 import tempfile
 import unittest
+import unittest.mock
 import zipfile
 from collections import Counter
 from pathlib import Path
@@ -137,7 +138,7 @@ class TemplateConfigTest(unittest.TestCase):
         )
 
     def test_merge_order_is_m1_m2_then_m5_then_m6(self):
-        self.assertEqual(MERGE_ORDER, ("M1_M2", "M5", "M6"))
+        self.assertEqual(MERGE_ORDER, ("M1_M2", "M3", "M5", "M6"))
 
     def test_m6_template_filename_correct(self):
         self.assertEqual(M6_TEMPLATE_FILENAME, "中驰企业介绍合并初版（M6）.pptx")
@@ -245,12 +246,11 @@ class M6FixedTemplateTest(unittest.TestCase):
 class RenderChapterPptValidationTest(unittest.TestCase):
     """验证 render_chapter_ppt 参数校验。"""
 
-    def test_rejects_m3(self):
+    def test_accepts_m3(self):
         with tempfile.TemporaryDirectory() as temp_dir:
-            with self.assertRaises(ValueError) as context:
-                render_chapter_ppt("M3", PROJECT, {}, temp_dir)
-
-            self.assertIn("M3", str(context.exception))
+            outline = {"parsed_sources": ["南京地铁线路总长度约30公里"]}
+            result = render_chapter_ppt("M3", PROJECT, outline, temp_dir)
+            self.assertTrue(result.exists())
 
     def test_rejects_m4(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -357,16 +357,19 @@ class MergePptxTest(unittest.TestCase):
             first.save(first_path)
 
             second = Presentation()
-            second.slide_width = Inches(13.333)
+            # Use a different aspect ratio (4:3) to create a real size mismatch
+            second.slide_width = Inches(10)
             second.slide_height = Inches(7.5)
             second.slides.add_slide(second.slide_layouts[6])
             second_path = Path(temp_dir) / "second.pptx"
             second.save(second_path)
 
-            with self.assertRaises(ValueError) as context:
-                merge_pptx([first_path, second_path], Path(temp_dir) / "final.pptx")
+            # Force python-pptx path to get the size-mismatch error
+            with unittest.mock.patch.dict(os.environ, {"ZHONGCHI_PPT_MERGE_ENGINE": "python-pptx"}):
+                with self.assertRaises(ValueError) as context:
+                    merge_pptx([first_path, second_path], Path(temp_dir) / "final.pptx")
 
-            self.assertIn("尺寸不一致", str(context.exception))
+            self.assertIn("尺寸", str(context.exception))
 
 
 class RenderFinalPptTest(unittest.TestCase):

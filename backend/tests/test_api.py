@@ -61,7 +61,7 @@ class BackendApiTest(unittest.TestCase):
         project = response.json()
         self.assertEqual(project["project_name"], "某城市轨道交通声屏障改造项目")
         self.assertEqual(project["task_status"], "待生成")
-        self.assertEqual([module["module_id"] for module in project["modules"]], ["M1", "M2", "M5", "M6"])
+        self.assertEqual([module["module_id"] for module in project["modules"]], ["M1", "M2", "M3", "M5", "M6"])
 
         list_response = self.client.get("/api/projects")
         self.assertEqual(list_response.status_code, 200)
@@ -179,8 +179,8 @@ class BackendApiTest(unittest.TestCase):
         project_id = self.client.post("/api/projects", json={"project_name": "模块校验项目"}).json()["project_id"]
 
         response = self.client.post(
-            f"/api/projects/{project_id}/modules/M3/files",
-            files={"file": ("m3.pdf", b"M3 material", "application/pdf")},
+            f"/api/projects/{project_id}/modules/M4/files",
+            files={"file": ("m4.pdf", b"M4 material", "application/pdf")},
         )
 
         self.assertEqual(response.status_code, 400)
@@ -238,12 +238,19 @@ class BackendApiTest(unittest.TestCase):
         self.assertEqual(generate_response.status_code, 202)
         generated = generate_response.json()
         self.assertEqual(generated["task_status"], "完成")
-        self.assertEqual([module["module_id"] for module in generated["modules"]], ["M1", "M2", "M5", "M6"])
-        self.assertTrue(all(module["module_id"] not in {"M3", "M4"} for module in generated["modules"]))
+        self.assertEqual([module["module_id"] for module in generated["modules"]], ["M1", "M2", "M3", "M5", "M6"])
 
         detail = self.client.get(f"/api/projects/{project_id}").json()
         self.assertEqual(detail["confirmed_project_type"], "metro")
         self.assertTrue(Path(detail["final_ppt_path"]).exists())
+        final_text = " ".join(
+            shape.text for slide in Presentation(detail["final_ppt_path"]).slides
+            for shape in slide.shapes
+            if hasattr(shape, "text") and shape.text
+        )
+        self.assertIn("南京地铁声屏障项目", final_text)
+        self.assertNotIn("{{m3_", final_text)
+        self.assertNotIn("工程量与施工周期测算", final_text)
 
     def test_generate_omits_m5_when_review_confirms_no_case(self):
         project_id = self.client.post(
@@ -282,10 +289,111 @@ class BackendApiTest(unittest.TestCase):
         detail = self.client.get(f"/api/projects/{project_id}").json()
         final_path = Path(detail["final_ppt_path"])
         self.assertTrue(final_path.exists())
-        self.assertIn("M1_M2_M6", final_path.name)
+        self.assertIn("M1_M2_M3_M6", final_path.name)
         self.assertNotIn("M5", final_path.name)
         self.assertFalse((final_path.parent / "chapters" / "M5_同类型案例匹配.pptx").exists())
-        self.assertEqual(len(Presentation(str(final_path)).slides), 21)
+        self.assertTrue((final_path.parent / "chapters" / "M3_项目深化方案.pptx").exists())
+
+    def test_generate_skips_m3_when_user_selects_m3_skip(self):
+        """验证用户选择'暂不选择'M3时，最终PPT不包含M3，文件名为M1_M2_M6或M1_M2_M5_M6。"""
+        project_id = self.client.post(
+            "/api/projects",
+            json={
+                "project_name": "SkipM3Project",
+                "project_location": "Nanjing",
+                "product_line": "Rail Transit",
+            },
+        ).json()["project_id"]
+        self.client.post(
+            f"/api/projects/{project_id}/files",
+            files=[("files", ("NanjingMetro.pdf", b"metro line noise barrier", "application/pdf"))],
+        )
+        classification = self.client.post(f"/api/projects/{project_id}/analyze").json()
+
+        review_response = self.client.post(
+            f"/api/projects/{project_id}/classification/review",
+            json={
+                "confirmed_project_type": "metro",
+                "template_selection": classification["template_selection"],
+                "confirmed_case_id": None,
+                "m3_selection": "m3_skip",
+                "notes": "Skip M3 this time",
+            },
+        )
+        self.assertEqual(review_response.status_code, 200)
+
+        generate_response = self.client.post(f"/api/projects/{project_id}/generate")
+        self.assertEqual(generate_response.status_code, 202)
+        generated = generate_response.json()
+        # M3 should be skipped
+        m3_module = next(module for module in generated["modules"] if module["module_id"] == "M3")
+        self.assertEqual(m3_module["status"], "skipped")
+        self.assertEqual(m3_module["chapter_ppt_path"], "")
+        # M1/M2/M6 rendered normally
+        for mid in ("M1", "M2", "M6"):
+            module = next(m for m in generated["modules"] if m["module_id"] == mid)
+            self.assertEqual(module["status"], "rendered")
+            self.assertTrue(Path(module["chapter_ppt_path"]).exists())
+
+        detail = self.client.get(f"/api/projects/{project_id}").json()
+        final_path = Path(detail["final_ppt_path"])
+        self.assertTrue(final_path.exists())
+        # Final filename should not contain M3 in merge order
+        self.assertNotIn("M3_M6", final_path.name)
+        self.assertIn("M1_M2_M6", final_path.name)
+        # M3 chapter file should not exist
+        self.assertFalse((final_path.parent / "chapters" / "M3_项目深化方案.pptx").exists())
+        # M1/M2 and M6 chapters should exist
+        self.assertTrue((final_path.parent / "chapters" / "M1_M2_行业背景与技术标准.pptx").exists())
+        self.assertTrue((final_path.parent / "chapters" / "M6_企业背书与荣誉.pptx").exists())
+
+    def test_generate_skips_m3_with_case_selection(self):
+        """验证用户选择'暂不选择'M3且同时选择M5案例时，最终文件名为M1_M2_M5_M6。"""
+        project_id = self.client.post(
+            "/api/projects",
+            json={
+                "project_name": "SkipM3WithCaseProject",
+                "project_location": "Nanjing",
+                "product_line": "Rail Transit",
+            },
+        ).json()["project_id"]
+        self.client.post(
+            f"/api/projects/{project_id}/files",
+            files=[("files", ("NanjingMetro.pdf", b"metro line noise barrier metro", "application/pdf"))],
+        )
+        classification = self.client.post(f"/api/projects/{project_id}/analyze").json()
+        cases = classification.get("case_selection", {}).get("recommended_cases", [])
+        first_case_id = cases[0]["case_id"] if cases else None
+
+        review_response = self.client.post(
+            f"/api/projects/{project_id}/classification/review",
+            json={
+                "confirmed_project_type": "metro",
+                "template_selection": classification["template_selection"],
+                "confirmed_case_id": first_case_id,
+                "m3_selection": "m3_skip",
+                "notes": "No M3, but use M5 case",
+            },
+        )
+        self.assertEqual(review_response.status_code, 200)
+
+        generate_response = self.client.post(f"/api/projects/{project_id}/generate")
+        self.assertEqual(generate_response.status_code, 202)
+        generated = generate_response.json()
+        # M3 skipped
+        m3_module = next(module for module in generated["modules"] if module["module_id"] == "M3")
+        self.assertEqual(m3_module["status"], "skipped")
+        # M5 rendered normally
+        m5_module = next(module for module in generated["modules"] if module["module_id"] == "M5")
+        self.assertEqual(m5_module["status"], "rendered")
+        self.assertTrue(Path(m5_module["chapter_ppt_path"]).exists())
+
+        detail = self.client.get(f"/api/projects/{project_id}").json()
+        final_path = Path(detail["final_ppt_path"])
+        self.assertTrue(final_path.exists())
+        self.assertNotIn("M3_M6", final_path.name)
+        self.assertIn("M1_M2_M5_M6", final_path.name)
+        self.assertFalse((final_path.parent / "chapters" / "M3_项目深化方案.pptx").exists())
 
     def test_generate_keeps_string_case_id_and_renders_m5(self):
         project_id = self.client.post(
@@ -324,7 +432,7 @@ class BackendApiTest(unittest.TestCase):
         detail = self.client.get(f"/api/projects/{project_id}").json()
         final_path = Path(detail["final_ppt_path"])
         self.assertTrue(final_path.exists())
-        self.assertIn("M1_M2_M5_M6", final_path.name)
+        self.assertIn("M1_M2_M3_M5_M6", final_path.name)
 
     def test_project_type_detection_distinguishes_four_fixed_m1_m2_templates(self):
         cases = [
@@ -623,7 +731,7 @@ class BackendApiTest(unittest.TestCase):
         detail = self.client.get(f"/api/projects/{project_id}").json()
         final_path = Path(detail["final_ppt_path"])
         self.assertTrue(final_path.exists(), "最终 PPT 应已生成")
-        self.assertIn("M1_M2_M5_M6", final_path.name, "文件名应包含 M5 表示案例章节已合入")
+        self.assertIn("M1_M2_M3_M5_M6", final_path.name, "文件名应包含 M3/M5 表示章节已合入")
 
         # 下载并验证内容
         download_response = self.client.get(f"/api/projects/{project_id}/download")
@@ -790,7 +898,7 @@ class BackendApiTest(unittest.TestCase):
             },
         ).json()["project_id"]
 
-        for module_id in ["M1", "M2", "M5", "M6"]:
+        for module_id in ["M1", "M2", "M3", "M5", "M6"]:
             upload_response = self.client.post(
                 f"/api/projects/{project_id}/modules/{module_id}/files",
                 files={"file": (f"{module_id}.pdf", f"{module_id} material".encode(), "application/pdf")},
@@ -815,8 +923,14 @@ class BackendApiTest(unittest.TestCase):
         detail = self.client.get(f"/api/projects/{project_id}").json()
         final_path = Path(detail["final_ppt_path"])
         self.assertTrue(final_path.exists())
-        self.assertIn("M1_M2_M6", final_path.name)
-        self.assertEqual(len(Presentation(str(final_path)).slides), 26)
+        self.assertIn("M1_M2_M3_M6", final_path.name)
+        final_text = " ".join(
+            shape.text for slide in Presentation(str(final_path)).slides
+            for shape in slide.shapes
+            if hasattr(shape, "text") and shape.text
+        )
+        self.assertIn("端到端验收项目", final_text)
+        self.assertNotIn("{{m3_", final_text)
 
         download_response = self.client.get(f"/api/projects/{project_id}/download")
         self.assertEqual(download_response.status_code, 200)

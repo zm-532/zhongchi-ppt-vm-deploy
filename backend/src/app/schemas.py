@@ -77,6 +77,7 @@ class ClassificationReviewRequest(BaseModel):
     confirmed_project_type: str
     template_selection: dict[str, Any] = Field(default_factory=dict)
     confirmed_case_id: str | int | None = None
+    m3_selection: str = "m3_template"  # "m3_template" = 包含M3, "m3_skip" = 跳过M3
     notes: str = ""
 
 

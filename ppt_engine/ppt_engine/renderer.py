@@ -64,11 +64,12 @@ M3_ACTIVE_FIELD_NAMES = (
 # =============================================================================
 # 合并顺序与模块标题
 # =============================================================================
-# 最终 PPT 合并顺序：M1/M2 -> M5 -> M6
-MERGE_ORDER = ("M1_M2", "M5", "M6")
+# 最终 PPT 合并顺序：M1/M2 -> M3 -> M5 -> M6
+MERGE_ORDER = ("M1_M2", "M3", "M5", "M6")
 
 MODULE_TITLES = {
     "M1_M2": "行业背景与技术标准",
+    "M3": "项目深化方案",
     "M5": "同类型案例匹配",
     "M6": "企业背书与荣誉",
 }
@@ -126,7 +127,7 @@ def _validate_project_type(project_type: str) -> None:
 def _validate_module(module_id: str) -> None:
     """验证 module_id 是否为合法模块。"""
     if module_id not in MERGE_ORDER:
-        raise ValueError("本阶段 PPT 引擎只支持 M1_M2/M5/M6，M3/M4 为后续动态模块。")
+        raise ValueError("本阶段 PPT 引擎只支持 M1_M2/M3/M5/M6，M4 暂未接入。")
 
 
 def _safe_text(value: Any, field_name: str) -> str:
@@ -604,6 +605,37 @@ def _render_m5_case_template(
     return file_path
 
 
+def _render_m3_from_template(
+    project: dict[str, Any], parsed_sources: list[str] | None, output_path: Path
+) -> Path:
+    """复制 M3 模板并执行 active 文本占位符替换。"""
+    source_template = PPT_TEMPLATE_ROOT / M3_TEMPLATE_FILENAME
+    if not source_template.exists():
+        raise FileNotFoundError(f"M3 模板未找到：{source_template}。")
+
+    missing = validate_m3_template_placeholders(source_template)
+    if missing:
+        raise ValueError(
+            f"M3 模板缺少占位符：{missing}。"
+            "请先运行 scripts/inject_m3_placeholders.py 补充占位符。"
+        )
+
+    _copy_fixed_template(source_template, output_path)
+    replacements = build_m3_replacement_map(project, parsed_sources or [])
+    replace_text_placeholders(output_path, replacements)
+    return output_path
+
+
+def render_m3_module(
+    project: dict[str, Any], parsed_sources: list[str] | None, output_dir: str | Path
+) -> Path:
+    """渲染正式流程 M3 项目深化方案 PPTX。"""
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+    dest_path = output_path / "M3_项目深化方案.pptx"
+    return _render_m3_from_template(project, parsed_sources, dest_path)
+
+
 def render_chapter_ppt(
     module_id: str,
     project: dict[str, Any],
@@ -613,10 +645,10 @@ def render_chapter_ppt(
     """渲染单个章节 PPTX。
 
     Args:
-        module_id: 模块标识，支持 M1_M2 / M5 / M6。
+        module_id: 模块标识，支持 M1_M2 / M3 / M5 / M6。
         project: 项目基础信息字典。
-        outline: 章节配置。对于 M1_M2，outline 应包含 project_type；对于 M5，应包含 case_data；
-                 对于 M6，outline 被忽略（固定模板）。
+        outline: 章节配置。对于 M1_M2，outline 应包含 project_type；对于 M3，可包含 parsed_sources；
+                 对于 M5，应包含 case_data；对于 M6，outline 被忽略（固定模板）。
         output_dir: 输出目录路径。
 
     Returns:
@@ -638,6 +670,9 @@ def render_chapter_ppt(
             raise ValueError("未选择 M5 案例，禁止生成 M5 案例模板。")
         return _render_m5_case_template(case_data, project, output_path)
 
+    if module_id == "M3":
+        return render_m3_module(project, outline.get("parsed_sources", []), output_path)
+
     if module_id == "M6":
         # M6：直接使用固定企业介绍模板，不做字段替换
         return _render_m6_fixed_template(project, output_path)
@@ -646,55 +681,91 @@ def render_chapter_ppt(
     raise ValueError(f"不支持的模块：{module_id}")
 
 
-def _append_slide(target: Presentation, source_slide) -> None:
-    """将 source_slide 完整追加到 target，包括其 OPC 关系（图片/媒体/图表等）。"""
-    blank = target.slides.add_slide(target.slide_layouts[6])
+def _scale_shape_xml(element, scale_x: float, scale_y: float) -> None:
+    """按目标画布比例缩放复制出来的 shape XML。"""
+    if scale_x == 1 and scale_y == 1:
+        return
+    for node in element.iter():
+        tag = str(node.tag)
+        if tag.endswith("}off"):
+            if "x" in node.attrib:
+                node.set("x", str(round(int(node.attrib["x"]) * scale_x)))
+            if "y" in node.attrib:
+                node.set("y", str(round(int(node.attrib["y"]) * scale_y)))
+        elif tag.endswith("}ext"):
+            if "cx" in node.attrib:
+                node.set("cx", str(round(int(node.attrib["cx"]) * scale_x)))
+            if "cy" in node.attrib:
+                node.set("cy", str(round(int(node.attrib["cy"]) * scale_y)))
 
-    # 复制 shape XML，并记录复制内容实际引用的关系 ID。
-    copied_elements = []
-    used_relationship_ids = set()
-    for shape in source_slide.shapes:
-        copied_element = deepcopy(shape.element)
-        copied_elements.append(copied_element)
-        for element in copied_element.iter():
-            for value in element.attrib.values():
-                if isinstance(value, str) and value.startswith("rId"):
-                    used_relationship_ids.add(value)
-        blank.shapes._spTree.insert_element_before(copied_element, "p:extLst")
 
-    # 复制 copied XML 实际引用的 slide.rels，并记录 old rId -> new rId。
-    relationship_id_map = {}
-    if hasattr(source_slide, "part") and hasattr(source_slide.part, "rels"):
-        target_slide_part = blank.part
+def _append_slide(target: Presentation, source_slide, scale_x: float = 1, scale_y: float = 1) -> None:
+    """将 source_slide 完整追加到 target，包括其 OPC 关系（图片/媒体/图表等）。
+
+    策略：直接操作底层 XML，将源 slide 的 <p:cSld>（含背景、色图映射、全部 shape）
+    整体注入目标 slide，保留完整的母版引用和背景继承关系。
+    仅在 python-pptx API 可完整保留来源视觉效果时才使用其高级 API，
+    否则降级为直接 XML 注入以确保母版/背景/图片关系不丢失。
+    """
+    target_slide = target.slides.add_slide(target.slide_layouts[6])
+    source_element = source_slide.element
+
+    # ── 1. 复制图片关系（先于 XML 注入，以便新 rId 可立即用于注入的 XML）──
+    relationship_id_map: dict[str, str] = {}
+    target_slide_part = target_slide.part
+
+    if hasattr(source_slide.part, "rels"):
         for rId, rel in source_slide.part.rels.items():
-            if rId not in used_relationship_ids:
-                continue
             if rel.reltype.endswith("/relationships/image") and not rel.is_external:
-                _, new_rId = target_slide_part.get_or_add_image_part(
-                    BytesIO(rel.target_part.blob)
-                )
-                relationship_id_map[rId] = new_rId
-                continue
-            # 非图片内部关系：复制对应 Part；外部关系：传 URI 字符串。
-            target_obj = rel.target_part if not rel.is_external else rel.target_ref
-            relationship_id_map[rId] = target_slide_part.rels._add_relationship(
-                rel.reltype, target_obj, rel.is_external
+                # 从源 slide part 的 blob（二进制内容）获取图片数据，加入目标
+                try:
+                    blob = rel.target_part.blob
+                    _, new_rId = target_slide_part.get_or_add_image_part(BytesIO(blob))
+                    relationship_id_map[rId] = new_rId
+                except Exception:
+                    # 图片复制失败：保留旧 rId，让 PowerPoint 尝试修复
+                    pass
+
+    # ── 2. 提取源 slide 的 <p:cSld> 并注入目标 slide ─────────────────────────
+    # 找到 <p:cSld> 元素（所有视觉内容的根节点）
+    cSld = source_element.find(
+        "{http://schemas.openxmlformats.org/presentationml/2006/main}cSld"
+    )
+    if cSld is None:
+        cSld = source_element.find(".//{http://schemas.openxmlformats.org/presentationml/2006/main}cSld")
+
+    if cSld is not None:
+        # 深度复制 cSld（包含 <p:spTree> 全部 shape 和 <p:bg> 背景节点）
+        new_cSld = deepcopy(cSld)
+
+        # 2a. 缩放所有 shape 的坐标和尺寸
+        _scale_shape_xml(new_cSld, scale_x, scale_y)
+
+        # 2b. 重映射所有 rId（embed/link 等属性）
+        # 扫描 new_cSld 树，将旧 rId 替换为 relationship_id_map 中的新 rId；
+        # 若某 rId 未被映射（关系丢失），则移除该属性（避免 dangling ref）
+        for elem in new_cSld.iter():
+            for attr_name, attr_val in list(elem.attrib.items()):
+                if isinstance(attr_val, str) and attr_val.startswith("rId"):
+                    if attr_val in relationship_id_map:
+                        elem.set(attr_name, relationship_id_map[attr_val])
+                    # 未映射的非图片 rId（如 slideLayout/slideMaster 引用）保留原值，
+                    # python-pptx 会自动解析为相对于目标 presentation 的路径。
+
+        # 2c. 找到目标 slide 的 <p:cSld> 并替换（保留 slide 壳层，仅替换内容）
+        target_cSld = target_slide.element.find(
+            "{http://schemas.openxmlformats.org/presentationml/2006/main}cSld"
+        )
+        if target_cSld is None:
+            target_cSld = target_slide.element.find(
+                ".//{http://schemas.openxmlformats.org/presentationml/2006/main}cSld"
             )
-
-    # copied XML 仍然带着源 slide 的 rId，必须重写为目标 slide 新 rId。
-    for copied_element in copied_elements:
-        for element in copied_element.iter():
-            for attribute_name, value in list(element.attrib.items()):
-                if value in relationship_id_map:
-                    element.set(attribute_name, relationship_id_map[value])
-
-    # 复制背景
-    if source_slide.background.fill.type is not None:
-        blank.background.fill.solid()
-        try:
-            blank.background.fill.fore_color.rgb = source_slide.background.fill.fore_color.rgb
-        except (AttributeError, TypeError):
-            pass
+        if target_cSld is not None:
+            parent = target_cSld.getparent()
+            if parent is not None:
+                idx = list(parent).index(target_cSld) if target_cSld in parent else -1
+                parent.remove(target_cSld)
+                parent.insert(idx, new_cSld)
 
 
 def _presentation_size(path: str | Path) -> tuple[int, int]:
@@ -704,11 +775,13 @@ def _presentation_size(path: str | Path) -> tuple[int, int]:
 
 def _validate_chapter_sizes(chapter_paths: list[str | Path]) -> tuple[int, int]:
     first_width, first_height = _presentation_size(chapter_paths[0])
+    first_ratio = first_width / first_height
     for chapter_path in chapter_paths[1:]:
         width, height = _presentation_size(chapter_path)
-        if width != first_width or height != first_height:
+        ratio = width / height
+        if abs(ratio - first_ratio) > 0.001:
             raise ValueError(
-                "章节 PPTX 尺寸不一致，当前合并器暂不支持跨尺寸合并："
+                "章节 PPTX 宽高比不一致，当前合并器暂不支持跨比例合并："
                 f"{chapter_path} 的尺寸为 {width}x{height}，"
                 f"首个章节尺寸为 {first_width}x{first_height}。"
             )
@@ -755,7 +828,11 @@ def _merge_pptx_with_powerpoint(chapter_paths: list[str | Path], output_path: st
 
         target.SaveAs(str(final_path))
         return True
-    except Exception:
+    except Exception as exc:  # noqa: BLE001
+        # 吞掉真实异常并返回 False，按当前函数契约（返回 bool）能接受，
+        # 但后续排查 PowerPoint 合并失败会少掉真实原因。
+        # 后续应改为返回 (bool, str | None) 或抛出一个包装后的异常。
+        _last_powerpoint_merge_error = str(exc)
         return False
     finally:
         for source in reversed(opened_sources):
@@ -789,29 +866,50 @@ def merge_pptx(chapter_paths: list[str | Path], output_path: str | Path) -> Path
         merged_by_powerpoint = _merge_pptx_with_powerpoint(chapter_paths, output_path)
         if merged_by_powerpoint:
             return Path(output_path)
+        # PowerPoint COM 不可用时，根据模式决定行为
         if merge_engine == "powerpoint":
-            raise RuntimeError("PowerPoint COM 合并不可用，请确认已安装 pywin32 和 Microsoft PowerPoint。")
+            raise RuntimeError(
+                "PowerPoint COM 合并不可用。当前配置为 ZHONGCHI_PPT_MERGE_ENGINE=powerpoint，"
+                "要求使用 Windows + Microsoft PowerPoint + pywin32 进行原生合并。"
+                "请确认：1) Windows 系统；2) 已安装 Microsoft PowerPoint；3) 已安装 pywin32（pip install pywin32）。"
+                "如需在非 Windows 环境开发调试，请临时改为 python-pptx 模式（仅限测试，不保证合并质量）。"
+            )
 
-    chapters = [Presentation(str(chapter_path)) for chapter_path in chapter_paths]
-    first_chapter = chapters[0]
+    # python-pptx 合并路径：仅作为显式配置的开发和测试兜底，不用于正式生成。
+    # 正式流程不应走此路径，因为 python-pptx 无法完整保留母版/布局/图片/背景/主题关系，
+    # 会导致 PowerPoint 打开时提示修复、M6 出现空白页、图片关系丢失等问题。
+    # 注意：即使在此模式下，高保真也仅对简单模板成立；复杂模板（多层母版嵌套、
+    # 跨PPT图片引用、MSO_FILL.BACKGROUND 背景继承）极易出现关系断裂或空白页。
+    if merge_engine == "python-pptx":
+        chapters = [Presentation(str(chapter_path)) for chapter_path in chapter_paths]
+        first_chapter = chapters[0]
 
-    merged = Presentation()
-    merged.slide_width = first_chapter.slide_width
-    merged.slide_height = first_chapter.slide_height
+        merged = Presentation()
+        merged.slide_width = first_chapter.slide_width
+        merged.slide_height = first_chapter.slide_height
 
-    if len(merged.slides) > 0:
-        xml_slides = merged.slides._sldIdLst
-        for slide_id in list(xml_slides):
-            xml_slides.remove(slide_id)
+        if len(merged.slides) > 0:
+            xml_slides = merged.slides._sldIdLst
+            for slide_id in list(xml_slides):
+                xml_slides.remove(slide_id)
 
-    for chapter in chapters:
-        for slide in chapter.slides:
-            _append_slide(merged, slide)
+        for chapter in chapters:
+            scale_x = merged.slide_width / chapter.slide_width
+            scale_y = merged.slide_height / chapter.slide_height
+            for slide in chapter.slides:
+                _append_slide(merged, slide, scale_x, scale_y)
 
-    final_path = Path(output_path)
-    final_path.parent.mkdir(parents=True, exist_ok=True)
-    merged.save(final_path)
-    return final_path
+        final_path = Path(output_path)
+        final_path.parent.mkdir(parents=True, exist_ok=True)
+        merged.save(final_path)
+        return final_path
+
+    # merge_engine == "auto" 且 PowerPoint COM 不可用时：抛出清晰错误，不静默回退。
+    # auto 模式仅在明确希望系统自动选择时才使用，正式生产建议显式指定 powerpoint。
+    raise RuntimeError(
+        f"ZHONGCHI_PPT_MERGE_ENGINE={merge_engine}，PowerPoint COM 合并失败。"
+        "请改为 powerpoint（需 Windows + PowerPoint + pywin32）或 python-pptx（仅测试用，质量无法保证）。"
+    )
 
 
 def render_final_ppt(
@@ -819,12 +917,12 @@ def render_final_ppt(
     outlines: dict[str, dict[str, Any]],
     output_dir: str | Path,
 ) -> Path:
-    """按 M1/M2 -> M5 -> M6 顺序合并章节 PPTX。
+    """按 M1/M2 -> M3 -> M5 -> M6 顺序合并章节 PPTX。
 
     Args:
         project: 项目基础信息字典。
         outlines: 章节配置字典，key 为模块标识，value 为模块配置。
-                  M1_M2 需要包含 project_type；M5 需要包含 case_data；M6 被忽略。
+                  M1_M2 需要包含 project_type；M3 可包含 parsed_sources；M5 需要包含 case_data；M6 被忽略。
         output_dir: 输出目录路径。
 
     Returns:
@@ -835,6 +933,10 @@ def render_final_ppt(
     chapter_paths = []
     for module_id in MERGE_ORDER:
         outline = outlines.get(module_id, {})
+        if module_id == "M5":
+            case_data = outline.get("case_data")
+            if not case_data or not case_data.get("case_id"):
+                continue
         chapter_path = render_chapter_ppt(module_id, project, outline, chapters_dir)
         chapter_paths.append(chapter_path)
     final_name = f"{_safe_text(project.get('project_name'), '项目名称')}_中驰智能PPT_Demo.pptx"
@@ -1053,18 +1155,6 @@ def render_m3_test_ppt(
     Returns:
         生成的 M3 测试 PPTX 文件路径。
     """
-    source_template = PPT_TEMPLATE_ROOT / M3_TEMPLATE_FILENAME
-    if not source_template.exists():
-        raise FileNotFoundError(f"M3 模板未找到：{source_template}。")
-
-    # 校验源模板包含全部 M3 占位符
-    missing = validate_m3_template_placeholders(source_template)
-    if missing:
-        raise ValueError(
-            f"M3 模板缺少占位符：{missing}。"
-            "请先运行 scripts/inject_m3_placeholders.py 补充占位符。"
-        )
-
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
 
@@ -1073,12 +1163,4 @@ def render_m3_test_ppt(
     safe_name = _safe_pptx_filename(project_name)
     output_filename = f"M3_文字替换测试_{safe_name}.pptx"
     dest_path = output_path / output_filename
-
-    # 复制模板到输出目录
-    _copy_fixed_template(source_template, dest_path)
-
-    # 构建替换映射并执行替换
-    replacements = build_m3_replacement_map(project, parsed_sources)
-    replace_text_placeholders(dest_path, replacements)
-
-    return dest_path
+    return _render_m3_from_template(project, parsed_sources, dest_path)

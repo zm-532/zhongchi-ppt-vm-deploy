@@ -25,7 +25,7 @@ def render_project_ppt(project: dict[str, Any], output_dir: Path) -> tuple[Path,
         output_dir: 输出目录。
 
     Returns:
-        (final_path, chapter_paths)，其中 chapter_paths 的 key 为 M1/M2/M5/M6，
+        (final_path, chapter_paths)，其中 chapter_paths 的 key 为 M1/M2/M3/M5/M6，
         与 storage.py 的存储逻辑兼容。
     """
     _ensure_ppt_engine_path()
@@ -48,18 +48,40 @@ def render_project_ppt(project: dict[str, Any], output_dir: Path) -> tuple[Path,
     raw_case_id = case_selection.get("confirmed_case_id")
     has_case = raw_case_id is not None and str(raw_case_id).strip() not in ("", "null", "None", "__none__")
 
+    # M3 选择：默认包含M3，"m3_skip" 时跳过
+    include_m3 = project.get("m3_selection", "m3_template") == "m3_template"
+
+    parsed_sources: list[str] = []
+    for file_record in project.get("classification_result", {}).get("files", []):
+        parsed_text_path = file_record.get("parsed_text_path")
+        if not parsed_text_path:
+            continue
+        path = Path(parsed_text_path)
+        if not path.exists():
+            continue
+        try:
+            text = path.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        if text.strip():
+            parsed_sources.append(text)
+
     # 新版 outline 结构
     outlines = {
         "M1_M2": {"project_type": confirmed_project_type},
+        "M3": {"parsed_sources": parsed_sources},
         "M5": {"case_data": {"case_id": raw_case_id} if has_case else None},
         "M6": {},
     }
 
-    # ── 2. 调用新版 render_chapter_ppt（返回 M1_M2/M5/M6 章节文件）────────────
+    # ── 2. 调用新版 render_chapter_ppt（返回 M1_M2/M3/M5/M6 章节文件）────────────
     chapter_paths_new: dict[str, Path] = {}
     for module_id in MERGE_ORDER:
         # 跳过 M5（当没有选择案例时）
         if module_id == "M5" and not has_case:
+            continue
+        # 跳过 M3（当用户选择跳过 M3 时）
+        if module_id == "M3" and not include_m3:
             continue
         outline = outlines.get(module_id, {})
         chapter_paths_new[module_id] = render_chapter_ppt(
@@ -77,6 +99,8 @@ def render_project_ppt(project: dict[str, Any], output_dir: Path) -> tuple[Path,
     }
     if has_case:
         chapter_paths["M5"] = chapter_paths_new["M5"]
+    if include_m3:
+        chapter_paths["M3"] = chapter_paths_new["M3"]
 
     # ── 4. 合并章节 PPTX ───────────────────────────────────────────────────
     safe_name = "".join(
@@ -84,8 +108,8 @@ def render_project_ppt(project: dict[str, Any], output_dir: Path) -> tuple[Path,
         for char in project.get("project_name", "中驰智能PPT")
     )
     # 根据是否包含 M5 动态调整文件名和合并顺序
-    merge_order = tuple(k for k in ("M1_M2", "M5", "M6") if k in chapter_paths_new)
-    final_name = f"{safe_name}_M1_M2_M6_最终稿.pptx" if merge_order == ("M1_M2", "M6") else f"{safe_name}_M1_M2_M5_M6_最终稿.pptx"
+    merge_order = tuple(k for k in ("M1_M2", "M3", "M5", "M6") if k in chapter_paths_new)
+    final_name = f"{safe_name}_{'_'.join(merge_order)}_最终稿.pptx"
     final_path = output_dir / final_name
     merge_pptx([chapter_paths_new[module_id] for module_id in merge_order], final_path)
 

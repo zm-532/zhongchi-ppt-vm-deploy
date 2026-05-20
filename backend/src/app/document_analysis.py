@@ -32,6 +32,7 @@ def analyze_document(filename: str, stored_path: str, project_context: dict[str,
             assigned_modules=modules,
             parse_status="pending_enhancement",
             extracted_text="",
+            error_message="图片或 CAD 文件当前返回 pending_enhancement，暂不做增强解析。",
         )
 
     try:

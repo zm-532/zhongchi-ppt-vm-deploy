@@ -1,13 +1,14 @@
 import os
 from pathlib import Path
 
-ALLOWED_MODULE_IDS = ("M1", "M2", "M5", "M6")
+ALLOWED_MODULE_IDS = ("M1", "M2", "M3", "M5", "M6")
 
 PROJECT_TYPES = ("highway", "railway", "metro", "existing_rail_transit")
 
 MODULE_NAMES = {
     "M1": "行业背景与技术标准",
     "M2": "项目概况与现场挑战",
+    "M3": "项目深化方案",
     "M5": "同类型案例匹配",
     "M6": "企业背书与荣誉",
 }

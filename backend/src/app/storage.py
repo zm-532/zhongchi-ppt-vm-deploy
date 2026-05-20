@@ -386,6 +386,7 @@ class JsonStore:
             file_record["assigned_modules"] = analysis.assigned_modules
             file_record["parse_status"] = analysis.parse_status
             file_record["error_message"] = analysis.error_message
+            file_record["text_preview"] = analysis.extracted_text[:1500] if analysis.extracted_text else ""
             if analysis.extracted_text:
                 parsed_text_path = parsed_dir / f"{file_record['file_id']}.txt"
                 parsed_text_path.write_text(analysis.extracted_text, encoding="utf-8")
@@ -481,6 +482,7 @@ class JsonStore:
         confirmed_project_type: str,
         template_selection: dict[str, Any],
         confirmed_case_id: str | int | None,
+        m3_selection: str,
         notes: str,
     ) -> dict[str, Any] | None:
         state = self.load()
@@ -499,6 +501,8 @@ class JsonStore:
         case_selection = deepcopy(project.get("case_selection", {}))
         case_selection["confirmed_case_id"] = confirmed_case_id
         project["case_selection"] = case_selection
+        # m3_selection: "m3_template" = 包含M3, "m3_skip" = 跳过M3
+        project["m3_selection"] = m3_selection if m3_selection in ("m3_template", "m3_skip") else "m3_template"
         project["classification_review"] = {"notes": notes}
 
         classification["classification_status"] = "reviewed"
@@ -556,6 +560,9 @@ class JsonStore:
         raw_case_id = confirmed_case_id
         has_case = raw_case_id is not None and str(raw_case_id).strip() not in ("", "null", "None", "__none__")
 
+        # M3 选择：默认包含M3，"m3_skip" 时跳过
+        include_m3 = project.get("m3_selection", "m3_template") == "m3_template"
+
         for module in project["modules"]:
             module_id = module["module_id"]
             if module_id == "M5":
@@ -566,6 +573,13 @@ class JsonStore:
                 else:
                     self._set_module_status(module, "rendered")
                     module["chapter_ppt_path"] = str(chapter_paths["M5"])
+            elif module_id == "M3":
+                if not include_m3:
+                    self._set_module_status(module, "skipped")
+                    module["chapter_ppt_path"] = ""
+                else:
+                    self._set_module_status(module, "rendered")
+                    module["chapter_ppt_path"] = str(chapter_paths["M3"])
             else:
                 self._set_module_status(module, "rendered")
                 module["chapter_ppt_path"] = str(chapter_paths[module["module_id"]])

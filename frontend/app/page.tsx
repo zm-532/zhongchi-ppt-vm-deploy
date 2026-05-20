@@ -60,7 +60,7 @@ type ClassificationResult = {
   files?: StoredFile[];
 };
 type TaskState = { project_id: number; task_status: string; status_history: string[] };
-type ReviewForm = { projectType: string; m1m2Template: string; caseId?: string; notes: string };
+type ReviewForm = { projectType: string; m1m2Template: string; caseId?: string; m3Selection: string; notes: string };
 type RecommendedCase = { case_id: number | string; title: string; match_reason?: string; matched_tags?: string[]; source_path?: string };
 type LlmTestResult = { ok: boolean; status_code: number; model: string; reply: string; error: string; configured: Record<string, boolean> };
 
@@ -103,7 +103,7 @@ export default function HomePage() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [uploadedFiles, setUploadedFiles] = useState<StoredFile[]>([]);
   const [classification, setClassification] = useState<ClassificationResult | null>(null);
-  const [reviewForm, setReviewForm] = useState<ReviewForm>({ projectType: "", m1m2Template: "", caseId: undefined, notes: "" });
+  const [reviewForm, setReviewForm] = useState<ReviewForm>({ projectType: "", m1m2Template: "", caseId: undefined, m3Selection: "m3_template", notes: "" });
   const [m1m2TestFiles, setM1m2TestFiles] = useState<File[]>([]);
   const [m1m2TestProjectName, setM1m2TestProjectName] = useState("M1/M2选择测试项目");
   const [m1m2TestResult, setM1m2TestResult] = useState<ClassificationResult | null>(null);
@@ -222,6 +222,8 @@ export default function HomePage() {
         projectType: value.projectType || detectedType || "",
         m1m2Template: value.m1m2Template || templateKey || "",
         caseId: newCaseId,
+        // m3Selection 不在 useEffect 中重置，保持用户选择或默认 "m3_template"
+        m3Selection: value.m3Selection || "m3_template",
       };
     });
   }, [classification, recommendedCases]);
@@ -247,7 +249,7 @@ export default function HomePage() {
       setUploadedFiles([]);
       setUploadSuccess(false);
       setClassification(null);
-      setReviewForm({ projectType: "", m1m2Template: "", caseId: undefined, notes: "" });
+      setReviewForm({ projectType: "", m1m2Template: "", caseId: undefined, m3Selection: "m3_template", notes: "" });
       setActiveView("projects");
       window.location.hash = "projects";
       setMessage(`项目已创建：${project.project_name}`);
@@ -309,6 +311,7 @@ export default function HomePage() {
             M6: classification?.template_selection?.M6,
           },
           confirmed_case_id: reviewForm.caseId || null,
+          m3_selection: reviewForm.m3Selection,
           notes: reviewForm.notes || "前端人工确认",
         }),
       });
@@ -834,7 +837,7 @@ export default function HomePage() {
                     </div>
                     {uploadSuccess && <div className="uploadSuccess">上传成功，已上传 {uploadedFiles.length} 个文件</div>}
                   </div>
-                  <div className="futureModules"><strong>M3/M4 为后续动态模块，本阶段不生成</strong><span>后续将根据真实设计参数、工程量、用钢量和工期规则动态生成。</span></div>
+                  <div className="futureModules"><strong>M3 已接入正式生成，M4 暂不生成</strong><span>M3 目前使用模板级文字替换，不做图片替换；M4 后续再接入。</span></div>
                 </section>
 
                 <section className="section">
@@ -871,6 +874,7 @@ export default function HomePage() {
                         <label>确认项目类型<select aria-label="确认项目类型" value={reviewForm.projectType} onChange={(event) => setReviewForm((value) => ({ ...value, projectType: event.target.value }))}>{projectTypes.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
                         <label>确认 M1/M2 模板<select aria-label="确认 M1/M2 模板" value={reviewForm.m1m2Template} onChange={(event) => setReviewForm((value) => ({ ...value, m1m2Template: event.target.value }))}>{m1m2Templates.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
                         <label>确认 M5 案例<select aria-label="确认 M5 案例" value={reviewForm.caseId} onChange={(event) => setReviewForm((value) => ({ ...value, caseId: event.target.value }))}><option value="">暂不选择案例</option>{recommendedCases.map((item) => <option key={item.case_id} value={item.case_id}>{item.title}</option>)}</select></label>
+                        <label>确认 M3 模块<select aria-label="确认 M3 模块" value={reviewForm.m3Selection} onChange={(event) => setReviewForm((value) => ({ ...value, m3Selection: event.target.value }))}><option value="m3_template">M3模板</option><option value="m3_skip">暂不选择</option></select></label>
                         <label>确认备注<input value={reviewForm.notes} onChange={(event) => setReviewForm((value) => ({ ...value, notes: event.target.value }))} placeholder="可填写模板或案例调整原因" /></label>
                         <button className="primaryButton" disabled={busy} type="submit">提交人工确认</button>
                       </form>
