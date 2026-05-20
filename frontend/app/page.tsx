@@ -764,42 +764,41 @@ export default function HomePage() {
                   <div className="uploadPanel">
                     <div>
                       {isEditingProject ? (
-                        <div style={{ display: "flex", flexDirection: "column", gap: "6px", padding: "10px", border: "1px solid var(--line)", borderRadius: "6px" }}>
+                        <div className="project-info-edit-panel">
                           <input
                             value={editForm.project_name}
                             onChange={(e) => setEditForm((f) => ({ ...f, project_name: e.target.value }))}
                             placeholder="项目名称"
-                            style={{ padding: "4px 8px", fontSize: "13px" }}
+                            className="project-info-edit-input"
                           />
                           <input
                             value={editForm.project_location}
                             onChange={(e) => setEditForm((f) => ({ ...f, project_location: e.target.value }))}
                             placeholder="项目所在地"
-                            style={{ padding: "4px 8px", fontSize: "13px" }}
+                            className="project-info-edit-input"
                           />
                           <input
                             value={editForm.owner_unit}
                             onChange={(e) => setEditForm((f) => ({ ...f, owner_unit: e.target.value }))}
                             placeholder="建设/业主单位"
-                            style={{ padding: "4px 8px", fontSize: "13px" }}
+                            className="project-info-edit-input"
                           />
                           <input
                             value={editForm.product_line}
                             onChange={(e) => setEditForm((f) => ({ ...f, product_line: e.target.value }))}
                             placeholder="产品线"
-                            style={{ padding: "4px 8px", fontSize: "13px" }}
+                            className="project-info-edit-input"
                           />
-                          <div style={{ display: "flex", gap: "6px" }}>
-                            <button className="primaryButton" style={{ fontSize: "12px", padding: "4px 12px" }} disabled={busy} onClick={updateProjectBasicInfo} type="button">保存</button>
-                            <button className="secondaryButton" style={{ fontSize: "12px", padding: "4px 12px" }} disabled={busy} onClick={() => setIsEditingProject(false)} type="button">取消</button>
+                          <div className="project-info-edit-actions">
+                            <button className="primaryButton btn-xs" disabled={busy} onClick={updateProjectBasicInfo} type="button">保存</button>
+                            <button className="secondaryButton btn-xs" disabled={busy} onClick={() => setIsEditingProject(false)} type="button">取消</button>
                           </div>
                         </div>
                       ) : (
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <div className="project-info-header">
                           <h3>{currentProject.project_name}</h3>
                           <button
-                            className="secondaryButton"
-                            style={{ fontSize: "12px", padding: "2px 10px" }}
+                            className="secondaryButton btn-xs-pad"
                             onClick={() => {
                               setEditForm({
                                 project_name: currentProject.project_name || "",
@@ -1258,60 +1257,60 @@ export default function HomePage() {
                   </article>
                 </div>
                 {docParseTestResult.files && docParseTestResult.files.length > 0 ? (
-                  <div style={{ marginTop: "18px" }}>
-                    <h3 style={{ fontSize: "14px", color: "var(--primary-dark)", marginBottom: "10px" }}>
+                  <div className="doc-parse-table-wrapper">
+                    <h3 className="doc-parse-table-title">
                       文件解析详情（共 {docParseTestResult.files.length} 个文件）
                     </h3>
-                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                    <table className="doc-parse-table">
                       <thead>
-                        <tr style={{ background: "var(--surface-soft)" }}>
-                          <th style={{ padding: "8px 12px", textAlign: "left", borderBottom: "1px solid var(--line)", fontSize: "12px", color: "var(--muted)" }}>文件名</th>
-                          <th style={{ padding: "8px 12px", textAlign: "left", borderBottom: "1px solid var(--line)", fontSize: "12px", color: "var(--muted)" }}>解析状态</th>
-                          <th style={{ padding: "8px 12px", textAlign: "left", borderBottom: "1px solid var(--line)", fontSize: "12px", color: "var(--muted)" }}>资料角色</th>
-                          <th style={{ padding: "8px 12px", textAlign: "left", borderBottom: "1px solid var(--line)", fontSize: "12px", color: "var(--muted)" }}>服务模块</th>
-                          <th style={{ padding: "8px 12px", textAlign: "left", borderBottom: "1px solid var(--line)", fontSize: "12px", color: "var(--muted)" }}>解析文本</th>
+                        <tr className="doc-parse-table-header-row">
+                          <th className="doc-parse-table-header-cell">文件名</th>
+                          <th className="doc-parse-table-header-cell">解析状态</th>
+                          <th className="doc-parse-table-header-cell">资料角色</th>
+                          <th className="doc-parse-table-header-cell">服务模块</th>
+                          <th className="doc-parse-table-header-cell">解析文本</th>
                         </tr>
                       </thead>
                       <tbody>
                         {docParseTestResult.files.map((f, idx) => (
                           <>
-                            <tr key={idx} style={{ borderBottom: "1px solid var(--line)" }}>
-                              <td style={{ padding: "8px 12px", fontSize: "13px" }}>{f.filename}</td>
-                              <td style={{ padding: "8px 12px" }}>
+                            <tr key={idx} className="doc-parse-table-row">
+                              <td className="doc-parse-table-cell">{f.filename}</td>
+                              <td className="doc-parse-table-cell">
                                 <span className={`parseStatus ${f.parse_status}`}>{f.parse_status}</span>
-                                {f.parse_status === "pending_enhancement" && <span className="badge warn" style={{ marginLeft: "6px" }}>待增强</span>}
-                                {f.parse_status === "pending_ocr" && <span className="badge warn" style={{ marginLeft: "6px" }}>待OCR</span>}
-                                {f.parse_status === "failed" && <span className="badge warn" style={{ marginLeft: "6px" }}>失败</span>}
+                                {f.parse_status === "pending_enhancement" && <span className="badge warn doc-parse-status-extra">待增强</span>}
+                                {f.parse_status === "pending_ocr" && <span className="badge warn doc-parse-status-extra">待OCR</span>}
+                                {f.parse_status === "failed" && <span className="badge warn doc-parse-status-extra">失败</span>}
                               </td>
-                              <td style={{ padding: "8px 12px", fontSize: "13px", color: "var(--muted)" }}>{f.document_role || "未知"}</td>
-                              <td style={{ padding: "8px 12px", fontSize: "13px", color: "var(--muted)" }}>{(f.assigned_modules || []).join(", ") || "未分配"}</td>
-                              <td style={{ padding: "8px 12px", fontSize: "12px" }}>
+                              <td className="doc-parse-table-cell text-muted">{f.document_role || "未知"}</td>
+                              <td className="doc-parse-table-cell text-muted">{(f.assigned_modules || []).join(", ") || "未分配"}</td>
+                              <td className="doc-parse-table-cell">
                                 {f.parse_status === "parsed" ? (
                                   f.text_preview ? (
                                     <button
-                                      style={{ fontSize: "11px", padding: "2px 8px", background: "var(--surface-soft)", border: "1px solid var(--line)", borderRadius: "4px", cursor: "pointer" }}
+                                      className="btn-doc-action"
                                       onClick={() => toggleDocParseTestFileExpanded(f.file_id)}
                                       type="button"
                                     >
                                       {docParseTestExpandedFiles[f.file_id] ? "收起" : "查看文本"}
                                     </button>
                                   ) : (
-                                    <span style={{ color: "var(--muted)", fontSize: "12px" }}>解析成功，无文本内容</span>
+                                    <span className="doc-parse-loading-text">解析成功，无文本内容</span>
                                   )
                                 ) : f.error_message ? (
-                                  <span style={{ color: "#e74c3c", fontSize: "12px" }} title={f.error_message}>{f.error_message.length > 30 ? f.error_message.slice(0, 30) + "…" : f.error_message}</span>
+                                  <span className="doc-parse-error-text" title={f.error_message}>{f.error_message.length > 30 ? f.error_message.slice(0, 30) + "…" : f.error_message}</span>
                                 ) : (
-                                  <span style={{ color: "var(--muted)", fontSize: "12px" }}>暂无解析文本</span>
+                                  <span className="doc-parse-loading-text">暂无解析文本</span>
                                 )}
                               </td>
                             </tr>
                             {docParseTestExpandedFiles[f.file_id] ? (
                               <tr key={`${idx}-text`}>
-                                <td colSpan={5} style={{ padding: "8px 12px", background: "var(--surface-soft)", borderBottom: "1px solid var(--line)" }}>
+                                <td colSpan={5} className="doc-parse-expanded-cell">
                                   {docParseTestLoadingFullText[f.file_id] ? (
-                                    <span style={{ fontSize: "12px", color: "var(--muted)" }}>加载中…</span>
+                                    <span className="doc-parse-loading-text">加载中…</span>
                                   ) : (
-                                    <pre style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word", fontSize: "12px", maxHeight: "300px", overflowY: "auto", background: "var(--bg)", padding: "8px", borderRadius: "4px", border: "1px solid var(--line)" }}>
+                                    <pre className="doc-parse-expanded-pre">
                                       {docParseTestFullTextMap[f.file_id] || "（空）"}
                                     </pre>
                                   )}
@@ -1320,9 +1319,9 @@ export default function HomePage() {
                             ) : null}
                             {f.parse_status === "parsed" && f.text_preview && !docParseTestExpandedFiles[f.file_id] ? (
                               <tr key={`${idx}-preview`}>
-                                <td colSpan={5} style={{ padding: "4px 12px 8px 12px", borderBottom: "1px solid var(--line)", background: "var(--surface-soft)" }}>
-                                  <span style={{ fontSize: "11px", color: "var(--muted)" }}>文本预览：</span>
-                                  <span style={{ fontSize: "12px", color: "var(--text)", display: "block", marginTop: "2px" }}>{f.text_preview}{f.text_preview.length >= 1500 ? "…" : ""}</span>
+                                <td colSpan={5} className="doc-parse-preview-cell">
+                                  <span className="doc-parse-preview-label">文本预览：</span>
+                                  <span className="doc-parse-preview-text">{f.text_preview}{f.text_preview.length >= 1500 ? "…" : ""}</span>
                                 </td>
                               </tr>
                             ) : null}

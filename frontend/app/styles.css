@@ -1215,3 +1215,202 @@ button:disabled {
     font-size: 22px;
   }
 }
+
+/* ==========================================================================
+   中驰售前PPT助手 - A/B/C 专属重构样式 (极简、清晰、稳定企业级)
+   ========================================================================== */
+
+/* 区块 A：项目信息编辑表单 */
+.project-info-edit-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  margin-bottom: 12px;
+}
+
+.project-info-edit-input {
+  padding: 6px 12px;
+  font-size: 13px;
+  min-height: 36px;
+  border: 1px solid #cdd8e7;
+  border-radius: 6px;
+  background: #fff;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.project-info-edit-input:focus {
+  border-color: #8bb6e4;
+  box-shadow: 0 0 0 3px rgba(31, 102, 177, 0.1);
+  outline: none;
+}
+
+.project-info-edit-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.project-info-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.btn-xs {
+  font-size: 12px !important;
+  min-height: 28px !important;
+  padding: 0 12px !important;
+}
+
+.btn-xs-pad {
+  font-size: 12px !important;
+  min-height: 26px !important;
+  padding: 0 10px !important;
+}
+
+/* 区块 B：文档解析详情表格 */
+.doc-parse-table-title {
+  font-size: 14px;
+  color: var(--primary-dark);
+  margin-bottom: 12px;
+  font-weight: 600;
+}
+
+.doc-parse-table-wrapper {
+  margin-top: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  background: var(--surface);
+}
+
+.doc-parse-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.doc-parse-table-header-row {
+  background: var(--surface-soft);
+  border-bottom: 1px solid var(--line);
+}
+
+.doc-parse-table-header-cell {
+  padding: 10px 14px;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.doc-parse-table-row {
+  border-bottom: 1px solid var(--line);
+  transition: background-color 0.15s ease;
+}
+
+.doc-parse-table-row:hover {
+  background-color: #f8fafc;
+}
+
+.doc-parse-table-cell {
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text);
+  vertical-align: middle;
+}
+
+.doc-parse-table-cell.text-muted {
+  color: var(--muted);
+}
+
+.btn-doc-action {
+  font-size: 11px;
+  padding: 4px 10px;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text);
+  font-weight: 600;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.btn-doc-action:hover {
+  background-color: var(--line);
+  border-color: var(--line-strong);
+}
+
+/* 区块 C：解析文本预览面板 */
+.doc-parse-expanded-cell {
+  padding: 14px 16px;
+  background-color: var(--surface-soft);
+  border-bottom: 1px solid var(--line);
+}
+
+.doc-parse-loading-text {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.doc-parse-expanded-pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
+  max-height: 300px;
+  overflow-y: auto;
+  background-color: var(--bg);
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  line-height: 1.6;
+  color: var(--text);
+  font-family: inherit;
+}
+
+.doc-parse-preview-cell {
+  padding: 8px 16px 12px 16px;
+  border-bottom: 1px solid var(--line);
+  background-color: var(--surface-soft);
+}
+
+.doc-parse-preview-label {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.doc-parse-preview-text {
+  font-size: 12px;
+  color: var(--text);
+  display: block;
+  margin-top: 4px;
+  line-height: 1.55;
+}
+
+/* 响应式微调 - 表格横向滚动保障 */
+@media (max-width: 860px) {
+  .doc-parse-table-wrapper {
+    overflow-x: auto;
+  }
+  .doc-parse-table {
+    min-width: 600px;
+  }
+}
+
+.doc-parse-status-extra {
+  margin-left: 6px;
+}
+
+.doc-parse-error-text {
+  color: #e74c3c;
+  font-size: 12px;
+}
