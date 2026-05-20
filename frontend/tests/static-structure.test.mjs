@@ -53,6 +53,7 @@ test("[静态] page.tsx 源码中包含主要 workflow section 的文本标记",
     "M6 固定模板",
     "缺失字段",
     "M3 已接入正式生成",
+    "M3 目前使用模板级文字替换，图片替换待确定后接入；M4 还未接入。",
     "M4 暂不生成",
     "生成状态",
     "下载最终 PPTX",
@@ -261,6 +262,27 @@ test("[静态] page.tsx 包含 M3 文字替换测试视图的 UI 元素", () => 
     // replacements 摘要展示
     "字段替换摘要",
     "Object.entries(m3TestResult.replacements)",
+  ].forEach((text) => assert.match(source, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))));
+});
+
+test("[静态] page.tsx 包含 M3 图片替换测试视图的 UI 元素", () => {
+  const source = pageSource();
+  [
+    "#m3-image-test",
+    "M3图片替换测试",
+    "m3ImageTestProjectName",
+    "m3ImageTestFiles",
+    "m3ImageTestPurposes",
+    "m3ImageTestResult",
+    "m3ImageTestMessage",
+    "runM3ImageRenderTest",
+    "/api/test/m3-image-render",
+    "执行 M3 图片替换测试",
+    "项目建设范围图",
+    "项目线路图",
+    "踏勘路线/点位图",
+    "现场踏勘照片组",
+    "重难点证据图",
   ].forEach((text) => assert.match(source, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))));
 });
 

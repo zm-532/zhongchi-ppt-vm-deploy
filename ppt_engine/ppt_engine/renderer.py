@@ -6,6 +6,7 @@ import shutil
 from pathlib import Path
 from typing import Any
 
+from PIL import Image
 from pptx import Presentation
 from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN
@@ -38,6 +39,25 @@ M6_TEMPLATE_FILENAME = "中驰企业介绍合并初版（M6）.pptx"
 
 # M3 固定模板文件名
 M3_TEMPLATE_FILENAME = "M3_项目深化方案模板.pptx"
+
+# M3 图片替换独立测试模板文件名。不要用于正式 M3 流程。
+M3_IMAGE_TEST_TEMPLATE_FILENAME = "M3_项目深化方案模板_图片替换测试.pptx"
+
+M3_IMAGE_PURPOSES = {
+    "project_scope_map": "项目建设范围图",
+    "project_line_map": "项目线路图",
+    "survey_route_map": "踏勘路线/点位图",
+    "site_survey_photos": "现场踏勘照片组",
+    "key_difficulty_evidence": "重难点证据图",
+}
+
+M3_SINGLE_IMAGE_PURPOSES = {
+    "project_scope_map",
+    "project_line_map",
+    "survey_route_map",
+    "key_difficulty_evidence",
+}
+M3_SITE_SURVEY_PHOTO_LIMIT = 4
 
 # M3 占位符字段名列表（9个字段）
 M3_FIELD_NAMES = (
@@ -959,6 +979,19 @@ M3_ACTIVE_PLACEHOLDER_SPEC = {
 
 M3_PLACEHOLDER_SPEC = M3_ACTIVE_PLACEHOLDER_SPEC
 
+M3_IMAGE_PLACEHOLDER_MARKERS = {
+    "project_scope_map": ("{{image:project_scope_map}}",),
+    "project_line_map": ("{{image:project_line_map}}",),
+    "survey_route_map": ("{{image:survey_route_map}}",),
+    "site_survey_photos": (
+        "{{image:site_survey_photos:1}}",
+        "{{image:site_survey_photos:2}}",
+        "{{image:site_survey_photos:3}}",
+        "{{image:site_survey_photos:4}}",
+    ),
+    "key_difficulty_evidence": ("{{image:key_difficulty_evidence}}",),
+}
+
 # 旧模板中可能残留的宁波项目关键词（黑名单，渲染后不应出现在目标 shape 中）
 M3_OLD_PROJECT_KEYWORDS = [
     "宁波",
@@ -1048,6 +1081,144 @@ def validate_m3_template_clean(pptx_path: Path) -> dict[str, list[str]]:
             issues[field] = residual
 
     return issues
+
+
+def _iter_text_shapes(prs: Presentation):
+    for slide_idx, slide in enumerate(prs.slides):
+        for shape_idx, shape in enumerate(slide.shapes):
+            if hasattr(shape, "text") and shape.text:
+                yield slide_idx, shape_idx, slide, shape
+
+
+def _find_shape_by_exact_text(prs: Presentation, marker: str):
+    matches = []
+    for slide_idx, shape_idx, slide, shape in _iter_text_shapes(prs):
+        if shape.text.strip() == marker:
+            matches.append((slide_idx, shape_idx, slide, shape))
+    return matches
+
+
+def validate_m3_image_template_placeholders(pptx_path: Path) -> list[str]:
+    """校验 M3 图片测试模板包含且仅包含一组固定图片占位槽。"""
+    prs = Presentation(str(pptx_path))
+    issues: list[str] = []
+    all_expected = {
+        marker
+        for markers in M3_IMAGE_PLACEHOLDER_MARKERS.values()
+        for marker in markers
+    }
+    found: dict[str, int] = {}
+
+    for _, _, _, shape in _iter_text_shapes(prs):
+        text = shape.text.strip()
+        if text.startswith("{{image:"):
+            found[text] = found.get(text, 0) + 1
+
+    for marker in sorted(all_expected):
+        if found.get(marker, 0) != 1:
+            issues.append(marker)
+
+    for marker in found:
+        if marker not in all_expected:
+            issues.append(marker)
+
+    return issues
+
+
+def _validate_m3_image_inputs(images_by_purpose: dict[str, list[bytes]]) -> dict[str, list[bytes]]:
+    normalized: dict[str, list[bytes]] = {}
+    for purpose, blobs in images_by_purpose.items():
+        if purpose not in M3_IMAGE_PURPOSES:
+            raise ValueError(f"非法图片用途：{purpose}")
+        if purpose in M3_SINGLE_IMAGE_PURPOSES and len(blobs) > 1:
+            raise ValueError(f"{M3_IMAGE_PURPOSES[purpose]} 只允许上传 1 张图片")
+        if purpose == "site_survey_photos" and len(blobs) > M3_SITE_SURVEY_PHOTO_LIMIT:
+            raise ValueError(f"现场踏勘照片组最多上传 {M3_SITE_SURVEY_PHOTO_LIMIT} 张图片")
+
+        checked: list[bytes] = []
+        for blob in blobs:
+            try:
+                with Image.open(BytesIO(blob)) as image:
+                    image.verify()
+            except Exception as exc:
+                raise ValueError("图片文件无效或已损坏") from exc
+            checked.append(blob)
+        normalized[purpose] = checked
+    return normalized
+
+
+def _add_cover_picture(slide, blob: bytes, left, top, width, height):
+    """按 cover 策略插入图片：填满占位框，居中裁切，不改变占位框尺寸。"""
+    with Image.open(BytesIO(blob)) as image:
+        img_width, img_height = image.size
+    if img_width <= 0 or img_height <= 0:
+        raise ValueError("图片文件无效或已损坏")
+
+    slot_ratio = width / height
+    image_ratio = img_width / img_height
+    picture = slide.shapes.add_picture(BytesIO(blob), left, top, width=width, height=height)
+
+    if image_ratio > slot_ratio:
+        crop = (1 - (slot_ratio / image_ratio)) / 2
+        picture.crop_left = crop
+        picture.crop_right = crop
+    elif image_ratio < slot_ratio:
+        crop = (1 - (image_ratio / slot_ratio)) / 2
+        picture.crop_top = crop
+        picture.crop_bottom = crop
+    return picture
+
+
+def _remove_shape(shape) -> None:
+    element = shape._element
+    element.getparent().remove(element)
+
+
+def replace_m3_image_placeholders(pptx_path: str | Path, images_by_purpose: dict[str, list[bytes]]) -> Path:
+    """在 M3 图片测试 PPTX 中按固定用途替换图片占位槽。"""
+    path = Path(pptx_path)
+    prs = Presentation(str(path))
+
+    for purpose, blobs in images_by_purpose.items():
+        markers = M3_IMAGE_PLACEHOLDER_MARKERS[purpose]
+        for index, blob in enumerate(blobs):
+            if index >= len(markers):
+                break
+            marker = markers[index]
+            matches = _find_shape_by_exact_text(prs, marker)
+            if len(matches) != 1:
+                raise ValueError(f"M3 图片测试模板缺少唯一占位槽：{marker}")
+            _, _, slide, shape = matches[0]
+            left, top, width, height = shape.left, shape.top, shape.width, shape.height
+            _remove_shape(shape)
+            _add_cover_picture(slide, blob, left, top, width, height)
+
+    prs.save(str(path))
+    return path
+
+
+def render_m3_image_test_ppt(
+    project_name: str,
+    images_by_purpose: dict[str, list[bytes]],
+    output_dir: str | Path,
+) -> Path:
+    """渲染 M3 图片替换独立测试 PPTX，不接入正式生产流程。"""
+    source_template = PPT_TEMPLATE_ROOT / M3_IMAGE_TEST_TEMPLATE_FILENAME
+    if not source_template.exists():
+        raise FileNotFoundError(f"M3 图片测试模板未找到：{source_template}。")
+
+    issues = validate_m3_image_template_placeholders(source_template)
+    if issues:
+        raise ValueError(f"M3 图片测试模板占位槽异常：{issues}")
+
+    normalized = _validate_m3_image_inputs(images_by_purpose)
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+    safe_name = _safe_pptx_filename(project_name)
+    dest_path = output_path / f"M3_图片替换测试_{safe_name}.pptx"
+    _copy_fixed_template(source_template, dest_path)
+    replace_m3_image_placeholders(dest_path, normalized)
+    return dest_path
 
 
 def _find_snippet(texts: list[str], keywords: list[str]) -> str:

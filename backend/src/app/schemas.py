@@ -146,3 +146,10 @@ class M3RenderTestResponse(BaseModel):
     pptx_path: str = ""
     download_url: str = ""
     replacements: dict[str, str] = Field(default_factory=dict)
+
+
+class M3ImageRenderTestResponse(BaseModel):
+    ok: bool
+    pptx_path: str = ""
+    download_url: str = ""
+    image_summary: dict[str, int] = Field(default_factory=dict)

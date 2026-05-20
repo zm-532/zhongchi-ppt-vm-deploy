@@ -26,7 +26,15 @@ const M3_ACTIVE_REPLACEMENT_FIELDS = [
   "m3_solution_summary",
 ];
 
-type ViewId = "projects" | "create" | "cases" | "function-tests" | "m1m2-test" | "m5-test" | "document-parse-test" | "llm-test" | "m3-test";
+const M3_IMAGE_PURPOSE_OPTIONS = [
+  { value: "project_scope_map", label: "项目建设范围图", ratio: "16:9" },
+  { value: "project_line_map", label: "项目线路图", ratio: "16:9" },
+  { value: "survey_route_map", label: "踏勘路线/点位图", ratio: "16:9" },
+  { value: "site_survey_photos", label: "现场踏勘照片组", ratio: "4:3 / 16:9" },
+  { value: "key_difficulty_evidence", label: "重难点证据图", ratio: "16:9" },
+];
+
+type ViewId = "projects" | "create" | "cases" | "function-tests" | "m1m2-test" | "m5-test" | "document-parse-test" | "llm-test" | "m3-test" | "m3-image-test";
 type Project = {
   project_id: number;
   project_name: string;
@@ -63,6 +71,7 @@ type TaskState = { project_id: number; task_status: string; status_history: stri
 type ReviewForm = { projectType: string; m1m2Template: string; caseId?: string; m3Selection: string; notes: string };
 type RecommendedCase = { case_id: number | string; title: string; match_reason?: string; matched_tags?: string[]; source_path?: string };
 type LlmTestResult = { ok: boolean; status_code: number; model: string; reply: string; error: string; configured: Record<string, boolean> };
+type M3ImageTestResult = { ok: boolean; pptx_path: string; download_url: string; image_summary: Record<string, number> };
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8010";
 const PROJECT_LIST_PREVIEW_LIMIT = 5;
@@ -77,6 +86,7 @@ const viewTitles: Record<ViewId, { title: string; description: string }> = {
   "document-parse-test": { title: "文档解析测试", description: "用于测试不同格式资料的文本与结构化解析效果。" },
   "llm-test": { title: "大模型测试", description: "调用后端开发测试接口，验证当前 LLM 环境变量和中转站请求是否可用。" },
   "m3-test": { title: "M3文字替换测试", description: "将模拟资料文本替换到 M3 项目深化方案模板，验证独立 M3 文字替换功能。" },
+  "m3-image-test": { title: "M3图片替换测试", description: "上传 M3 图片素材并按固定用途替换到独立图片测试模板。" },
 };
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
@@ -154,6 +164,11 @@ export default function HomePage() {
   );
   const [m3TestResult, setM3TestResult] = useState<{ok: boolean; pptx_path: string; download_url: string; replacements: Record<string, string>} | null>(null);
   const [m3TestMessage, setM3TestMessage] = useState("请填写项目信息和模拟资料文本，点击按钮开始 M3 文字替换测试。");
+  const [m3ImageTestProjectName, setM3ImageTestProjectName] = useState("M3图片替换测试项目");
+  const [m3ImageTestFiles, setM3ImageTestFiles] = useState<File[]>([]);
+  const [m3ImageTestPurposes, setM3ImageTestPurposes] = useState<string[]>([]);
+  const [m3ImageTestResult, setM3ImageTestResult] = useState<M3ImageTestResult | null>(null);
+  const [m3ImageTestMessage, setM3ImageTestMessage] = useState("请选择图片并为每张图片指定用途。");
 
   // 项目基础信息编辑
   const [isEditingProject, setIsEditingProject] = useState(false);
@@ -190,7 +205,8 @@ export default function HomePage() {
         nextView === "m5-test" ||
         nextView === "document-parse-test" ||
         nextView === "llm-test" ||
-        nextView === "m3-test"
+        nextView === "m3-test" ||
+        nextView === "m3-image-test"
           ? nextView
           : "projects"
       );
@@ -707,13 +723,50 @@ export default function HomePage() {
     }
   }
 
+  function handleM3ImageTestFiles(files: File[]) {
+    setM3ImageTestFiles(files);
+    setM3ImageTestPurposes(files.map((_, index) => m3ImageTestPurposes[index] || "project_scope_map"));
+    setM3ImageTestResult(null);
+    setM3ImageTestMessage(files.length ? "请确认每张图片的用途，然后执行 M3 图片替换测试。" : "请选择图片并为每张图片指定用途。");
+  }
+
+  function updateM3ImageTestPurpose(index: number, purpose: string) {
+    setM3ImageTestPurposes((items) => items.map((item, itemIndex) => (itemIndex === index ? purpose : item)));
+  }
+
+  async function runM3ImageRenderTest() {
+    if (!m3ImageTestProjectName.trim()) return setM3ImageTestMessage("请先填写项目名称。");
+    if (m3ImageTestFiles.length === 0) return setM3ImageTestMessage("请先选择至少一张图片。");
+    const formData = new FormData();
+    formData.append("project_name", m3ImageTestProjectName);
+    m3ImageTestFiles.forEach((file, index) => {
+      formData.append("files", file);
+      formData.append("purposes", m3ImageTestPurposes[index] || "project_scope_map");
+    });
+
+    setBusy(true);
+    setM3ImageTestResult(null);
+    try {
+      const result = await requestJson<M3ImageTestResult>("/api/test/m3-image-render", {
+        method: "POST",
+        body: formData,
+      });
+      setM3ImageTestResult(result);
+      setM3ImageTestMessage(result.ok ? "M3 图片替换测试 PPTX 已生成，点击下载链接获取文件。" : "M3 图片替换测试失败。");
+    } catch (error) {
+      setM3ImageTestMessage(error instanceof Error ? error.message : "M3 图片替换测试失败");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function downloadFinal() {
     if (!currentProject) return setMessage("请先创建项目。");
     window.location.href = `${API_BASE}/api/projects/${currentProject.project_id}/download`;
   }
 
   const pageTitle = viewTitles[activeView];
-  const isFunctionTestView = activeView === "function-tests" || activeView === "m1m2-test" || activeView === "m5-test" || activeView === "document-parse-test" || activeView === "llm-test" || activeView === "m3-test";
+  const isFunctionTestView = activeView === "function-tests" || activeView === "m1m2-test" || activeView === "m5-test" || activeView === "document-parse-test" || activeView === "llm-test" || activeView === "m3-test" || activeView === "m3-image-test";
 
   return (
     <main className="shell">
@@ -846,7 +899,7 @@ export default function HomePage() {
                     </div>
                     {uploadSuccess && <div className="uploadSuccess">上传成功，已上传 {uploadedFiles.length} 个文件</div>}
                   </div>
-                  <div className="futureModules"><strong>M3 已接入正式生成，M4 暂不生成</strong><span>M3 目前使用模板级文字替换，不做图片替换；M4 后续再接入。</span></div>
+                  <div className="futureModules"><strong>M3 已接入正式生成，M4 暂不生成</strong><span>M3 目前使用模板级文字替换，图片替换待确定后接入；M4 还未接入。</span></div>
                 </section>
 
                 <section className="section">
@@ -988,6 +1041,14 @@ export default function HomePage() {
                 </div>
                 <p className="test-hub-desc">将模拟资料文本替换到 M3 项目深化方案模板。</p>
                 <a className="secondaryButton test-hub-action" href="#m3-test">打开测试</a>
+              </article>
+              <article className="test-hub-card">
+                <div className="test-hub-card-header">
+                  <strong>M3图片替换测试</strong>
+                  <span className="test-hub-badge">M3图片</span>
+                </div>
+                <p className="test-hub-desc">上传图片并按固定用途替换到 M3 图片测试模板。</p>
+                <a className="secondaryButton test-hub-action" href="#m3-image-test">打开测试</a>
               </article>
             </div>
           </section>
@@ -1407,6 +1468,77 @@ export default function HomePage() {
                   <span>配置检查</span>
                   <strong>{llmTestResult.configured?.base_url && llmTestResult.configured?.api_key && llmTestResult.configured?.model ? "完整" : "缺失"}</strong>
                   <p>base_url：{String(Boolean(llmTestResult.configured?.base_url))}；api_key：{String(Boolean(llmTestResult.configured?.api_key))}；model：{String(Boolean(llmTestResult.configured?.model))}</p>
+                </article>
+              </div>
+            ) : null}
+          </section>
+        ) : null}
+
+        {activeView === "m3-image-test" ? (
+          <section id="m3-image-test" className="section">
+            <div className="sectionHeader">
+              <h2>M3图片替换测试</h2>
+              <span className="badge">独立测试</span>
+            </div>
+            <div className="testPanel">
+              <div className="testInputs single">
+                <label>项目名称<input value={m3ImageTestProjectName} onChange={(event) => setM3ImageTestProjectName(event.target.value)} /></label>
+              </div>
+              <label className="uploadBox">
+                <span>选择 M3 图片素材</span>
+                <input
+                  name="m3_image_test_files"
+                  type="file"
+                  multiple
+                  accept=".png,.jpg,.jpeg,image/png,image/jpeg"
+                  onChange={(event) => handleM3ImageTestFiles(Array.from(event.target.files ?? []))}
+                />
+              </label>
+              <div className="fileList">
+                {m3ImageTestFiles.map((file, index) => (
+                  <div key={`${file.name}-${index}`} style={{ display: "grid", gridTemplateColumns: "minmax(180px, 1fr) minmax(220px, 320px)", gap: "10px", alignItems: "center", width: "100%" }}>
+                    <span>{file.name}</span>
+                    <select value={m3ImageTestPurposes[index] || "project_scope_map"} onChange={(event) => updateM3ImageTestPurpose(index, event.target.value)}>
+                      {M3_IMAGE_PURPOSE_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}（建议 {option.ratio}）</option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+              </div>
+              <div className="evidencePanel spaced">
+                <div className="sectionHeader">
+                  <h3>图片用途</h3>
+                  <span className="badge">固定枚举</span>
+                </div>
+                <div className="cases-capability-list">
+                  {M3_IMAGE_PURPOSE_OPTIONS.map((option) => (
+                    <div className="cases-capability-item" key={option.value}>{option.label}</div>
+                  ))}
+                </div>
+              </div>
+              <button className="primaryButton" disabled={busy} onClick={runM3ImageRenderTest} type="button">执行 M3 图片替换测试</button>
+              <p className="messageLine" style={m3ImageTestMessage && m3ImageTestMessage.includes("失败") ? {color: "#e74c3c"} : {}}>{m3ImageTestMessage}</p>
+            </div>
+
+            {m3ImageTestResult && m3ImageTestResult.ok ? (
+              <div className="resultGrid">
+                <article className="resultCard">
+                  <span>渲染状态</span>
+                  <strong>成功</strong>
+                  <p>文件路径：{m3ImageTestResult.pptx_path || "无"}</p>
+                </article>
+                <article className="resultCard wide">
+                  <span>下载链接</span>
+                  <strong>M3 图片测试 PPTX 已生成</strong>
+                  <p>
+                    <a href={`${API_BASE}${m3ImageTestResult.download_url}`} download>点击下载生成的 M3 图片测试 PPTX</a>
+                  </p>
+                </article>
+                <article className="resultCard">
+                  <span>图片数量</span>
+                  <strong>{Object.values(m3ImageTestResult.image_summary || {}).reduce((sum, count) => sum + count, 0)} 张</strong>
+                  <p>只统计本次图片替换测试上传素材。</p>
                 </article>
               </div>
             ) : null}
