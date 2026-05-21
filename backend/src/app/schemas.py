@@ -153,3 +153,11 @@ class M3ImageRenderTestResponse(BaseModel):
     pptx_path: str = ""
     download_url: str = ""
     image_summary: dict[str, int] = Field(default_factory=dict)
+
+
+class M3FullRenderTestResponse(BaseModel):
+    ok: bool
+    pptx_path: str = ""
+    download_url: str = ""
+    slide_count: int = 0
+    image_summary: dict[str, int] = Field(default_factory=dict)

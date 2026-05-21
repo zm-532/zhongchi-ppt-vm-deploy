@@ -286,6 +286,31 @@ test("[静态] page.tsx 包含 M3 图片替换测试视图的 UI 元素", () => 
   ].forEach((text) => assert.match(source, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))));
 });
 
+test("[静态] page.tsx 包含 M3 完整测试视图的 UI 元素", () => {
+  const source = pageSource();
+  [
+    "#m3-full-test",
+    "M3完整测试",
+    "m3FullTestProjectName",
+    "m3FullTestTexts",
+    "m3FullTestFiles",
+    "m3FullTestResult",
+    "m3FullTestMessage",
+    "runM3FullRenderTest",
+    "/api/test/m3-full-render",
+    "执行 M3 完整测试",
+    "项目基本情况",
+    "项目线路图",
+    "敏感点路段",
+    "工程量统计",
+    "结构形式",
+    "现场踏勘",
+    "现场勘察情况",
+    "项目重难点分析",
+    "重难点应对措施",
+  ].forEach((text) => assert.match(source, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))));
+});
+
 test("[静态] styles.css 中解析结果卡片包含文本换行相关的 CSS 类", () => {
   const styles = readFileSync(new URL("../app/styles.css", import.meta.url), "utf8");
 

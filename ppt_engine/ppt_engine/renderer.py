@@ -43,6 +43,24 @@ M3_TEMPLATE_FILENAME = "M3_项目深化方案模板.pptx"
 # M3 图片替换独立测试模板文件名。不要用于正式 M3 流程。
 M3_IMAGE_TEST_TEMPLATE_FILENAME = "M3_项目深化方案模板_图片替换测试.pptx"
 
+# M3 完整测试模板文件名。仅用于功能测试，不接入正式完整流程。
+M3_FULL_TEST_TEMPLATE_FILENAME = "M3_项目深化方案模板_最终版本.pptx"
+
+M3_FULL_SECTIONS = [
+    {"title": "项目基本情况", "text_field": "m3_basic_summary", "image_field": "image:m3_basic"},
+    {"title": "项目线路图", "text_field": "m3_line_summary", "image_field": "image:m3_line"},
+    {"title": "敏感点路段", "text_field": "m3_sensitive_points_summary", "image_field": "image:m3_sensitive_points"},
+    {"title": "工程量统计", "text_field": "m3_quantity_summary", "image_field": "image:m3_quantity"},
+    {"title": "结构形式", "text_field": "m3_structure_summary", "image_field": "image:m3_structure"},
+    {"title": "现场踏勘", "text_field": "m3_site_survey_summary", "image_field": "image:m3_site_survey"},
+    {"title": "现场勘察情况", "text_field": "m3_investigation_summary", "image_field": "image:m3_investigation"},
+    {"title": "项目重难点分析", "text_field": "m3_risk_summary", "image_field": "image:m3_risk"},
+    {"title": "重难点应对措施", "text_field": "m3_solution_summary", "image_field": "image:m3_solution"},
+]
+
+M3_FULL_IMAGE_FIELDS = {section["image_field"] for section in M3_FULL_SECTIONS}
+M3_FULL_TEXT_FIELDS = {section["text_field"] for section in M3_FULL_SECTIONS}
+
 M3_IMAGE_PURPOSES = {
     "project_scope_map": "项目建设范围图",
     "project_line_map": "项目线路图",
@@ -1125,6 +1143,50 @@ def validate_m3_image_template_placeholders(pptx_path: Path) -> list[str]:
     return issues
 
 
+def validate_m3_full_template_placeholders(pptx_path: Path) -> list[str]:
+    """校验 M3 完整测试模板的 9 个文字槽和 9 个图片槽。"""
+    prs = Presentation(str(pptx_path))
+    issues: list[str] = []
+    expected_by_slide: list[tuple[str, str]] = [
+        (section["text_field"], section["image_field"])
+        for section in M3_FULL_SECTIONS
+    ]
+
+    if len(prs.slides) != len(expected_by_slide):
+        issues.append(f"slide_count:{len(prs.slides)}")
+
+    found: dict[str, int] = {}
+    for _, _, _, shape in _iter_text_shapes(prs):
+        for match in re.findall(r"\{\{([^{}]+)\}\}", shape.text):
+            found[match] = found.get(match, 0) + 1
+
+    for slide_idx, (text_field, image_field) in enumerate(expected_by_slide):
+        if slide_idx >= len(prs.slides):
+            issues.extend([text_field, image_field])
+            continue
+        slide_text = "\n".join(
+            shape.text.strip()
+            for shape in prs.slides[slide_idx].shapes
+            if hasattr(shape, "text") and shape.text
+        )
+        if f"{{{{{text_field}}}}}" not in slide_text:
+            issues.append(text_field)
+        if f"{{{{{image_field}}}}}" not in slide_text:
+            issues.append(image_field)
+
+    expected = M3_FULL_TEXT_FIELDS | M3_FULL_IMAGE_FIELDS
+    for marker in sorted(expected):
+        if found.get(marker, 0) != 1:
+            if marker not in issues:
+                issues.append(marker)
+    for marker in found:
+        if marker.startswith("m3_") or marker.startswith("image:m3_"):
+            if marker not in expected:
+                issues.append(marker)
+
+    return issues
+
+
 def _validate_m3_image_inputs(images_by_purpose: dict[str, list[bytes]]) -> dict[str, list[bytes]]:
     normalized: dict[str, list[bytes]] = {}
     for purpose, blobs in images_by_purpose.items():
@@ -1135,6 +1197,23 @@ def _validate_m3_image_inputs(images_by_purpose: dict[str, list[bytes]]) -> dict
         if purpose == "site_survey_photos" and len(blobs) > M3_SITE_SURVEY_PHOTO_LIMIT:
             raise ValueError(f"现场踏勘照片组最多上传 {M3_SITE_SURVEY_PHOTO_LIMIT} 张图片")
 
+        checked: list[bytes] = []
+        for blob in blobs:
+            try:
+                with Image.open(BytesIO(blob)) as image:
+                    image.verify()
+            except Exception as exc:
+                raise ValueError("图片文件无效或已损坏") from exc
+            checked.append(blob)
+        normalized[purpose] = checked
+    return normalized
+
+
+def _validate_m3_full_image_inputs(images_by_purpose: dict[str, list[bytes]]) -> dict[str, list[bytes]]:
+    normalized: dict[str, list[bytes]] = {}
+    for purpose, blobs in images_by_purpose.items():
+        if purpose not in M3_FULL_IMAGE_FIELDS:
+            raise ValueError(f"非法图片用途：{purpose}")
         checked: list[bytes] = []
         for blob in blobs:
             try:
@@ -1172,6 +1251,14 @@ def _add_cover_picture(slide, blob: bytes, left, top, width, height):
 def _remove_shape(shape) -> None:
     element = shape._element
     element.getparent().remove(element)
+
+
+def _find_shape_on_slide_by_exact_text(slide, marker: str):
+    matches = []
+    for shape in slide.shapes:
+        if hasattr(shape, "text") and shape.text and shape.text.strip() == marker:
+            matches.append(shape)
+    return matches
 
 
 def replace_m3_image_placeholders(pptx_path: str | Path, images_by_purpose: dict[str, list[bytes]]) -> Path:
@@ -1218,6 +1305,73 @@ def render_m3_image_test_ppt(
     dest_path = output_path / f"M3_图片替换测试_{safe_name}.pptx"
     _copy_fixed_template(source_template, dest_path)
     replace_m3_image_placeholders(dest_path, normalized)
+    return dest_path
+
+
+def replace_m3_full_image_on_slide(slide, image_field: str, blob: bytes) -> None:
+    marker = f"{{{{{image_field}}}}}"
+    matches = _find_shape_on_slide_by_exact_text(slide, marker)
+    if len(matches) != 1:
+        raise ValueError(f"M3 完整测试模板缺少唯一图片槽：{marker}")
+    shape = matches[0]
+    left, top, width, height = shape.left, shape.top, shape.width, shape.height
+    _remove_shape(shape)
+    _add_cover_picture(slide, blob, left, top, width, height)
+
+
+def render_m3_full_test_ppt(
+    project_name: str,
+    texts: dict[str, str],
+    images_by_purpose: dict[str, list[bytes]],
+    output_dir: str | Path,
+) -> Path:
+    """渲染 M3 完整功能测试 PPTX：9 部分文字 + 图片，支持多图扩页。"""
+    source_template = PPT_TEMPLATE_ROOT / M3_FULL_TEST_TEMPLATE_FILENAME
+    if not source_template.exists():
+        raise FileNotFoundError(f"M3 完整测试模板未找到：{source_template}。")
+
+    issues = validate_m3_full_template_placeholders(source_template)
+    if issues:
+        raise ValueError(f"M3 完整测试模板占位槽异常：{issues}")
+
+    normalized_images = _validate_m3_full_image_inputs(images_by_purpose)
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+    safe_name = _safe_pptx_filename(project_name)
+    dest_path = output_path / f"M3_完整测试_{safe_name}.pptx"
+
+    source = Presentation(str(source_template))
+    target = Presentation()
+    target.slide_width = source.slide_width
+    target.slide_height = source.slide_height
+
+    generated: list[tuple[int, str, int | None]] = []
+    for section_index, section in enumerate(M3_FULL_SECTIONS):
+        image_field = section["image_field"]
+        blobs = normalized_images.get(image_field, [])
+        repeat_count = max(1, len(blobs))
+        for image_index in range(repeat_count):
+            _append_slide(target, source.slides[section_index])
+            generated.append((len(target.slides) - 1, image_field, image_index if image_index < len(blobs) else None))
+
+    target.save(str(dest_path))
+
+    replacements = {
+        section["text_field"]: _safe_text(texts.get(section["text_field"], ""), section["title"])
+        for section in M3_FULL_SECTIONS
+    }
+    replace_text_placeholders(dest_path, replacements)
+
+    rendered = Presentation(str(dest_path))
+    for slide_index, image_field, image_index in generated:
+        if image_index is None:
+            continue
+        replace_m3_full_image_on_slide(
+            rendered.slides[slide_index],
+            image_field,
+            normalized_images[image_field][image_index],
+        )
+    rendered.save(str(dest_path))
     return dest_path
 
 

@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile, status
@@ -5,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
 from .constants import ALLOWED_EXTENSIONS, ALLOWED_MODULE_IDS, PROJECT_TYPES
-from .schemas import ClassificationResult, ClassificationReviewRequest, DocumentParseTestResult, LlmTestRequest, LlmTestResponse, M3ImageRenderTestResponse, M3RenderTestRequest, M3RenderTestResponse, Project, ProjectCreate, ProjectUpdate, ReviewRequest, StoredFile, VectorIndexRequest, VectorIndexResponse
+from .schemas import ClassificationResult, ClassificationReviewRequest, DocumentParseTestResult, LlmTestRequest, LlmTestResponse, M3FullRenderTestResponse, M3ImageRenderTestResponse, M3RenderTestRequest, M3RenderTestResponse, Project, ProjectCreate, ProjectUpdate, ReviewRequest, StoredFile, VectorIndexRequest, VectorIndexResponse
 from .storage import get_data_dir, get_store
 
 # 在模块加载时将 ppt_engine 路径注入 sys.path（供 TestClient 共享）
@@ -32,6 +33,11 @@ def _get_m3_test_output_dir() -> Path:
 def _get_m3_image_test_output_dir() -> Path:
     """获取 M3 图片替换测试输出目录，运行时解析（受 ZHONGCHI_DATA_DIR 影响）。"""
     return get_data_dir() / "outputs" / "m3_image_test"
+
+
+def _get_m3_full_test_output_dir() -> Path:
+    """获取 M3 完整测试输出目录，运行时解析（受 ZHONGCHI_DATA_DIR 影响）。"""
+    return get_data_dir() / "outputs" / "m3_full_test"
 
 app = FastAPI(title="中驰智能PPT Demo API")
 
@@ -459,6 +465,85 @@ def m3_image_render_download(filename: str) -> FileResponse:
         raise HTTPException(status_code=400, detail="无效的文件名")
 
     safe_dir = _get_m3_image_test_output_dir().resolve()
+    file_path = safe_dir / filename
+
+    try:
+        resolved = file_path.resolve()
+        if not resolved.is_relative_to(safe_dir):
+            raise HTTPException(status_code=400, detail="无效的文件名")
+    except Exception:
+        raise HTTPException(status_code=400, detail="无效的文件名")
+
+    if not resolved.exists():
+        raise HTTPException(status_code=404, detail="文件不存在")
+
+    return FileResponse(resolved, filename=filename)
+
+
+@app.post("/api/test/m3-full-render", response_model=M3FullRenderTestResponse)
+async def m3_full_render_test(
+    project_name: str = Form(...),
+    texts: str = Form("{}"),
+    purposes: list[str] = Form([]),
+    files: list[UploadFile] = File([]),
+) -> dict:
+    """M3 完整独立测试接口：9 部分文字 + 图片替换，支持多图扩页。"""
+    _ensure_ppt_engine_path()
+    from pptx import Presentation
+    from ppt_engine.renderer import M3_FULL_IMAGE_FIELDS, render_m3_full_test_ppt
+
+    if not project_name or not project_name.strip():
+        raise HTTPException(status_code=400, detail="project_name 不能为空")
+    if len(files) != len(purposes):
+        raise HTTPException(status_code=400, detail="图片文件数量和用途数量必须一致")
+
+    try:
+        text_payload = json.loads(texts or "{}")
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail=f"texts 不是合法 JSON：{exc}")
+    if not isinstance(text_payload, dict):
+        raise HTTPException(status_code=400, detail="texts 必须是 JSON 对象")
+
+    images_by_purpose: dict[str, list[bytes]] = {}
+    for purpose, upload in zip(purposes, files):
+        if purpose not in M3_FULL_IMAGE_FIELDS:
+            raise HTTPException(status_code=400, detail=f"非法图片用途：{purpose}")
+        if not (upload.content_type or "").startswith("image/"):
+            raise HTTPException(status_code=400, detail=f"文件不是图片：{upload.filename}")
+        blob = await upload.read()
+        images_by_purpose.setdefault(purpose, []).append(blob)
+
+    output_dir = _get_m3_full_test_output_dir()
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    try:
+        pptx_path = render_m3_full_test_ppt(project_name, text_payload, images_by_purpose, output_dir)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=500, detail=f"M3 完整测试模板缺失：{exc}")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"M3 完整测试渲染失败：{exc}")
+
+    summary = {purpose: len(items) for purpose, items in images_by_purpose.items()}
+    filename = pptx_path.name
+    slide_count = len(Presentation(str(pptx_path)).slides)
+    return {
+        "ok": True,
+        "pptx_path": str(pptx_path),
+        "download_url": f"/api/test/m3-full-render/download/{filename}",
+        "slide_count": slide_count,
+        "image_summary": summary,
+    }
+
+
+@app.get("/api/test/m3-full-render/download/{filename:path}")
+def m3_full_render_download(filename: str) -> FileResponse:
+    """下载 M3 完整测试生成的 PPTX 文件。"""
+    if ".." in filename or filename.startswith("/") or "\\" in filename:
+        raise HTTPException(status_code=400, detail="无效的文件名")
+
+    safe_dir = _get_m3_full_test_output_dir().resolve()
     file_path = safe_dir / filename
 
     try:

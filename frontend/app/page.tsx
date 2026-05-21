@@ -34,7 +34,23 @@ const M3_IMAGE_PURPOSE_OPTIONS = [
   { value: "key_difficulty_evidence", label: "重难点证据图", ratio: "16:9" },
 ];
 
-type ViewId = "projects" | "create" | "cases" | "function-tests" | "m1m2-test" | "m5-test" | "document-parse-test" | "llm-test" | "m3-test" | "m3-image-test";
+const M3_FULL_SECTIONS = [
+  { title: "项目基本情况", textField: "m3_basic_summary", imageField: "image:m3_basic" },
+  { title: "项目线路图", textField: "m3_line_summary", imageField: "image:m3_line" },
+  { title: "敏感点路段", textField: "m3_sensitive_points_summary", imageField: "image:m3_sensitive_points" },
+  { title: "工程量统计", textField: "m3_quantity_summary", imageField: "image:m3_quantity" },
+  { title: "结构形式", textField: "m3_structure_summary", imageField: "image:m3_structure" },
+  { title: "现场踏勘", textField: "m3_site_survey_summary", imageField: "image:m3_site_survey" },
+  { title: "现场勘察情况", textField: "m3_investigation_summary", imageField: "image:m3_investigation" },
+  { title: "项目重难点分析", textField: "m3_risk_summary", imageField: "image:m3_risk" },
+  { title: "重难点应对措施", textField: "m3_solution_summary", imageField: "image:m3_solution" },
+];
+
+const DEFAULT_M3_FULL_TEXTS = Object.fromEntries(
+  M3_FULL_SECTIONS.map((section) => [section.textField, `${section.title}测试文字`])
+) as Record<string, string>;
+
+type ViewId = "projects" | "create" | "cases" | "function-tests" | "m1m2-test" | "m5-test" | "document-parse-test" | "llm-test" | "m3-test" | "m3-image-test" | "m3-full-test";
 type Project = {
   project_id: number;
   project_name: string;
@@ -72,6 +88,7 @@ type ReviewForm = { projectType: string; m1m2Template: string; caseId?: string; 
 type RecommendedCase = { case_id: number | string; title: string; match_reason?: string; matched_tags?: string[]; source_path?: string };
 type LlmTestResult = { ok: boolean; status_code: number; model: string; reply: string; error: string; configured: Record<string, boolean> };
 type M3ImageTestResult = { ok: boolean; pptx_path: string; download_url: string; image_summary: Record<string, number> };
+type M3FullTestResult = { ok: boolean; pptx_path: string; download_url: string; slide_count: number; image_summary: Record<string, number> };
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8010";
 const PROJECT_LIST_PREVIEW_LIMIT = 5;
@@ -87,6 +104,7 @@ const viewTitles: Record<ViewId, { title: string; description: string }> = {
   "llm-test": { title: "大模型测试", description: "调用后端开发测试接口，验证当前 LLM 环境变量和中转站请求是否可用。" },
   "m3-test": { title: "M3文字替换测试", description: "将模拟资料文本替换到 M3 项目深化方案模板，验证独立 M3 文字替换功能。" },
   "m3-image-test": { title: "M3图片替换测试", description: "上传 M3 图片素材并按固定用途替换到独立图片测试模板。" },
+  "m3-full-test": { title: "M3完整测试", description: "按 M3 九部分测试文字与图片占位符替换，多图自动扩页。" },
 };
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
@@ -169,6 +187,11 @@ export default function HomePage() {
   const [m3ImageTestPurposes, setM3ImageTestPurposes] = useState<string[]>([]);
   const [m3ImageTestResult, setM3ImageTestResult] = useState<M3ImageTestResult | null>(null);
   const [m3ImageTestMessage, setM3ImageTestMessage] = useState("请选择图片并为每张图片指定用途。");
+  const [m3FullTestProjectName, setM3FullTestProjectName] = useState("M3完整测试项目");
+  const [m3FullTestTexts, setM3FullTestTexts] = useState<Record<string, string>>(DEFAULT_M3_FULL_TEXTS);
+  const [m3FullTestFiles, setM3FullTestFiles] = useState<Record<string, File[]>>({});
+  const [m3FullTestResult, setM3FullTestResult] = useState<M3FullTestResult | null>(null);
+  const [m3FullTestMessage, setM3FullTestMessage] = useState("请按 M3 九部分填写文字并上传图片。");
 
   // 项目基础信息编辑
   const [isEditingProject, setIsEditingProject] = useState(false);
@@ -206,7 +229,8 @@ export default function HomePage() {
         nextView === "document-parse-test" ||
         nextView === "llm-test" ||
         nextView === "m3-test" ||
-        nextView === "m3-image-test"
+        nextView === "m3-image-test" ||
+        nextView === "m3-full-test"
           ? nextView
           : "projects"
       );
@@ -760,13 +784,51 @@ export default function HomePage() {
     }
   }
 
+  function updateM3FullTestText(field: string, value: string) {
+    setM3FullTestTexts((items) => ({ ...items, [field]: value }));
+  }
+
+  function updateM3FullTestFiles(imageField: string, files: File[]) {
+    setM3FullTestFiles((items) => ({ ...items, [imageField]: files }));
+    setM3FullTestResult(null);
+    setM3FullTestMessage("已更新图片，请执行 M3 完整测试。");
+  }
+
+  async function runM3FullRenderTest() {
+    if (!m3FullTestProjectName.trim()) return setM3FullTestMessage("请先填写项目名称。");
+    const formData = new FormData();
+    formData.append("project_name", m3FullTestProjectName);
+    formData.append("texts", JSON.stringify(m3FullTestTexts));
+    M3_FULL_SECTIONS.forEach((section) => {
+      (m3FullTestFiles[section.imageField] || []).forEach((file) => {
+        formData.append("files", file);
+        formData.append("purposes", section.imageField);
+      });
+    });
+
+    setBusy(true);
+    setM3FullTestResult(null);
+    try {
+      const result = await requestJson<M3FullTestResult>("/api/test/m3-full-render", {
+        method: "POST",
+        body: formData,
+      });
+      setM3FullTestResult(result);
+      setM3FullTestMessage(result.ok ? "M3 完整测试 PPTX 已生成，点击下载链接获取文件。" : "M3 完整测试失败。");
+    } catch (error) {
+      setM3FullTestMessage(error instanceof Error ? error.message : "M3 完整测试失败");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function downloadFinal() {
     if (!currentProject) return setMessage("请先创建项目。");
     window.location.href = `${API_BASE}/api/projects/${currentProject.project_id}/download`;
   }
 
   const pageTitle = viewTitles[activeView];
-  const isFunctionTestView = activeView === "function-tests" || activeView === "m1m2-test" || activeView === "m5-test" || activeView === "document-parse-test" || activeView === "llm-test" || activeView === "m3-test" || activeView === "m3-image-test";
+  const isFunctionTestView = activeView === "function-tests" || activeView === "m1m2-test" || activeView === "m5-test" || activeView === "document-parse-test" || activeView === "llm-test" || activeView === "m3-test" || activeView === "m3-image-test" || activeView === "m3-full-test";
 
   return (
     <main className="shell">
@@ -1049,6 +1111,14 @@ export default function HomePage() {
                 </div>
                 <p className="test-hub-desc">上传图片并按固定用途替换到 M3 图片测试模板。</p>
                 <a className="secondaryButton test-hub-action" href="#m3-image-test">打开测试</a>
+              </article>
+              <article className="test-hub-card">
+                <div className="test-hub-card-header">
+                  <strong>M3完整测试</strong>
+                  <span className="test-hub-badge">M3完整</span>
+                </div>
+                <p className="test-hub-desc">按九个部分测试 M3 文字与图片替换，多图自动扩页。</p>
+                <a className="secondaryButton test-hub-action" href="#m3-full-test">打开测试</a>
               </article>
             </div>
           </section>
@@ -1539,6 +1609,75 @@ export default function HomePage() {
                   <span>图片数量</span>
                   <strong>{Object.values(m3ImageTestResult.image_summary || {}).reduce((sum, count) => sum + count, 0)} 张</strong>
                   <p>只统计本次图片替换测试上传素材。</p>
+                </article>
+              </div>
+            ) : null}
+          </section>
+        ) : null}
+
+        {activeView === "m3-full-test" ? (
+          <section id="m3-full-test" className="section">
+            <div className="sectionHeader">
+              <h2>M3完整测试</h2>
+              <span className="badge">独立测试</span>
+            </div>
+            <div className="testPanel">
+              <div className="testInputs single">
+                <label>项目名称<input value={m3FullTestProjectName} onChange={(event) => setM3FullTestProjectName(event.target.value)} /></label>
+              </div>
+              <div className="evidenceList">
+                {M3_FULL_SECTIONS.map((section) => (
+                  <article className="evidenceItem" key={section.textField}>
+                    <div>
+                      <strong>{section.title}</strong>
+                      <span>{section.textField} / {section.imageField}</span>
+                    </div>
+                    <label>
+                      文字内容
+                      <textarea
+                        value={m3FullTestTexts[section.textField] || ""}
+                        onChange={(event) => updateM3FullTestText(section.textField, event.target.value)}
+                        rows={3}
+                      />
+                    </label>
+                    <label className="uploadBox" style={{ marginTop: "10px" }}>
+                      <span>上传{section.title}图片（可多张）</span>
+                      <input
+                        name={`m3_full_test_${section.textField}`}
+                        type="file"
+                        multiple
+                        accept=".png,.jpg,.jpeg,image/png,image/jpeg"
+                        onChange={(event) => updateM3FullTestFiles(section.imageField, Array.from(event.target.files ?? []))}
+                      />
+                    </label>
+                    <div className="fileList">
+                      {(m3FullTestFiles[section.imageField] || []).map((file) => <span key={`${section.imageField}-${file.name}`}>{file.name}</span>)}
+                    </div>
+                  </article>
+                ))}
+              </div>
+              <button className="primaryButton" disabled={busy} onClick={runM3FullRenderTest} type="button">执行 M3 完整测试</button>
+              <p className="messageLine" style={m3FullTestMessage && m3FullTestMessage.includes("失败") ? {color: "#e74c3c"} : {}}>{m3FullTestMessage}</p>
+            </div>
+
+            {m3FullTestResult && m3FullTestResult.ok ? (
+              <div className="resultGrid">
+                <article className="resultCard">
+                  <span>渲染状态</span>
+                  <strong>成功</strong>
+                  <p>页数：{m3FullTestResult.slide_count} 页</p>
+                </article>
+                <article className="resultCard wide">
+                  <span>下载链接</span>
+                  <strong>M3 完整测试 PPTX 已生成</strong>
+                  <p>
+                    <a href={`${API_BASE}${m3FullTestResult.download_url}`} download>点击下载生成的 M3 完整测试 PPTX</a>
+                  </p>
+                </article>
+                <article className="resultCard">
+                  <span>图片数量</span>
+                  <strong>{Object.values(m3FullTestResult.image_summary || {}).reduce((sum, count) => sum + count, 0)} 张</strong>
+                  <p>多张图片会自动扩展对应部分页面。</p>
                 </article>
               </div>
             ) : null}
