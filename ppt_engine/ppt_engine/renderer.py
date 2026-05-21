@@ -31,8 +31,8 @@ M1_M2_TEMPLATE_MAP = {
     "railway": "铁路声屏障行业背景与技术发展（M1_&_M2）.pptx",
 }
 
-# M5 案例模板文件名
-M5_TEMPLATE_FILENAME = "南昌轨道交通4号线声屏障工程项目案例模板（M5）.pptx"
+# M5 演示案例模板文件名
+M5_TEMPLATE_FILENAME = "M5示例.pptx"
 
 # M6 固定模板文件名
 M6_TEMPLATE_FILENAME = "中驰企业介绍合并初版（M6）.pptx"
@@ -709,6 +709,14 @@ def render_chapter_ppt(
         return _render_m5_case_template(case_data, project, output_path)
 
     if module_id == "M3":
+        m3_materials = outline.get("m3_materials")
+        if m3_materials:
+            return render_m3_full_project_ppt(
+                project,
+                m3_materials.get("texts") or {},
+                m3_materials.get("images_by_purpose") or {},
+                output_path,
+            )
         return render_m3_module(project, outline.get("parsed_sources", []), output_path)
 
     if module_id == "M6":
@@ -1319,26 +1327,26 @@ def replace_m3_full_image_on_slide(slide, image_field: str, blob: bytes) -> None
     _add_cover_picture(slide, blob, left, top, width, height)
 
 
-def render_m3_full_test_ppt(
+def _render_m3_full_ppt(
     project_name: str,
     texts: dict[str, str],
     images_by_purpose: dict[str, list[bytes]],
     output_dir: str | Path,
+    dest_filename: str,
 ) -> Path:
-    """渲染 M3 完整功能测试 PPTX：9 部分文字 + 图片，支持多图扩页。"""
+    """渲染 M3 九部分文字 + 图片 PPTX，支持多图扩页。"""
     source_template = PPT_TEMPLATE_ROOT / M3_FULL_TEST_TEMPLATE_FILENAME
     if not source_template.exists():
-        raise FileNotFoundError(f"M3 完整测试模板未找到：{source_template}。")
+        raise FileNotFoundError(f"M3 完整模板未找到：{source_template}。")
 
     issues = validate_m3_full_template_placeholders(source_template)
     if issues:
-        raise ValueError(f"M3 完整测试模板占位槽异常：{issues}")
+        raise ValueError(f"M3 完整模板占位槽异常：{issues}")
 
     normalized_images = _validate_m3_full_image_inputs(images_by_purpose)
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
-    safe_name = _safe_pptx_filename(project_name)
-    dest_path = output_path / f"M3_完整测试_{safe_name}.pptx"
+    dest_path = output_path / dest_filename
 
     source = Presentation(str(source_template))
     target = Presentation()
@@ -1373,6 +1381,39 @@ def render_m3_full_test_ppt(
         )
     rendered.save(str(dest_path))
     return dest_path
+
+
+def render_m3_full_test_ppt(
+    project_name: str,
+    texts: dict[str, str],
+    images_by_purpose: dict[str, list[bytes]],
+    output_dir: str | Path,
+) -> Path:
+    """渲染 M3 完整功能测试 PPTX：9 部分文字 + 图片，支持多图扩页。"""
+    safe_name = _safe_pptx_filename(project_name)
+    return _render_m3_full_ppt(
+        project_name,
+        texts,
+        images_by_purpose,
+        output_dir,
+        f"M3_完整测试_{safe_name}.pptx",
+    )
+
+
+def render_m3_full_project_ppt(
+    project: dict[str, Any],
+    texts: dict[str, str],
+    images_by_purpose: dict[str, list[bytes]],
+    output_dir: str | Path,
+) -> Path:
+    """渲染正式流程 M3 完整资料 PPTX。"""
+    return _render_m3_full_ppt(
+        _safe_text(project.get("project_name"), "项目"),
+        texts,
+        images_by_purpose,
+        output_dir,
+        "M3_项目深化方案.pptx",
+    )
 
 
 def _find_snippet(texts: list[str], keywords: list[str]) -> str:

@@ -43,5 +43,5 @@ M1_M2_TEMPLATE_FILENAMES = {
     "railway": "铁路声屏障行业背景与技术发展（M1_&_M2）.pptx",
 }
 
-M5_TEMPLATE_FILENAME = "南昌轨道交通4号线声屏障工程项目案例模板（M5）.pptx"
+M5_TEMPLATE_FILENAME = "M5示例.pptx"
 M6_TEMPLATE_FILENAME = "中驰企业介绍合并初版（M6）.pptx"

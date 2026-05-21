@@ -923,6 +923,36 @@ textarea:focus {
   background: #fff8e6;
 }
 
+.m3-material-entry,
+.m3-material-page-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fbff;
+}
+
+.m3-material-entry div,
+.m3-material-page-header div {
+  display: grid;
+  gap: 4px;
+}
+
+.m3-material-entry span,
+.m3-material-page-header span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.m3-material-entry p {
+  margin: 0;
+  color: var(--text);
+}
+
 .statusList {
   display: flex;
   flex-wrap: wrap;

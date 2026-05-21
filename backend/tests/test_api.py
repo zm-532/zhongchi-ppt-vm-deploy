@@ -36,6 +36,8 @@ class BackendApiTest(unittest.TestCase):
         test_tmp_root.mkdir(exist_ok=True)
         self.temp_dir = tempfile.TemporaryDirectory(dir=test_tmp_root)
         os.environ["ZHONGCHI_DATA_DIR"] = self.temp_dir.name
+        self._old_merge_engine = os.environ.get("ZHONGCHI_PPT_MERGE_ENGINE")
+        os.environ["ZHONGCHI_PPT_MERGE_ENGINE"] = "python-pptx"
 
         from fastapi.testclient import TestClient
 
@@ -45,6 +47,10 @@ class BackendApiTest(unittest.TestCase):
     def tearDown(self):
         self.temp_dir.cleanup()
         os.environ.pop("ZHONGCHI_DATA_DIR", None)
+        if self._old_merge_engine is None:
+            os.environ.pop("ZHONGCHI_PPT_MERGE_ENGINE", None)
+        else:
+            os.environ["ZHONGCHI_PPT_MERGE_ENGINE"] = self._old_merge_engine
 
     def test_project_create_list_and_detail(self):
         response = self.client.post(
@@ -212,6 +218,7 @@ class BackendApiTest(unittest.TestCase):
         self.assertEqual(classification["template_selection"]["M1_M2"]["template_key"], "metro")
         self.assertEqual(classification["template_selection"]["M1_M2"]["template_filename"], "轨道交通地铁全封闭声屏障（M1_&_M2）.pptx")
         self.assertNotIn("template_path", classification["template_selection"]["M1_M2"])
+        self.assertEqual(classification["template_selection"]["M5"]["template_filename"], "M5示例.pptx")
         self.assertEqual(classification["template_selection"]["M6"]["template_key"], "enterprise")
         self.assertIn("recommended_cases", classification["case_selection"])
 

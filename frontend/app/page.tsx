@@ -26,6 +26,8 @@ const M3_ACTIVE_REPLACEMENT_FIELDS = [
   "m3_solution_summary",
 ];
 
+const M5_DEMO_CASE = { case_id: "m5_demo", title: "M5示例案例", match_reason: "演示全流程使用的固定 M5 案例模板。" };
+
 const M3_IMAGE_PURPOSE_OPTIONS = [
   { value: "project_scope_map", label: "项目建设范围图", ratio: "16:9" },
   { value: "project_line_map", label: "项目线路图", ratio: "16:9" },
@@ -50,7 +52,7 @@ const DEFAULT_M3_FULL_TEXTS = Object.fromEntries(
   M3_FULL_SECTIONS.map((section) => [section.textField, `${section.title}测试文字`])
 ) as Record<string, string>;
 
-type ViewId = "projects" | "create" | "cases" | "function-tests" | "m1m2-test" | "m5-test" | "document-parse-test" | "llm-test" | "m3-test" | "m3-image-test" | "m3-full-test";
+type ViewId = "projects" | "create" | "cases" | "project-m3-materials" | "function-tests" | "m1m2-test" | "m5-test" | "document-parse-test" | "llm-test" | "m3-test" | "m3-image-test" | "m3-full-test";
 type Project = {
   project_id: number;
   project_name: string;
@@ -89,6 +91,16 @@ type RecommendedCase = { case_id: number | string; title: string; match_reason?:
 type LlmTestResult = { ok: boolean; status_code: number; model: string; reply: string; error: string; configured: Record<string, boolean> };
 type M3ImageTestResult = { ok: boolean; pptx_path: string; download_url: string; image_summary: Record<string, number> };
 type M3FullTestResult = { ok: boolean; pptx_path: string; download_url: string; slide_count: number; image_summary: Record<string, number> };
+type M3MaterialImage = { purpose: string; filename: string; content_type?: string; stored_path: string };
+type M3MaterialsResult = {
+  project_id: number;
+  texts: Record<string, string>;
+  images: M3MaterialImage[];
+  text_completed_count: number;
+  text_total_count: number;
+  image_count: number;
+  image_summary: Record<string, number>;
+};
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8010";
 const PROJECT_LIST_PREVIEW_LIMIT = 5;
@@ -97,6 +109,7 @@ const viewTitles: Record<ViewId, { title: string; description: string }> = {
   projects: { title: "我的项目", description: "创建项目、统一上传项目资料，并确认系统识别结果。" },
   create: { title: "新建项目", description: "填写基础信息后创建一个新的售前 PPT 项目。" },
   cases: { title: "案例库管理", description: "维护历史案例，供系统按项目标签推荐引用。" },
+  "project-m3-materials": { title: "M3资料上传", description: "按 M3 九部分维护项目深化方案文字和图片资料。" },
   "function-tests": { title: "功能测试", description: "开发过程验证入口，收纳内部功能测试页面，普通前端用户无需使用。" },
   "m1m2-test": { title: "M1/M2选择测试", description: "上传测试资料，根据文件名和解析文本识别项目类型并选择对应 M1/M2 固化模板。" },
   "m5-test": { title: "M5选择测试", description: "上传测试资料，根据项目标签从案例库匹配相似案例并显示匹配理由。" },
@@ -192,6 +205,10 @@ export default function HomePage() {
   const [m3FullTestFiles, setM3FullTestFiles] = useState<Record<string, File[]>>({});
   const [m3FullTestResult, setM3FullTestResult] = useState<M3FullTestResult | null>(null);
   const [m3FullTestMessage, setM3FullTestMessage] = useState("请按 M3 九部分填写文字并上传图片。");
+  const [m3MaterialTexts, setM3MaterialTexts] = useState<Record<string, string>>({});
+  const [m3MaterialFiles, setM3MaterialFiles] = useState<Record<string, File[]>>({});
+  const [m3MaterialsResult, setM3MaterialsResult] = useState<M3MaterialsResult | null>(null);
+  const [m3MaterialsMessage, setM3MaterialsMessage] = useState("进入页面后填写 M3 九部分文字并上传图片。");
 
   // 项目基础信息编辑
   const [isEditingProject, setIsEditingProject] = useState(false);
@@ -223,6 +240,7 @@ export default function HomePage() {
       setActiveView(
         nextView === "create" ||
         nextView === "cases" ||
+        nextView === "project-m3-materials" ||
         nextView === "function-tests" ||
         nextView === "m1m2-test" ||
         nextView === "m5-test" ||
@@ -264,7 +282,7 @@ export default function HomePage() {
         // 首次初始化：优先用后端确认的 caseId，其次用推荐列表第一个，均无则为 null（表示暂不选择）
         newCaseId = confirmedCaseId !== undefined && confirmedCaseId !== null
           ? String(confirmedCaseId)
-          : (recommendedCases[0]?.case_id !== undefined ? String(recommendedCases[0].case_id) : "");
+          : (recommendedCases[0]?.case_id !== undefined ? String(recommendedCases[0].case_id) : String(M5_DEMO_CASE.case_id));
       }
 
       return {
@@ -277,6 +295,74 @@ export default function HomePage() {
       };
     });
   }, [classification, recommendedCases]);
+
+  useEffect(() => {
+    if (!currentProject) {
+      setM3MaterialsResult(null);
+      setM3MaterialTexts({});
+      setM3MaterialFiles({});
+      return;
+    }
+    loadM3Materials(currentProject.project_id);
+  }, [currentProject?.project_id]);
+
+  async function loadM3Materials(projectId: number) {
+    try {
+      const result = await requestJson<M3MaterialsResult>(`/api/projects/${projectId}/m3-materials`);
+      setM3MaterialsResult(result);
+      setM3MaterialTexts(result.texts || {});
+      setM3MaterialFiles({});
+      setM3MaterialsMessage("M3资料已加载，可继续编辑。");
+    } catch (error) {
+      setM3MaterialsResult(null);
+      setM3MaterialTexts({});
+      setM3MaterialFiles({});
+      setM3MaterialsMessage(error instanceof Error ? error.message : "M3资料加载失败");
+    }
+  }
+
+  function updateM3MaterialText(textField: string, value: string) {
+    setM3MaterialTexts((items) => ({ ...items, [textField]: value }));
+    setM3MaterialsMessage("M3资料有未保存修改。");
+  }
+
+  function updateM3MaterialFiles(imageField: string, files: File[]) {
+    setM3MaterialFiles((items) => ({ ...items, [imageField]: files }));
+    setM3MaterialsMessage("已选择新图片，保存后会替换已保存的 M3 图片。");
+  }
+
+  async function saveM3Materials(returnToProjects = false) {
+    if (!currentProject) return setM3MaterialsMessage("请先选择项目。");
+    const formData = new FormData();
+    formData.append("texts", JSON.stringify(m3MaterialTexts));
+    M3_FULL_SECTIONS.forEach((section) => {
+      (m3MaterialFiles[section.imageField] || []).forEach((file) => {
+        formData.append("files", file);
+        formData.append("purposes", section.imageField);
+      });
+    });
+
+    setBusy(true);
+    try {
+      const result = await requestJson<M3MaterialsResult>(`/api/projects/${currentProject.project_id}/m3-materials`, {
+        method: "POST",
+        body: formData,
+      });
+      setM3MaterialsResult(result);
+      setM3MaterialTexts(result.texts || {});
+      setM3MaterialFiles({});
+      setM3MaterialsMessage(`M3资料已保存：已填写 ${result.text_completed_count}/${result.text_total_count}，已上传 ${result.image_count} 张图片。`);
+      if (returnToProjects) {
+        setActiveView("projects");
+        window.location.hash = "projects";
+        setMessage("M3资料已保存，可继续识别、确认或生成。");
+      }
+    } catch (error) {
+      setM3MaterialsMessage(error instanceof Error ? error.message : "M3资料保存失败");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function createProject(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -961,7 +1047,15 @@ export default function HomePage() {
                     </div>
                     {uploadSuccess && <div className="uploadSuccess">上传成功，已上传 {uploadedFiles.length} 个文件</div>}
                   </div>
-                  <div className="futureModules"><strong>M3 已接入正式生成，M4 暂不生成</strong><span>M3 目前使用模板级文字替换，图片替换待确定后接入；M4 还未接入。</span></div>
+                  <div className="m3-material-entry">
+                    <div>
+                      <strong>M3资料上传</strong>
+                      <span>用于项目深化方案 M3 章节生成</span>
+                    </div>
+                    <p>已填写 {m3MaterialsResult?.text_completed_count ?? 0}/{m3MaterialsResult?.text_total_count ?? 9} 个部分，已上传 {m3MaterialsResult?.image_count ?? 0} 张图片</p>
+                    <a className="secondaryButton" href="#project-m3-materials">进入M3资料上传</a>
+                  </div>
+                  <div className="futureModules"><strong>M3 已接入正式生成，M4 暂不生成</strong><span>M3 使用项目级资料上传的文字和图片生成；未填写内容会按占位兜底处理。</span></div>
                 </section>
 
                 <section className="section">
@@ -997,8 +1091,8 @@ export default function HomePage() {
                       <form className="confirmationGrid" onSubmit={(event) => { event.preventDefault(); submitClassificationReview(); }}>
                         <label>确认项目类型<select aria-label="确认项目类型" value={reviewForm.projectType} onChange={(event) => setReviewForm((value) => ({ ...value, projectType: event.target.value }))}>{projectTypes.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
                         <label>确认 M1/M2 模板<select aria-label="确认 M1/M2 模板" value={reviewForm.m1m2Template} onChange={(event) => setReviewForm((value) => ({ ...value, m1m2Template: event.target.value }))}>{m1m2Templates.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
-                        <label>确认 M5 案例<select aria-label="确认 M5 案例" value={reviewForm.caseId} onChange={(event) => setReviewForm((value) => ({ ...value, caseId: event.target.value }))}><option value="">暂不选择案例</option>{recommendedCases.map((item) => <option key={item.case_id} value={item.case_id}>{item.title}</option>)}</select></label>
                         <label>确认 M3 模块<select aria-label="确认 M3 模块" value={reviewForm.m3Selection} onChange={(event) => setReviewForm((value) => ({ ...value, m3Selection: event.target.value }))}><option value="m3_template">M3模板</option><option value="m3_skip">暂不选择</option></select></label>
+                        <label>确认 M5 案例<select aria-label="确认 M5 案例" value={reviewForm.caseId} onChange={(event) => setReviewForm((value) => ({ ...value, caseId: event.target.value }))}><option value="m5_demo">M5示例案例</option><option value="">暂不选择案例</option>{recommendedCases.map((item) => <option key={item.case_id} value={item.case_id}>{item.title}</option>)}</select></label>
                         <label>确认备注<input value={reviewForm.notes} onChange={(event) => setReviewForm((value) => ({ ...value, notes: event.target.value }))} placeholder="可填写模板或案例调整原因" /></label>
                         <button className="primaryButton" disabled={busy} type="submit">提交人工确认</button>
                       </form>
@@ -1021,6 +1115,71 @@ export default function HomePage() {
               </>
             ) : null}
           </>
+        ) : null}
+
+        {activeView === "project-m3-materials" ? (
+          <section id="project-m3-materials" className="section">
+            <div className="sectionHeader">
+              <h2>M3资料上传</h2>
+              <span className="badge">正式流程</span>
+            </div>
+            {currentProject ? (
+              <div className="testPanel">
+                <div className="m3-material-page-header">
+                  <div>
+                    <strong>{currentProject.project_name}</strong>
+                    <span>已填写 {m3MaterialsResult?.text_completed_count ?? 0}/{m3MaterialsResult?.text_total_count ?? 9} 个部分，已上传 {m3MaterialsResult?.image_count ?? 0} 张图片</span>
+                  </div>
+                  <a className="secondaryButton" href="#projects">返回我的项目</a>
+                </div>
+                <div className="evidenceList">
+                  {M3_FULL_SECTIONS.map((section) => {
+                    const savedImages = (m3MaterialsResult?.images || []).filter((image) => image.purpose === section.imageField);
+                    const selectedImages = m3MaterialFiles[section.imageField] || [];
+                    return (
+                      <article className="evidenceItem" key={`project-${section.textField}`}>
+                        <div>
+                          <strong>{section.title}</strong>
+                          <span>{section.textField} / {section.imageField}</span>
+                        </div>
+                        <label>
+                          文字内容
+                          <textarea
+                            value={m3MaterialTexts[section.textField] || ""}
+                            onChange={(event) => updateM3MaterialText(section.textField, event.target.value)}
+                            rows={4}
+                          />
+                        </label>
+                        <label className="uploadBox" style={{ marginTop: "10px" }}>
+                          <span>上传{section.title}图片（可多张）</span>
+                          <input
+                            name={`project_m3_material_${section.textField}`}
+                            type="file"
+                            multiple
+                            accept=".png,.jpg,.jpeg,image/png,image/jpeg"
+                            onChange={(event) => updateM3MaterialFiles(section.imageField, Array.from(event.target.files ?? []))}
+                          />
+                        </label>
+                        <div className="fileList">
+                          {selectedImages.length
+                            ? selectedImages.map((file) => <span key={`${section.imageField}-selected-${file.name}`}>{file.name}</span>)
+                            : savedImages.map((image) => <span key={`${section.imageField}-saved-${image.stored_path}`}>{image.filename}</span>)}
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+                <div className="upload-actions-bar">
+                  <button className="primaryButton" disabled={busy} onClick={() => saveM3Materials(false)} type="button">保存M3资料</button>
+                  <button className="primaryButton" disabled={busy} onClick={() => saveM3Materials(true)} type="button">保存并返回我的项目</button>
+                  <a className="secondaryButton" href="#projects">返回我的项目</a>
+                </div>
+                <p className="messageLine" style={m3MaterialsMessage && m3MaterialsMessage.includes("失败") ? {color: "#e74c3c"} : {}}>{m3MaterialsMessage}</p>
+              </div>
+            ) : (
+              <div className="emptyState compact"><h3>请先选择项目</h3><p>回到我的项目页面选择一个项目后，再进入 M3资料上传。</p><a className="secondaryButton" href="#projects">返回我的项目</a></div>
+            )}
+          </section>
         ) : null}
 
         {activeView === "create" ? (

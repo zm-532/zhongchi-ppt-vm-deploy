@@ -53,10 +53,11 @@ test("[静态] page.tsx 源码中包含主要 workflow section 的文本标记",
     "M6 固定模板",
     "缺失字段",
     "M3 已接入正式生成",
-    "M3 目前使用模板级文字替换，图片替换待确定后接入；M4 还未接入。",
+    "M3 使用项目级资料上传的文字和图片生成；未填写内容会按占位兜底处理。",
     "M4 暂不生成",
     "生成状态",
     "下载最终 PPTX",
+    "M3资料上传",
     // M3 入口
     "M3文字替换测试",
     "M3 文字替换测试",
@@ -66,7 +67,7 @@ test("[静态] page.tsx 源码中包含主要 workflow section 的文本标记",
 test("[静态] page.tsx 将开发测试收纳到功能测试入口并包含大模型测试", () => {
   const source = pageSource();
   [
-    'type ViewId = "projects" | "create" | "cases" | "function-tests"',
+    'type ViewId = "projects" | "create" | "cases" | "project-m3-materials" | "function-tests"',
     "#function-tests",
     "功能测试",
     "开发过程验证入口",
@@ -150,6 +151,7 @@ test("[静态] page.tsx 调用了所需的 backend API 端点字符串", () => {
     "/generate",
     "/task",
     "/download",
+    "/m3-materials",
     "NEXT_PUBLIC_API_BASE_URL",
     "fetch(",
     // M3 测试接口
@@ -309,6 +311,43 @@ test("[静态] page.tsx 包含 M3 完整测试视图的 UI 元素", () => {
     "项目重难点分析",
     "重难点应对措施",
   ].forEach((text) => assert.match(source, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))));
+});
+
+test("[静态] page.tsx 包含正式流程 M3资料上传独立页面", () => {
+  const source = pageSource();
+  [
+    "#project-m3-materials",
+    "project-m3-materials",
+    "M3资料上传",
+    "用于项目深化方案 M3 章节生成",
+    "保存M3资料",
+    "保存并返回我的项目",
+    "返回我的项目",
+    "m3MaterialTexts",
+    "m3MaterialFiles",
+    "m3MaterialsResult",
+    "m3MaterialsMessage",
+    "loadM3Materials",
+    "saveM3Materials",
+    "/api/projects/${currentProject.project_id}/m3-materials",
+    "project_m3_material_",
+    "项目基本情况",
+    "项目线路图",
+    "敏感点路段",
+    "工程量统计",
+    "结构形式",
+    "现场踏勘",
+    "现场勘察情况",
+    "项目重难点分析",
+    "重难点应对措施",
+  ].forEach((text) => assert.match(source, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))));
+});
+
+test("[静态] 人工确认表单中 M3 在 M5 前面且包含 M5 演示案例", () => {
+  const source = pageSource();
+  assert.match(source, /确认 M3 模块[\s\S]*确认 M5 案例/);
+  assert.match(source, /value="m5_demo"/);
+  assert.match(source, /M5示例案例/);
 });
 
 test("[静态] styles.css 中解析结果卡片包含文本换行相关的 CSS 类", () => {

@@ -161,3 +161,20 @@ class M3FullRenderTestResponse(BaseModel):
     download_url: str = ""
     slide_count: int = 0
     image_summary: dict[str, int] = Field(default_factory=dict)
+
+
+class M3MaterialImage(BaseModel):
+    purpose: str
+    filename: str
+    content_type: str = ""
+    stored_path: str
+
+
+class M3MaterialsResponse(BaseModel):
+    project_id: int
+    texts: dict[str, str] = Field(default_factory=dict)
+    images: list[M3MaterialImage] = Field(default_factory=list)
+    text_completed_count: int = 0
+    text_total_count: int = 9
+    image_count: int = 0
+    image_summary: dict[str, int] = Field(default_factory=dict)

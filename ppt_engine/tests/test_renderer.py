@@ -144,7 +144,7 @@ class TemplateConfigTest(unittest.TestCase):
         self.assertEqual(M6_TEMPLATE_FILENAME, "中驰企业介绍合并初版（M6）.pptx")
 
     def test_m5_template_filename_correct(self):
-        self.assertEqual(M5_TEMPLATE_FILENAME, "南昌轨道交通4号线声屏障工程项目案例模板（M5）.pptx")
+        self.assertEqual(M5_TEMPLATE_FILENAME, "M5示例.pptx")
 
 
 class M1M2TemplateSelectionTest(unittest.TestCase):

@@ -66,10 +66,32 @@ def render_project_ppt(project: dict[str, Any], output_dir: Path) -> tuple[Path,
         if text.strip():
             parsed_sources.append(text)
 
+    m3_materials = project.get("m3_materials") or {}
+    m3_outline: dict[str, Any] = {"parsed_sources": parsed_sources}
+    if m3_materials:
+        images_by_purpose: dict[str, list[bytes]] = {}
+        for image_record in m3_materials.get("images", []):
+            purpose = image_record.get("purpose", "")
+            stored_path = image_record.get("stored_path", "")
+            if not purpose or not stored_path:
+                continue
+            path = Path(stored_path)
+            if not path.exists():
+                continue
+            try:
+                blob = path.read_bytes()
+            except OSError:
+                continue
+            images_by_purpose.setdefault(purpose, []).append(blob)
+        m3_outline["m3_materials"] = {
+            "texts": m3_materials.get("texts") or {},
+            "images_by_purpose": images_by_purpose,
+        }
+
     # 新版 outline 结构
     outlines = {
         "M1_M2": {"project_type": confirmed_project_type},
-        "M3": {"parsed_sources": parsed_sources},
+        "M3": m3_outline,
         "M5": {"case_data": {"case_id": raw_case_id} if has_case else None},
         "M6": {},
     }

@@ -175,6 +175,71 @@ class JsonStore:
         self.save(state)
         return project
 
+    def _m3_materials_response(self, project: dict[str, Any]) -> dict[str, Any]:
+        materials = project.get("m3_materials") or {}
+        texts = materials.get("texts") or {}
+        images = materials.get("images") or []
+        image_summary: dict[str, int] = {}
+        for image in images:
+            purpose = image.get("purpose", "")
+            image_summary[purpose] = image_summary.get(purpose, 0) + 1
+        return {
+            "project_id": project["project_id"],
+            "texts": texts,
+            "images": images,
+            "text_completed_count": sum(1 for value in texts.values() if isinstance(value, str) and value.strip()),
+            "text_total_count": 9,
+            "image_count": len(images),
+            "image_summary": image_summary,
+        }
+
+    def get_m3_materials(self, project_id: int) -> dict[str, Any] | None:
+        state = self.load()
+        project = next((item for item in state["projects"] if item["project_id"] == project_id), None)
+        if project is None:
+            return None
+        return self._m3_materials_response(project)
+
+    def save_m3_materials(
+        self,
+        project_id: int,
+        texts: dict[str, str],
+        images: list[tuple[str, str, str, bytes]],
+    ) -> dict[str, Any] | None:
+        state = self.load()
+        project = next((item for item in state["projects"] if item["project_id"] == project_id), None)
+        if project is None:
+            return None
+
+        existing_materials = project.get("m3_materials") or {}
+        image_records: list[dict[str, Any]] = existing_materials.get("images") or []
+        if images:
+            materials_dir = self.uploads_dir / str(project_id) / "m3_materials"
+            if materials_dir.exists():
+                shutil.rmtree(materials_dir)
+            materials_dir.mkdir(parents=True, exist_ok=True)
+
+            image_records = []
+            for index, (purpose, filename, content_type, content) in enumerate(images, start=1):
+                safe_filename = Path(filename).name or "upload"
+                stored_path = materials_dir / f"{index}_{safe_filename}"
+                stored_path.write_bytes(content)
+                image_records.append(
+                    {
+                        "purpose": purpose,
+                        "filename": safe_filename,
+                        "content_type": content_type,
+                        "stored_path": str(stored_path),
+                    }
+                )
+
+        project["m3_materials"] = {
+            "texts": texts,
+            "images": image_records,
+        }
+        self.save(state)
+        return self._m3_materials_response(project)
+
     def add_file(self, project_id: int, module_id: str, filename: str, content_type: str, content: bytes) -> dict[str, Any] | None:
         state = self.load()
         project = next((item for item in state["projects"] if item["project_id"] == project_id), None)

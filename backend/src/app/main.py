@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
 from .constants import ALLOWED_EXTENSIONS, ALLOWED_MODULE_IDS, PROJECT_TYPES
-from .schemas import ClassificationResult, ClassificationReviewRequest, DocumentParseTestResult, LlmTestRequest, LlmTestResponse, M3FullRenderTestResponse, M3ImageRenderTestResponse, M3RenderTestRequest, M3RenderTestResponse, Project, ProjectCreate, ProjectUpdate, ReviewRequest, StoredFile, VectorIndexRequest, VectorIndexResponse
+from .schemas import ClassificationResult, ClassificationReviewRequest, DocumentParseTestResult, LlmTestRequest, LlmTestResponse, M3FullRenderTestResponse, M3ImageRenderTestResponse, M3MaterialsResponse, M3RenderTestRequest, M3RenderTestResponse, Project, ProjectCreate, ProjectUpdate, ReviewRequest, StoredFile, VectorIndexRequest, VectorIndexResponse
 from .storage import get_data_dir, get_store
 
 # 在模块加载时将 ppt_engine 路径注入 sys.path（供 TestClient 共享）
@@ -77,6 +77,37 @@ def validate_project_type(project_type: str) -> None:
         raise HTTPException(status_code=400, detail=f"project_type 只允许 {allowed}")
 
 
+def _validate_m3_material_texts(raw_texts: str) -> dict[str, str]:
+    _ensure_ppt_engine_path()
+    from ppt_engine.renderer import M3_FULL_SECTIONS
+
+    try:
+        text_payload = json.loads(raw_texts or "{}")
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail=f"texts 不是合法 JSON：{exc}")
+    if not isinstance(text_payload, dict):
+        raise HTTPException(status_code=400, detail="texts 必须是 JSON 对象")
+
+    normalized: dict[str, str] = {}
+    for section in M3_FULL_SECTIONS:
+        field = section["text_field"]
+        value = text_payload.get(field, "")
+        normalized[field] = value if isinstance(value, str) else str(value)
+    return normalized
+
+
+def _validate_image_blob(blob: bytes) -> None:
+    from io import BytesIO
+
+    from PIL import Image
+
+    try:
+        with Image.open(BytesIO(blob)) as image:
+            image.verify()
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="图片文件无效或已损坏") from exc
+
+
 @app.get("/api/projects", response_model=list[Project])
 def list_projects() -> list[dict]:
     return get_store().list_projects()
@@ -137,6 +168,52 @@ async def upload_project_files(project_id: int, files: list[UploadFile] = File(.
     if file_records is None:
         raise HTTPException(status_code=404, detail="项目不存在")
     return file_records
+
+
+@app.get("/api/projects/{project_id}/m3-materials", response_model=M3MaterialsResponse)
+def get_project_m3_materials(project_id: int) -> dict:
+    materials = get_store().get_m3_materials(project_id)
+    if materials is None:
+        raise HTTPException(status_code=404, detail="项目不存在")
+    return materials
+
+
+@app.post("/api/projects/{project_id}/m3-materials", response_model=M3MaterialsResponse)
+async def save_project_m3_materials(
+    project_id: int,
+    texts: str = Form("{}"),
+    purposes: list[str] = Form([]),
+    files: list[UploadFile] = File([]),
+) -> dict:
+    _ensure_ppt_engine_path()
+    from ppt_engine.renderer import M3_FULL_IMAGE_FIELDS
+
+    project = get_store().get_project(project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="项目不存在")
+    if len(files) != len(purposes):
+        raise HTTPException(status_code=400, detail="图片文件数量和用途数量必须一致")
+
+    normalized_texts = _validate_m3_material_texts(texts)
+    upload_items: list[tuple[str, str, str, bytes]] = []
+    for purpose, upload in zip(purposes, files):
+        if purpose not in M3_FULL_IMAGE_FIELDS:
+            raise HTTPException(status_code=400, detail=f"非法图片用途：{purpose}")
+        if not (upload.content_type or "").startswith("image/"):
+            raise HTTPException(status_code=400, detail=f"文件不是图片：{upload.filename}")
+        blob = await upload.read()
+        _validate_image_blob(blob)
+        upload_items.append((
+            purpose,
+            upload.filename or "upload",
+            upload.content_type or "application/octet-stream",
+            blob,
+        ))
+
+    saved = get_store().save_m3_materials(project_id, normalized_texts, upload_items)
+    if saved is None:
+        raise HTTPException(status_code=404, detail="项目不存在")
+    return saved
 
 
 @app.post("/api/projects/{project_id}/analyze", response_model=ClassificationResult)
