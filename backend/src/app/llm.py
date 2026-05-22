@@ -91,7 +91,7 @@ def test_llm_connection(prompt: str) -> dict[str, Any]:
     }
 
     try:
-        with httpx.Client(timeout=60.0, trust_env=False) as client:
+        with httpx.Client(timeout=60.0, trust_env=False, follow_redirects=True) as client:
             response = client.post(base_url, headers=headers, json=payload)
         status_code = response.status_code
         response.raise_for_status()

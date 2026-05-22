@@ -115,7 +115,7 @@ def main() -> int:
     print(f"Request model: {model}")
 
     try:
-        with httpx.Client(timeout=60.0, trust_env=args.use_env_proxy) as client:
+        with httpx.Client(timeout=60.0, trust_env=args.use_env_proxy, follow_redirects=True) as client:
             response = client.post(base_url, headers=headers, json=payload)
         print(f"HTTP status: {response.status_code}")
         response.raise_for_status()
