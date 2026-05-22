@@ -76,6 +76,9 @@ type ClassificationResult = {
   confidence?: number;
   matched_keywords?: string[];
   detection_evidence?: Array<{ project_type?: string; keyword?: string; source?: string; snippet?: string }>;
+  classification_method?: string;
+  llm_reasoning_summary?: string;
+  fallback_reason?: string;
   template_selection?: {
     M1_M2?: { template_key?: string; template_path?: string; template_name?: string; template_filename?: string };
     M5?: { template_key?: string; template_path?: string; template_name?: string; template_filename?: string };
@@ -154,6 +157,7 @@ export default function HomePage() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [uploadedFiles, setUploadedFiles] = useState<StoredFile[]>([]);
   const [classification, setClassification] = useState<ClassificationResult | null>(null);
+  const [showClassificationDetails, setShowClassificationDetails] = useState(false);
   const [reviewForm, setReviewForm] = useState<ReviewForm>({ projectType: "", m1m2Template: "", caseId: undefined, m3Selection: "m3_template", notes: "" });
   const [m1m2TestFiles, setM1m2TestFiles] = useState<File[]>([]);
   const [m1m2TestProjectName, setM1m2TestProjectName] = useState("M1/M2选择测试项目");
@@ -385,6 +389,7 @@ export default function HomePage() {
       setUploadedFiles([]);
       setUploadSuccess(false);
       setClassification(null);
+      setShowClassificationDetails(false);
       setReviewForm({ projectType: "", m1m2Template: "", caseId: undefined, m3Selection: "m3_template", notes: "" });
       setActiveView("projects");
       window.location.hash = "projects";
@@ -423,6 +428,7 @@ export default function HomePage() {
       await requestJson(`/api/projects/${currentProject.project_id}/analyze`, { method: "POST" });
       const result = await requestJson<ClassificationResult>(`/api/projects/${currentProject.project_id}/classification`);
       setClassification(result);
+      setShowClassificationDetails(false);
       setCurrentProject(await requestJson<Project>(`/api/projects/${currentProject.project_id}`));
       setMessage("识别结果已返回，请确认项目类型、模板与案例。");
     } catch (error) {
@@ -946,7 +952,7 @@ export default function HomePage() {
                       <span className={`project-status-badge ${getProjectStatusClass(project.task_status)}`}>{project.task_status}</span>
                     </label>
                   ) : (
-                    <button className={currentProject?.project_id === project.project_id ? "projectItem selected" : "projectItem"} key={project.project_id} onClick={() => { setCurrentProject(project); setTask(null); setClassification(null); }} type="button"><strong>{project.project_name}</strong><span className={`project-status-badge ${getProjectStatusClass(project.task_status)}`}>{project.task_status}</span></button>
+                    <button className={currentProject?.project_id === project.project_id ? "projectItem selected" : "projectItem"} key={project.project_id} onClick={() => { setCurrentProject(project); setTask(null); setClassification(null); setShowClassificationDetails(false); }} type="button"><strong>{project.project_name}</strong><span className={`project-status-badge ${getProjectStatusClass(project.task_status)}`}>{project.task_status}</span></button>
                   ))}</div>
                   {hasMoreProjects ? (
                     <div className="projectListFooter">
@@ -1071,6 +1077,7 @@ export default function HomePage() {
                           <span>M1/M2 选用模板</span>
                           <strong>{firstTemplateName(classification.template_selection?.M1_M2)}</strong>
                           <p>用于行业背景、技术标准、项目概况与现场挑战的固化模板字段替换。</p>
+                          <button className="secondaryButton btn-xs" onClick={() => setShowClassificationDetails((value) => !value)} type="button">{showClassificationDetails ? "收起分析依据" : "查看分析依据"}</button>
                         </article>
                         <article className="resultCard">
                           <span>M5 推荐案例</span>
@@ -1083,6 +1090,65 @@ export default function HomePage() {
                           <p>默认使用企业背书与荣誉固定模板，可由后端补充替换字段。</p>
                         </article>
                       </div>
+                      {showClassificationDetails ? (
+                        <div className="evidencePanel">
+                          <div className="sectionHeader">
+                            <h3>M1/M2 分析依据</h3>
+                            <span className="badge">classification_detail</span>
+                          </div>
+                          <div className="resultGrid">
+                            <article className="resultCard">
+                              <span>识别到的项目类型</span>
+                              <strong>{labelForProjectType(classification.detected_project_type)}</strong>
+                              <p>project_type：{classification.detected_project_type ?? "待识别"}</p>
+                            </article>
+                            <article className="resultCard">
+                              <span>对应 PPT 模板</span>
+                              <strong>{firstTemplateName(classification.template_selection?.M1_M2)}</strong>
+                              <p>只选择既有 M1/M2 固化模板，不动态生成整章内容。</p>
+                            </article>
+                            <article className="resultCard">
+                              <span>confidence</span>
+                              <strong>{classification.confidence ? `${Math.round(classification.confidence * 100)}%` : "待识别"}</strong>
+                              <p>供前端人工确认时参考。</p>
+                            </article>
+                            <article className="resultCard">
+                              <span>matched_keywords</span>
+                              <strong>{classification.matched_keywords?.join("、") || "待识别"}</strong>
+                              <p>命中关键词来自项目名称、文件名和解析文本。</p>
+                            </article>
+                            <article className="resultCard">
+                              <span>分类方式</span>
+                              <strong>{classification.classification_method === "llm" ? "LLM" : classification.classification_method === "rule_fallback" ? "规则 fallback" : "待识别"}</strong>
+                              <p>{classification.fallback_reason || "LLM 可用时优先使用模板画像判断。"}</p>
+                            </article>
+                            <article className="resultCard">
+                              <span>LLM 判断理由</span>
+                              <strong>{classification.llm_reasoning_summary || "暂无"}</strong>
+                              <p>模型只判断模板类型，不动态生成 M1/M2 内容。</p>
+                            </article>
+                          </div>
+                          <div className="sectionHeader">
+                            <h3>判断依据</h3>
+                            <span className="badge">detection_evidence</span>
+                          </div>
+                          {classification.detection_evidence?.length ? (
+                            <div className="evidenceList">
+                              {classification.detection_evidence.map((item, index) => (
+                                <article className="evidenceItem" key={`${item.keyword}-${item.source}-${index}`}>
+                                  <div>
+                                    <strong>{item.keyword || "关键词"}</strong>
+                                    <span>{item.source || "来源未知"}</span>
+                                  </div>
+                                  <p>{item.snippet || "未返回 snippet"}</p>
+                                </article>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="messageLine">未返回明确命中依据，请检查 PDF 是否可提取文本。</p>
+                          )}
+                        </div>
+                      ) : null}
                                             <form className="confirmationGrid" onSubmit={(event) => { event.preventDefault(); submitClassificationReview(); }}>
                         <label>确认项目类型<select aria-label="确认项目类型" value={reviewForm.projectType} onChange={(event) => setReviewForm((value) => ({ ...value, projectType: event.target.value }))}>{projectTypes.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
                         <label>确认 M1/M2 模板<select aria-label="确认 M1/M2 模板" value={reviewForm.m1m2Template} onChange={(event) => setReviewForm((value) => ({ ...value, m1m2Template: event.target.value }))}>{m1m2Templates.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
@@ -1335,6 +1401,16 @@ export default function HomePage() {
                 <span>matched_keywords</span>
                 <strong>{m1m2TestResult?.matched_keywords?.join("、") || "待识别"}</strong>
                 <p>命中关键词来自项目名称、文件名和解析文本。</p>
+              </article>
+              <article className="resultCard">
+                <span>分类方式</span>
+                <strong>{m1m2TestResult?.classification_method === "llm" ? "LLM" : m1m2TestResult?.classification_method === "rule_fallback" ? "规则 fallback" : "待识别"}</strong>
+                <p>{m1m2TestResult?.fallback_reason || "LLM 可用时优先使用模板画像判断。"}</p>
+              </article>
+              <article className="resultCard">
+                <span>LLM 判断理由</span>
+                <strong>{m1m2TestResult?.llm_reasoning_summary || "暂无"}</strong>
+                <p>模型只判断模板类型，不动态生成 M1/M2 内容。</p>
               </article>
             </div>
             <div className="evidencePanel">

@@ -38,6 +38,15 @@ class BackendApiTest(unittest.TestCase):
         os.environ["ZHONGCHI_DATA_DIR"] = self.temp_dir.name
         self._old_merge_engine = os.environ.get("ZHONGCHI_PPT_MERGE_ENGINE")
         os.environ["ZHONGCHI_PPT_MERGE_ENGINE"] = "python-pptx"
+        self._old_llm_env = {
+            "ZHONGCHI_LLM_BASE_URL": os.environ.get("ZHONGCHI_LLM_BASE_URL"),
+            "ZHONGCHI_LLM_API_KEY": os.environ.get("ZHONGCHI_LLM_API_KEY"),
+            "ZHONGCHI_LLM_MODEL": os.environ.get("ZHONGCHI_LLM_MODEL"),
+            "ZHONGCHI_M1M2_LLM_ENABLED": os.environ.get("ZHONGCHI_M1M2_LLM_ENABLED"),
+        }
+        for name in self._old_llm_env:
+            os.environ.pop(name, None)
+        os.environ["ZHONGCHI_M1M2_LLM_ENABLED"] = "0"
 
         from fastapi.testclient import TestClient
 
@@ -51,6 +60,11 @@ class BackendApiTest(unittest.TestCase):
             os.environ.pop("ZHONGCHI_PPT_MERGE_ENGINE", None)
         else:
             os.environ["ZHONGCHI_PPT_MERGE_ENGINE"] = self._old_merge_engine
+        for name, old_value in self._old_llm_env.items():
+            if old_value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = old_value
 
     def test_project_create_list_and_detail(self):
         response = self.client.post(
@@ -258,6 +272,88 @@ class BackendApiTest(unittest.TestCase):
         self.assertIn("南京地铁声屏障项目", final_text)
         self.assertNotIn("{{m3_", final_text)
         self.assertNotIn("工程量与施工周期测算", final_text)
+
+    def test_analyze_project_uses_llm_classifier_when_available(self):
+        os.environ["ZHONGCHI_M1M2_LLM_ENABLED"] = "1"
+        project_id = self.client.post(
+            "/api/projects",
+            json={"project_name": "普通高速公路项目", "product_line": "公路声屏障"},
+        ).json()["project_id"]
+        self.client.post(
+            f"/api/projects/{project_id}/files",
+            files=[("files", ("高速项目简介.pdf", b"highway noise barrier", "application/pdf"))],
+        )
+
+        llm_result = {
+            "project_type": "railway",
+            "confidence": 0.88,
+            "matched_keywords": ["铁路", "声屏障"],
+            "evidence": [
+                {
+                    "project_type": "railway",
+                    "keyword": "铁路",
+                    "source": "LLM",
+                    "snippet": "资料描述为铁路声屏障项目",
+                }
+            ],
+            "reasoning_summary": "模型根据模板画像判断该项目更接近铁路声屏障模板。",
+        }
+
+        with patch("app.m1m2_classifier.call_llm_project_classifier", return_value=llm_result):
+            response = self.client.post(f"/api/projects/{project_id}/analyze")
+
+        self.assertEqual(response.status_code, 200)
+        classification = response.json()
+        self.assertEqual(classification["detected_project_type"], "railway")
+        self.assertEqual(classification["template_selection"]["M1_M2"]["template_key"], "railway")
+        self.assertEqual(classification["classification_method"], "llm")
+        self.assertEqual(classification["llm_reasoning_summary"], "模型根据模板画像判断该项目更接近铁路声屏障模板。")
+        self.assertEqual(classification["fallback_reason"], "")
+
+    def test_analyze_project_falls_back_to_rules_when_llm_fails(self):
+        os.environ["ZHONGCHI_M1M2_LLM_ENABLED"] = "1"
+        project_id = self.client.post(
+            "/api/projects",
+            json={"project_name": "南京地铁声屏障项目", "product_line": "轨道交通声屏障"},
+        ).json()["project_id"]
+        self.client.post(
+            f"/api/projects/{project_id}/files",
+            files=[("files", ("南京地铁项目简介.pdf", b"metro line noise barrier", "application/pdf"))],
+        )
+
+        with patch("app.m1m2_classifier.call_llm_project_classifier", side_effect=RuntimeError("llm down")):
+            response = self.client.post(f"/api/projects/{project_id}/analyze")
+
+        self.assertEqual(response.status_code, 200)
+        classification = response.json()
+        self.assertEqual(classification["detected_project_type"], "metro")
+        self.assertEqual(classification["template_selection"]["M1_M2"]["template_key"], "metro")
+        self.assertEqual(classification["classification_method"], "rule_fallback")
+        self.assertIn("llm down", classification["fallback_reason"])
+
+    def test_analyze_project_falls_back_to_rules_when_llm_returns_invalid_project_type(self):
+        os.environ["ZHONGCHI_M1M2_LLM_ENABLED"] = "1"
+        project_id = self.client.post(
+            "/api/projects",
+            json={"project_name": "高速公路声屏障项目", "product_line": "公路声屏障"},
+        ).json()["project_id"]
+        self.client.post(
+            f"/api/projects/{project_id}/files",
+            files=[("files", ("高速公路项目简介.pdf", b"highway noise barrier", "application/pdf"))],
+        )
+
+        with patch(
+            "app.m1m2_classifier.call_llm_project_classifier",
+            return_value={"project_type": "airport", "confidence": 0.92, "matched_keywords": ["机场"]},
+        ):
+            response = self.client.post(f"/api/projects/{project_id}/analyze")
+
+        self.assertEqual(response.status_code, 200)
+        classification = response.json()
+        self.assertEqual(classification["detected_project_type"], "highway")
+        self.assertEqual(classification["template_selection"]["M1_M2"]["template_key"], "highway")
+        self.assertEqual(classification["classification_method"], "rule_fallback")
+        self.assertIn("非法 project_type", classification["fallback_reason"])
 
     def test_generate_omits_m5_when_review_confirms_no_case(self):
         project_id = self.client.post(

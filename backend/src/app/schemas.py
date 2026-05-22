@@ -67,6 +67,9 @@ class ClassificationResult(BaseModel):
     confidence: float
     matched_keywords: list[str] = Field(default_factory=list)
     detection_evidence: list[dict[str, Any]] = Field(default_factory=list)
+    classification_method: str = "rule_fallback"
+    llm_reasoning_summary: str = ""
+    fallback_reason: str = ""
     template_selection: dict[str, Any] = Field(default_factory=dict)
     case_selection: dict[str, Any] = Field(default_factory=dict)
     missing_fields: list[str] = Field(default_factory=list)

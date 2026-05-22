@@ -45,6 +45,7 @@ test("[静态] page.tsx 源码中包含主要 workflow section 的文本标记",
     "系统将自动识别资料用途",
     "识别结果确认",
     "确认项目类型与模板",
+    "查看分析依据",
     "案例库管理",
     "功能测试",
     "M1/M2选择测试",
@@ -91,6 +92,11 @@ test("[静态] page.tsx 源码中包含 M1/M2 测试视图的关键 UI 元素标
     "识别到的项目类型",
     "对应 PPT 模板",
     "matched_keywords",
+    "分类方式",
+    "LLM 判断理由",
+    "classification_method",
+    "llm_reasoning_summary",
+    "fallback_reason",
     "判断依据",
     "detection_evidence",
     "snippet",
@@ -99,6 +105,20 @@ test("[静态] page.tsx 源码中包含 M1/M2 测试视图的关键 UI 元素标
 
   assert.doesNotMatch(source, /m1m2TestProductLine/);
   assert.match(source, /product_line: ""/);
+});
+
+test("[静态] 正式识别结果确认页包含 M1/M2 分析依据展开入口", () => {
+  const source = pageSource();
+  [
+    "showClassificationDetails",
+    "setShowClassificationDetails",
+    "查看分析依据",
+    "收起分析依据",
+    "分类方式",
+    "LLM 判断理由",
+    "fallback_reason",
+    "detection_evidence",
+  ].forEach((text) => assert.match(source, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))));
 });
 
 test("[静态] page.tsx 使用侧边栏视图结构和正确的品牌文案", () => {

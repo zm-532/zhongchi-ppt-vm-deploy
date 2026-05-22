@@ -20,6 +20,7 @@ from .constants import (
     PROJECT_TYPES,
 )
 from .document_analysis import analyze_document
+from .m1m2_classifier import M1M2Classification, classify_m1_m2_project
 from .ppt_generation import render_project_ppt
 
 
@@ -352,7 +353,7 @@ class JsonStore:
             "snippet": " ".join(snippet.split()),
         }
 
-    def _detect_project_type(self, project: dict[str, Any], files: list[dict[str, Any]]) -> tuple[str, float, list[str], list[dict[str, str]]]:
+    def _detect_project_type_by_rules(self, project: dict[str, Any], files: list[dict[str, Any]]) -> M1M2Classification:
         sources = self._detection_sources(project, files)
         text = " ".join(source_text for _, source_text in sources).lower()
         candidates = [
@@ -374,8 +375,13 @@ class JsonStore:
             scores.append((len(matched), project_type, matched, evidence))
         score, project_type, matched_keywords, detection_evidence = max(scores, key=lambda item: item[0])
         if score == 0:
-            return "metro", 0.35, [], []
-        return project_type, min(0.95, 0.55 + score * 0.12), matched_keywords, detection_evidence
+            return M1M2Classification("metro", 0.35, [], [], "rule_fallback", fallback_reason="规则未命中关键词，默认使用地铁模板")
+        return M1M2Classification(project_type, min(0.95, 0.55 + score * 0.12), matched_keywords, detection_evidence, "rule_fallback")
+
+    def _detect_project_type(self, project: dict[str, Any], files: list[dict[str, Any]]) -> M1M2Classification:
+        sources = self._detection_sources(project, files)
+        rule_result = self._detect_project_type_by_rules(project, files)
+        return classify_m1_m2_project(project, sources, rule_result)
 
     def _template_selection(self, project_type: str) -> dict[str, Any]:
         template_filename = M1_M2_TEMPLATE_FILENAMES.get(project_type, M1_M2_TEMPLATE_FILENAMES["metro"])
@@ -460,7 +466,11 @@ class JsonStore:
                 file_record["parsed_text_path"] = ""
 
         self._set_project_status(project, "类型识别中")
-        project_type, confidence, matched_keywords, detection_evidence = self._detect_project_type(project, project_files)
+        classification_result = self._detect_project_type(project, project_files)
+        project_type = classification_result.project_type
+        confidence = classification_result.confidence
+        matched_keywords = classification_result.matched_keywords
+        detection_evidence = classification_result.detection_evidence
 
         # 提取项目标签用于案例匹配（综合项目基础信息、文件名和解析文本）
         combined_text_parts = [
@@ -520,6 +530,9 @@ class JsonStore:
             "confidence": confidence,
             "matched_keywords": matched_keywords,
             "detection_evidence": detection_evidence,
+            "classification_method": classification_result.classification_method,
+            "llm_reasoning_summary": classification_result.llm_reasoning_summary,
+            "fallback_reason": classification_result.fallback_reason,
             "template_selection": template_selection,
             "case_selection": case_selection,
             "missing_fields": ["线路名称", "现场痛点确认"],
