@@ -23,10 +23,11 @@
  */
 
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import test from "node:test";
 
 const pageSource = () => readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
+const repoRoot = new URL("../../", import.meta.url);
 
 // ============================================================================
 // 源码静态检查 - UI 结构存在性
@@ -105,6 +106,38 @@ test("[静态] page.tsx 源码中包含 M1/M2 测试视图的关键 UI 元素标
 
   assert.doesNotMatch(source, /m1m2TestProductLine/);
   assert.match(source, /product_line: ""/);
+});
+
+test("[静态] 项目文档收敛为根 README 和技术文档", () => {
+  const markdownFiles = [];
+  const walk = (url, prefix = "") => {
+    for (const entry of readdirSync(url, { withFileTypes: true })) {
+      if (entry.name === "node_modules" || entry.name === ".next" || entry.name === ".git" || entry.name === ".venv" || entry.name === ".pytest_cache") continue;
+      const nextPrefix = prefix ? `${prefix}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) {
+        walk(new URL(`${nextPrefix}/`, repoRoot), nextPrefix);
+      } else if (entry.name.endsWith(".md")) {
+        markdownFiles.push(nextPrefix.replaceAll("\\", "/"));
+      }
+    }
+  };
+  walk(repoRoot);
+  assert.deepEqual(markdownFiles.sort(), ["README.md", "技术文档.md"].sort());
+});
+
+test("[静态] 根文档和页面元信息不再保留旧流程口径", () => {
+  const readRoot = (name) => readFileSync(new URL(name, repoRoot), "utf8");
+  const source = `${readRoot("README.md")}\n${readRoot("技术文档.md")}\n${readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8")}`;
+  [
+    "上传 M1/M2/M5/M6",
+    "M3/M4 不生成",
+    "END_TO_END",
+    "127.0.0.1:8000",
+    "按模块上传材料",
+  ].forEach((text) => assert.doesNotMatch(source, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))));
+  assert.match(source, /统一上传项目资料/);
+  assert.match(source, /M1\/M2 LLM 分类器/);
+  assert.match(source, /查看分析依据/);
 });
 
 test("[静态] 正式识别结果确认页包含 M1/M2 分析依据展开入口", () => {

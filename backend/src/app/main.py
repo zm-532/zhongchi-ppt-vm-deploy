@@ -141,8 +141,14 @@ def patch_project(project_id: int, payload: ProjectUpdate) -> dict:
     return updated
 
 
-@app.post("/api/projects/{project_id}/modules/{module_id}/files", response_model=StoredFile, status_code=status.HTTP_201_CREATED)
+@app.post(
+    "/api/projects/{project_id}/modules/{module_id}/files",
+    response_model=StoredFile,
+    status_code=status.HTTP_201_CREATED,
+    deprecated=True,
+)
 async def upload_module_file(project_id: int, module_id: str, file: UploadFile = File(...)) -> dict:
+    """兼容历史模块上传测试接口；正式流程请使用 /api/projects/{project_id}/files。"""
     validate_module_id(module_id)
     validate_extension(file.filename or "")
     content = await file.read()
@@ -264,6 +270,8 @@ def generate_project(project_id: int) -> dict:
             "status_history": reviewed_project["status_history"],
             "modules": reviewed_project["modules"],
         }
+    # 兼容旧 mock 链路：历史测试会在未 classification/review 时直接 generate + review。
+    # 正式流程应先调用 /classification/review，再由 generate_reviewed_project 生成。
     project = get_store().generate_mock_outline(project_id)
     if project is None:
         raise HTTPException(status_code=404, detail="项目不存在")
@@ -278,8 +286,9 @@ def get_project_task(project_id: int) -> dict:
     return {"project_id": project_id, "task_status": project["task_status"], "status_history": project["status_history"], "modules": project["modules"]}
 
 
-@app.post("/api/projects/{project_id}/review")
+@app.post("/api/projects/{project_id}/review", deprecated=True)
 def review_project(project_id: int, payload: ReviewRequest) -> dict:
+    """兼容旧 mock 人工确认接口；正式流程请使用 /classification/review。"""
     project = get_store().review_project(project_id, payload.approved, payload.notes)
     if project is None:
         raise HTTPException(status_code=404, detail="项目不存在")
@@ -320,8 +329,9 @@ def download_project(project_id: int) -> FileResponse:
     return FileResponse(final_path, filename=Path(final_path).name)
 
 
-@app.get("/api/assets")
+@app.get("/api/assets", deprecated=True)
 def list_assets(module_id: str | None = None) -> list[dict]:
+    """兼容旧资产调试查询接口，不作为正式生成主流程入口。"""
     if module_id is not None:
         validate_module_id(module_id)
     return get_store().get_assets(module_id)
