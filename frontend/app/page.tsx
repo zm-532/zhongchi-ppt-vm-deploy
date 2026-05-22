@@ -1041,10 +1041,6 @@ export default function HomePage() {
                     <div className="fileList">
                       {(selectedFiles.length ? selectedFiles : uploadedFiles).map((file) => <span key={"name" in file ? file.name : file.file_id}>{"name" in file ? file.name : file.filename}</span>)}
                     </div>
-                    <div className="upload-actions-bar">
-                      <button className="primaryButton" disabled={busy} onClick={uploadProjectFiles} type="button">统一上传项目资料</button>
-                      <button className="secondaryButton" disabled={busy} onClick={analyzeProject} type="button">开始识别资料</button>
-                    </div>
                     {uploadSuccess && <div className="uploadSuccess">上传成功，已上传 {uploadedFiles.length} 个文件</div>}
                   </div>
                   <div className="m3-material-entry">
@@ -1055,8 +1051,11 @@ export default function HomePage() {
                     <p>已填写 {m3MaterialsResult?.text_completed_count ?? 0}/{m3MaterialsResult?.text_total_count ?? 9} 个部分，已上传 {m3MaterialsResult?.image_count ?? 0} 张图片</p>
                     <a className="secondaryButton" href="#project-m3-materials">进入M3资料上传</a>
                   </div>
-                  <div className="futureModules"><strong>M3 已接入正式生成，M4 暂不生成</strong><span>M3 使用项目级资料上传的文字和图片生成；未填写内容会按占位兜底处理。</span></div>
-                </section>
+                  <div className="upload-actions-bar">
+                    <button className="primaryButton" disabled={busy} onClick={uploadProjectFiles} type="button">统一上传项目资料</button>
+                    <button className="secondaryButton" disabled={busy} onClick={analyzeProject} type="button">开始识别资料</button>
+                  </div>
+                                  </section>
 
                 <section className="section">
                   <div className="sectionHeader"><h2>识别结果确认</h2><span className="badge">确认项目类型与模板</span></div>
@@ -1075,7 +1074,7 @@ export default function HomePage() {
                         </article>
                         <article className="resultCard">
                           <span>M5 推荐案例</span>
-                          <strong>{recommendedCases[0]?.title ?? "暂无高匹配案例"}</strong>
+                          <strong>{recommendedCases[0]?.title ?? "M5案例示例"}</strong>
                           <p>{recommendedCases[0]?.match_reason ?? "系统未返回高匹配案例时，请在人工确认时补充选择。"}</p>
                         </article>
                         <article className="resultCard">
@@ -1084,11 +1083,7 @@ export default function HomePage() {
                           <p>默认使用企业背书与荣誉固定模板，可由后端补充替换字段。</p>
                         </article>
                       </div>
-                      <div className="missingFields compact-warning">
-                        <strong>缺失字段</strong>
-                        <div>{classification.missing_fields?.length ? classification.missing_fields.map((field) => <span key={field}>{field}</span>) : <span>暂无缺失字段</span>}</div>
-                      </div>
-                      <form className="confirmationGrid" onSubmit={(event) => { event.preventDefault(); submitClassificationReview(); }}>
+                                            <form className="confirmationGrid" onSubmit={(event) => { event.preventDefault(); submitClassificationReview(); }}>
                         <label>确认项目类型<select aria-label="确认项目类型" value={reviewForm.projectType} onChange={(event) => setReviewForm((value) => ({ ...value, projectType: event.target.value }))}>{projectTypes.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
                         <label>确认 M1/M2 模板<select aria-label="确认 M1/M2 模板" value={reviewForm.m1m2Template} onChange={(event) => setReviewForm((value) => ({ ...value, m1m2Template: event.target.value }))}>{m1m2Templates.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
                         <label>确认 M3 模块<select aria-label="确认 M3 模块" value={reviewForm.m3Selection} onChange={(event) => setReviewForm((value) => ({ ...value, m3Selection: event.target.value }))}><option value="m3_template">M3模板</option><option value="m3_skip">暂不选择</option></select></label>
