@@ -18,23 +18,7 @@ const m1m2Templates = [
   { value: "railway", label: "铁路声屏障行业背景与技术发展（M1_&_M2）.pptx" },
 ];
 
-const M3_ACTIVE_REPLACEMENT_FIELDS = [
-  "m3_basic_summary",
-  "m3_quantity_summary",
-  "m3_site_survey_summary",
-  "m3_risk_summary",
-  "m3_solution_summary",
-];
-
 const M5_DEMO_CASE = { case_id: "m5_demo", title: "M5示例案例", match_reason: "演示全流程使用的固定 M5 案例模板。" };
-
-const M3_IMAGE_PURPOSE_OPTIONS = [
-  { value: "project_scope_map", label: "项目建设范围图", ratio: "16:9" },
-  { value: "project_line_map", label: "项目线路图", ratio: "16:9" },
-  { value: "survey_route_map", label: "踏勘路线/点位图", ratio: "16:9" },
-  { value: "site_survey_photos", label: "现场踏勘照片组", ratio: "4:3 / 16:9" },
-  { value: "key_difficulty_evidence", label: "重难点证据图", ratio: "16:9" },
-];
 
 const M3_FULL_SECTIONS = [
   { title: "项目基本情况", textField: "m3_basic_summary", imageField: "image:m3_basic" },
@@ -52,7 +36,7 @@ const DEFAULT_M3_FULL_TEXTS = Object.fromEntries(
   M3_FULL_SECTIONS.map((section) => [section.textField, `${section.title}测试文字`])
 ) as Record<string, string>;
 
-type ViewId = "projects" | "create" | "cases" | "project-m3-materials" | "function-tests" | "m1m2-test" | "m5-test" | "document-parse-test" | "llm-test" | "m3-test" | "m3-image-test" | "m3-full-test";
+type ViewId = "projects" | "create" | "cases" | "project-m3-materials" | "function-tests" | "m1m2-test" | "m3-full-test" | "m5-test" | "document-parse-test" | "llm-test";
 type Project = {
   project_id: number;
   project_name: string;
@@ -62,6 +46,15 @@ type Project = {
   task_status: string;
   status_history?: string[];
   final_ppt_path?: string;
+  quality_report?: QualityReport;
+};
+type QualityReport = {
+  passed?: boolean;
+  severity?: "pass" | "warning" | "error" | string;
+  errors?: string[];
+  warnings?: string[];
+  checks?: Array<{ name?: string; passed?: boolean; severity?: string; message?: string }>;
+  checked_at?: string;
 };
 type StoredFile = { file_id: number; filename: string; content_type?: string; document_role?: string; assigned_modules?: string[]; parse_status?: string; text_preview?: string; error_message?: string };
 type CaseSelection = {
@@ -88,11 +81,10 @@ type ClassificationResult = {
   missing_fields?: string[];
   files?: StoredFile[];
 };
-type TaskState = { project_id: number; task_status: string; status_history: string[] };
+type TaskState = { project_id: number; task_status: string; status_history: string[]; quality_report?: QualityReport };
 type ReviewForm = { projectType: string; m1m2Template: string; caseId?: string; m3Selection: string; notes: string };
 type RecommendedCase = { case_id: number | string; title: string; match_reason?: string; matched_tags?: string[]; source_path?: string };
 type LlmTestResult = { ok: boolean; status_code: number; model: string; reply: string; error: string; configured: Record<string, boolean> };
-type M3ImageTestResult = { ok: boolean; pptx_path: string; download_url: string; image_summary: Record<string, number> };
 type M3FullTestResult = { ok: boolean; pptx_path: string; download_url: string; slide_count: number; image_summary: Record<string, number> };
 type M3MaterialImage = { purpose: string; filename: string; content_type?: string; stored_path: string };
 type M3MaterialsResult = {
@@ -115,12 +107,10 @@ const viewTitles: Record<ViewId, { title: string; description: string }> = {
   "project-m3-materials": { title: "M3资料上传", description: "按 M3 九部分维护项目深化方案文字和图片资料。" },
   "function-tests": { title: "功能测试", description: "开发过程验证入口，收纳内部功能测试页面，普通前端用户无需使用。" },
   "m1m2-test": { title: "M1/M2选择测试", description: "上传测试资料，根据文件名和解析文本识别项目类型并选择对应 M1/M2 固化模板。" },
+  "m3-full-test": { title: "M3完整测试", description: "按 M3 九部分测试文字与图片占位符替换，多图自动扩页。" },
   "m5-test": { title: "M5选择测试", description: "上传测试资料，根据项目标签从案例库匹配相似案例并显示匹配理由。" },
   "document-parse-test": { title: "文档解析测试", description: "用于测试不同格式资料的文本与结构化解析效果。" },
   "llm-test": { title: "大模型测试", description: "调用后端开发测试接口，验证当前 LLM 环境变量和中转站请求是否可用。" },
-  "m3-test": { title: "M3文字替换测试", description: "将模拟资料文本替换到 M3 项目深化方案模板，验证独立 M3 文字替换功能。" },
-  "m3-image-test": { title: "M3图片替换测试", description: "上传 M3 图片素材并按固定用途替换到独立图片测试模板。" },
-  "m3-full-test": { title: "M3完整测试", description: "按 M3 九部分测试文字与图片占位符替换，多图自动扩页。" },
 };
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
@@ -147,6 +137,13 @@ function getProjectStatusClass(status: string) {
   if (status.includes("失败") || status.includes("错误")) return "status-error";
   if (status.includes("中")) return "status-running";
   return "status-idle";
+}
+
+function qualityReportLabel(report?: QualityReport) {
+  if (!report) return "待检查";
+  if (report.severity === "error" || report.passed === false) return "检查失败";
+  if (report.severity === "warning" || (report.warnings?.length ?? 0) > 0) return "有风险";
+  return "通过";
 }
 
 export default function HomePage() {
@@ -189,21 +186,6 @@ export default function HomePage() {
   const [llmTestResult, setLlmTestResult] = useState<LlmTestResult | null>(null);
   const [llmTestMessage, setLlmTestMessage] = useState("点击按钮后将通过后端调用大模型测试接口。");
 
-  // M3 Text Replacement Test
-  const [m3TestProjectName, setM3TestProjectName] = useState("南京地铁3号线声屏障改造工程");
-  const [m3TestProjectLocation, setM3TestProjectLocation] = useState("南京");
-  const [m3TestOwnerUnit, setM3TestOwnerUnit] = useState("南京地铁集团");
-  const [m3TestProductLine, setM3TestProductLine] = useState("轨道交通声屏障");
-  const [m3TestSources, setM3TestSources] = useState(
-    "项目位于南京地铁3号线既有线区间，涉及多个敏感点路段，全线约15公里。\n现场踏勘发现施工窗口受限，部分区段需要桥下吊装，采用全封闭声屏障结构形式。\n工程量统计：声屏障长度约12km，护栏吸声板约2000㎡。\n风险分析：工期紧张，夜间施工风压控制是重难点，需要工装TEKLA定位和抗风支架防松动措施。"
-  );
-  const [m3TestResult, setM3TestResult] = useState<{ok: boolean; pptx_path: string; download_url: string; replacements: Record<string, string>} | null>(null);
-  const [m3TestMessage, setM3TestMessage] = useState("请填写项目信息和模拟资料文本，点击按钮开始 M3 文字替换测试。");
-  const [m3ImageTestProjectName, setM3ImageTestProjectName] = useState("M3图片替换测试项目");
-  const [m3ImageTestFiles, setM3ImageTestFiles] = useState<File[]>([]);
-  const [m3ImageTestPurposes, setM3ImageTestPurposes] = useState<string[]>([]);
-  const [m3ImageTestResult, setM3ImageTestResult] = useState<M3ImageTestResult | null>(null);
-  const [m3ImageTestMessage, setM3ImageTestMessage] = useState("请选择图片并为每张图片指定用途。");
   const [m3FullTestProjectName, setM3FullTestProjectName] = useState("M3完整测试项目");
   const [m3FullTestTexts, setM3FullTestTexts] = useState<Record<string, string>>(DEFAULT_M3_FULL_TEXTS);
   const [m3FullTestFiles, setM3FullTestFiles] = useState<Record<string, File[]>>({});
@@ -237,6 +219,7 @@ export default function HomePage() {
     () => (task?.status_history ?? currentProject?.status_history ?? ["待上传"]).join(" -> "),
     [currentProject, task],
   );
+  const qualityReport = task?.quality_report ?? currentProject?.quality_report;
 
   useEffect(() => {
     function syncViewFromHash() {
@@ -249,10 +232,8 @@ export default function HomePage() {
         nextView === "m1m2-test" ||
         nextView === "m5-test" ||
         nextView === "document-parse-test" ||
-        nextView === "llm-test" ||
-        nextView === "m3-test" ||
-        nextView === "m3-image-test" ||
-        nextView === "m3-full-test"
+        nextView === "m3-full-test" ||
+        nextView === "llm-test"
           ? nextView
           : "projects"
       );
@@ -811,71 +792,6 @@ export default function HomePage() {
     }
   }
 
-  async function runM3RenderTest() {
-    if (!m3TestProjectName.trim()) return setM3TestMessage("请先填写项目名称。");
-    setBusy(true);
-    setM3TestResult(null);
-    try {
-      const result = await requestJson<{ok: boolean; pptx_path: string; download_url: string; replacements: Record<string, string>}>(
-        "/api/test/m3-render",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            project_name: m3TestProjectName,
-            project_location: m3TestProjectLocation,
-            owner_unit: m3TestOwnerUnit,
-            product_line: m3TestProductLine,
-            parsed_sources: m3TestSources.split("\n").filter((s) => s.trim()),
-          }),
-        }
-      );
-      setM3TestResult(result);
-      setM3TestMessage(result.ok ? "M3 PPTX 已生成，点击下载链接获取文件。" : "M3 渲染失败，请检查后端日志。");
-    } catch (error) {
-      setM3TestMessage(error instanceof Error ? error.message : "M3 测试失败");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function handleM3ImageTestFiles(files: File[]) {
-    setM3ImageTestFiles(files);
-    setM3ImageTestPurposes(files.map((_, index) => m3ImageTestPurposes[index] || "project_scope_map"));
-    setM3ImageTestResult(null);
-    setM3ImageTestMessage(files.length ? "请确认每张图片的用途，然后执行 M3 图片替换测试。" : "请选择图片并为每张图片指定用途。");
-  }
-
-  function updateM3ImageTestPurpose(index: number, purpose: string) {
-    setM3ImageTestPurposes((items) => items.map((item, itemIndex) => (itemIndex === index ? purpose : item)));
-  }
-
-  async function runM3ImageRenderTest() {
-    if (!m3ImageTestProjectName.trim()) return setM3ImageTestMessage("请先填写项目名称。");
-    if (m3ImageTestFiles.length === 0) return setM3ImageTestMessage("请先选择至少一张图片。");
-    const formData = new FormData();
-    formData.append("project_name", m3ImageTestProjectName);
-    m3ImageTestFiles.forEach((file, index) => {
-      formData.append("files", file);
-      formData.append("purposes", m3ImageTestPurposes[index] || "project_scope_map");
-    });
-
-    setBusy(true);
-    setM3ImageTestResult(null);
-    try {
-      const result = await requestJson<M3ImageTestResult>("/api/test/m3-image-render", {
-        method: "POST",
-        body: formData,
-      });
-      setM3ImageTestResult(result);
-      setM3ImageTestMessage(result.ok ? "M3 图片替换测试 PPTX 已生成，点击下载链接获取文件。" : "M3 图片替换测试失败。");
-    } catch (error) {
-      setM3ImageTestMessage(error instanceof Error ? error.message : "M3 图片替换测试失败");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   function updateM3FullTestText(field: string, value: string) {
     setM3FullTestTexts((items) => ({ ...items, [field]: value }));
   }
@@ -920,7 +836,7 @@ export default function HomePage() {
   }
 
   const pageTitle = viewTitles[activeView];
-  const isFunctionTestView = activeView === "function-tests" || activeView === "m1m2-test" || activeView === "m5-test" || activeView === "document-parse-test" || activeView === "llm-test" || activeView === "m3-test" || activeView === "m3-image-test" || activeView === "m3-full-test";
+  const isFunctionTestView = activeView === "function-tests" || activeView === "m1m2-test" || activeView === "m3-full-test" || activeView === "m5-test" || activeView === "document-parse-test" || activeView === "llm-test";
 
   return (
     <main className="shell">
@@ -1157,7 +1073,7 @@ export default function HomePage() {
                         <label>确认备注<input value={reviewForm.notes} onChange={(event) => setReviewForm((value) => ({ ...value, notes: event.target.value }))} placeholder="可填写模板或案例调整原因" /></label>
                         <button className="primaryButton" disabled={busy} type="submit">提交人工确认</button>
                       </form>
-                      <div className="actions" style={{ marginTop: "1rem" }}>
+                      <div className="actions actionsSpaced">
                         <button className="secondaryButton" disabled={busy} onClick={saveToVectorStore} type="button">确认存入向量库</button>
                       </div>
                     </>
@@ -1171,6 +1087,36 @@ export default function HomePage() {
                   <ol className="statusList">{statuses.map((status, index) => <li className={status === activeStatus ? "current" : (statuses.indexOf(status) < statuses.indexOf(activeStatus) ? "completed" : "pending")} key={status}><span>{index + 1}</span>{status}</li>)}</ol>
                   <div className="historyBox"><strong>状态历史</strong><span>{statusHistory}</span></div>
                   <p className="messageLine">{message}</p>
+                  {qualityReport ? (
+                    <div className="evidencePanel spaced">
+                      <div className="sectionHeader">
+                        <h3>质量检查结果</h3>
+                        <span className="badge">QAReviewAgent</span>
+                      </div>
+                      <div className="resultGrid">
+                        <article className="resultCard">
+                          <span>检查状态</span>
+                          <strong>{qualityReportLabel(qualityReport)}</strong>
+                          <p>第一版 QAReviewAgent 只做结果提示，不影响下载。</p>
+                        </article>
+                        <article className="resultCard">
+                          <span>检查时间</span>
+                          <strong>{qualityReport.checked_at || "未返回"}</strong>
+                          <p>passed：{String(Boolean(qualityReport.passed))}；severity：{qualityReport.severity || "unknown"}</p>
+                        </article>
+                        <article className="resultCard">
+                          <span>errors</span>
+                          <strong>{qualityReport.errors?.length ?? 0} 项</strong>
+                          <p>{(qualityReport.errors ?? []).slice(0, 3).join("；") || "未发现阻断级错误。"}</p>
+                        </article>
+                        <article className="resultCard">
+                          <span>warnings</span>
+                          <strong>{qualityReport.warnings?.length ?? 0} 项</strong>
+                          <p>{(qualityReport.warnings ?? []).slice(0, 3).join("；") || "未发现提示级风险。"}</p>
+                        </article>
+                      </div>
+                    </div>
+                  ) : null}
                   <div className="downloadRow"><div><h3>最终文件</h3><p id="finalFileDesc">生成完成后可下载 PPTX</p></div><div className="downloadActions"><button className="secondaryButton btn-xs" disabled={busy} onClick={downloadFinal} type="button">下载最终 PPTX</button><span className="badge">{activeStatus}</span></div></div>
                 </section>
               </>
@@ -1211,7 +1157,7 @@ export default function HomePage() {
                             rows={4}
                           />
                         </label>
-                        <label className="uploadBox" style={{ marginTop: "10px" }}>
+                        <label className="uploadBox uploadBoxSpaced">
                           <span>上传{section.title}图片（可多张）</span>
                           <input
                             name={`project_m3_material_${section.textField}`}
@@ -1294,6 +1240,14 @@ export default function HomePage() {
               </article>
               <article className="test-hub-card">
                 <div className="test-hub-card-header">
+                  <strong>M3完整测试</strong>
+                  <span className="test-hub-badge">M3完整</span>
+                </div>
+                <p className="test-hub-desc">按九个部分测试 M3 文字与图片替换，多图自动扩页。</p>
+                <a className="secondaryButton test-hub-action" href="#m3-full-test">打开测试</a>
+              </article>
+              <article className="test-hub-card">
+                <div className="test-hub-card-header">
                   <strong>M5选择测试</strong>
                   <span className="test-hub-badge">案例匹配</span>
                 </div>
@@ -1315,30 +1269,6 @@ export default function HomePage() {
                 </div>
                 <p className="test-hub-desc">通过后端读取环境变量并调用配置好的接口。</p>
                 <a className="secondaryButton test-hub-action" href="#llm-test">打开测试</a>
-              </article>
-              <article className="test-hub-card">
-                <div className="test-hub-card-header">
-                  <strong>M3文字替换测试</strong>
-                  <span className="test-hub-badge">M3</span>
-                </div>
-                <p className="test-hub-desc">将模拟资料文本替换到 M3 项目深化方案模板。</p>
-                <a className="secondaryButton test-hub-action" href="#m3-test">打开测试</a>
-              </article>
-              <article className="test-hub-card">
-                <div className="test-hub-card-header">
-                  <strong>M3图片替换测试</strong>
-                  <span className="test-hub-badge">M3图片</span>
-                </div>
-                <p className="test-hub-desc">上传图片并按固定用途替换到 M3 图片测试模板。</p>
-                <a className="secondaryButton test-hub-action" href="#m3-image-test">打开测试</a>
-              </article>
-              <article className="test-hub-card">
-                <div className="test-hub-card-header">
-                  <strong>M3完整测试</strong>
-                  <span className="test-hub-badge">M3完整</span>
-                </div>
-                <p className="test-hub-desc">按九个部分测试 M3 文字与图片替换，多图自动扩页。</p>
-                <a className="secondaryButton test-hub-action" href="#m3-full-test">打开测试</a>
               </article>
             </div>
           </section>
@@ -1437,27 +1367,27 @@ export default function HomePage() {
 
             {/* 完整流程状态：analyze → review → generate */}
             {m1m2TestResult ? (
-              <div className="flowStatusPanel" style={{ marginTop: "18px", padding: "14px", border: "1px solid var(--line)", borderRadius: "8px", background: "var(--surface-soft)" }}>
+              <div className="flowStatusPanel">
                 <div className="sectionHeader">
                   <h3>完整流程状态</h3>
                 </div>
-                <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", marginTop: "10px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                    <span style={{ width: "20px", height: "20px", borderRadius: "50%", background: m1m2TestResult ? "var(--success)" : "var(--line)", display: "inline-block" }} />
-                    <span style={{ fontSize: "13px" }}>① 分析识别</span>
+                <div className="flowStatusSteps">
+                  <div className="flowStatusStep">
+                    <span className={m1m2TestResult ? "flowStatusDot done" : "flowStatusDot"} />
+                    <span>① 分析识别</span>
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                    <span style={{ width: "20px", height: "20px", borderRadius: "50%", background: m1m2TestReviewStatus === "success" ? "var(--success)" : m1m2TestReviewStatus === "error" ? "#e74c3c" : "var(--line)", display: "inline-block" }} />
-                    <span style={{ fontSize: "13px" }}>② 人工确认</span>
-                    {m1m2TestReviewStatus === "success" && <span style={{ fontSize: "12px", color: "var(--success)" }}>✅</span>}
-                    {m1m2TestReviewStatus === "error" && <span style={{ fontSize: "12px", color: "#e74c3c" }}>❌</span>}
+                  <div className="flowStatusStep">
+                    <span className={m1m2TestReviewStatus === "success" ? "flowStatusDot done" : m1m2TestReviewStatus === "error" ? "flowStatusDot error" : "flowStatusDot"} />
+                    <span>② 人工确认</span>
+                    {m1m2TestReviewStatus === "success" && <span className="flowStatusText done">已确认</span>}
+                    {m1m2TestReviewStatus === "error" && <span className="flowStatusText error">确认失败</span>}
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                    <span style={{ width: "20px", height: "20px", borderRadius: "50%", background: m1m2TestGenerateStatus === "success" ? "var(--success)" : m1m2TestGenerateStatus === "error" ? "#e74c3c" : m1m2TestGenerateStatus === "starting" ? "var(--accent)" : "var(--line)", display: "inline-block" }} />
-                    <span style={{ fontSize: "13px" }}>③ 启动生成</span>
-                    {m1m2TestGenerateStatus === "success" && <span style={{ fontSize: "12px", color: "var(--success)" }}>✅ {m1m2TestTaskStatus}</span>}
-                    {m1m2TestGenerateStatus === "error" && <span style={{ fontSize: "12px", color: "#e74c3c" }}>❌</span>}
-                    {m1m2TestGenerateStatus === "starting" && <span style={{ fontSize: "12px", color: "var(--accent)" }}>进行中...</span>}
+                  <div className="flowStatusStep">
+                    <span className={m1m2TestGenerateStatus === "success" ? "flowStatusDot done" : m1m2TestGenerateStatus === "error" ? "flowStatusDot error" : m1m2TestGenerateStatus === "starting" ? "flowStatusDot running" : "flowStatusDot"} />
+                    <span>③ 启动生成</span>
+                    {m1m2TestGenerateStatus === "success" && <span className="flowStatusText done">{m1m2TestTaskStatus}</span>}
+                    {m1m2TestGenerateStatus === "error" && <span className="flowStatusText error">生成失败</span>}
+                    {m1m2TestGenerateStatus === "starting" && <span className="flowStatusText running">进行中...</span>}
                   </div>
                 </div>
               </div>
@@ -1572,27 +1502,27 @@ export default function HomePage() {
 
             {/* 完整流程状态：analyze → review → generate */}
             {m5TestResult ? (
-              <div className="flowStatusPanel" style={{ marginTop: "18px", padding: "14px", border: "1px solid var(--line)", borderRadius: "8px", background: "var(--surface-soft)" }}>
+              <div className="flowStatusPanel">
                 <div className="sectionHeader">
                   <h3>完整流程状态</h3>
                 </div>
-                <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", marginTop: "10px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                    <span style={{ width: "20px", height: "20px", borderRadius: "50%", background: m5TestResult ? "var(--success)" : "var(--line)", display: "inline-block" }} />
-                    <span style={{ fontSize: "13px" }}>① 分析识别</span>
+                <div className="flowStatusSteps">
+                  <div className="flowStatusStep">
+                    <span className={m5TestResult ? "flowStatusDot done" : "flowStatusDot"} />
+                    <span>① 分析识别</span>
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                    <span style={{ width: "20px", height: "20px", borderRadius: "50%", background: m5TestReviewStatus === "success" ? "var(--success)" : m5TestReviewStatus === "error" ? "#e74c3c" : "var(--line)", display: "inline-block" }} />
-                    <span style={{ fontSize: "13px" }}>② 人工确认</span>
-                    {m5TestReviewStatus === "success" && <span style={{ fontSize: "12px", color: "var(--success)" }}>✅</span>}
-                    {m5TestReviewStatus === "error" && <span style={{ fontSize: "12px", color: "#e74c3c" }}>❌</span>}
+                  <div className="flowStatusStep">
+                    <span className={m5TestReviewStatus === "success" ? "flowStatusDot done" : m5TestReviewStatus === "error" ? "flowStatusDot error" : "flowStatusDot"} />
+                    <span>② 人工确认</span>
+                    {m5TestReviewStatus === "success" && <span className="flowStatusText done">已确认</span>}
+                    {m5TestReviewStatus === "error" && <span className="flowStatusText error">确认失败</span>}
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                    <span style={{ width: "20px", height: "20px", borderRadius: "50%", background: m5TestGenerateStatus === "success" ? "var(--success)" : m5TestGenerateStatus === "error" ? "#e74c3c" : m5TestGenerateStatus === "starting" ? "var(--accent)" : "var(--line)", display: "inline-block" }} />
-                    <span style={{ fontSize: "13px" }}>③ 启动生成</span>
-                    {m5TestGenerateStatus === "success" && <span style={{ fontSize: "12px", color: "var(--success)" }}>✅ {m5TestTaskStatus}</span>}
-                    {m5TestGenerateStatus === "error" && <span style={{ fontSize: "12px", color: "#e74c3c" }}>❌</span>}
-                    {m5TestGenerateStatus === "starting" && <span style={{ fontSize: "12px", color: "var(--accent)" }}>进行中...</span>}
+                  <div className="flowStatusStep">
+                    <span className={m5TestGenerateStatus === "success" ? "flowStatusDot done" : m5TestGenerateStatus === "error" ? "flowStatusDot error" : m5TestGenerateStatus === "starting" ? "flowStatusDot running" : "flowStatusDot"} />
+                    <span>③ 启动生成</span>
+                    {m5TestGenerateStatus === "success" && <span className="flowStatusText done">{m5TestTaskStatus}</span>}
+                    {m5TestGenerateStatus === "error" && <span className="flowStatusText error">生成失败</span>}
+                    {m5TestGenerateStatus === "starting" && <span className="flowStatusText running">进行中...</span>}
                   </div>
                 </div>
               </div>
@@ -1626,7 +1556,7 @@ export default function HomePage() {
 
             {docParseTestResult ? (
               <div className="parseTestResults">
-                <div className="resultGrid" style={{ marginTop: "18px" }}>
+                <div className="resultGrid">
                   <article className="resultCard">
                     <span>项目类型</span>
                     <strong>{labelForProjectType(docParseTestResult.detected_project_type)}</strong>
@@ -1774,77 +1704,6 @@ export default function HomePage() {
           </section>
         ) : null}
 
-        {activeView === "m3-image-test" ? (
-          <section id="m3-image-test" className="section">
-            <div className="sectionHeader">
-              <h2>M3图片替换测试</h2>
-              <span className="badge">独立测试</span>
-            </div>
-            <div className="testPanel">
-              <div className="testInputs single">
-                <label>项目名称<input value={m3ImageTestProjectName} onChange={(event) => setM3ImageTestProjectName(event.target.value)} /></label>
-              </div>
-              <label className="uploadBox">
-                <span>选择 M3 图片素材</span>
-                <input
-                  name="m3_image_test_files"
-                  type="file"
-                  multiple
-                  accept=".png,.jpg,.jpeg,image/png,image/jpeg"
-                  onChange={(event) => handleM3ImageTestFiles(Array.from(event.target.files ?? []))}
-                />
-              </label>
-              <div className="fileList">
-                {m3ImageTestFiles.map((file, index) => (
-                  <div key={`${file.name}-${index}`} style={{ display: "grid", gridTemplateColumns: "minmax(180px, 1fr) minmax(220px, 320px)", gap: "10px", alignItems: "center", width: "100%" }}>
-                    <span>{file.name}</span>
-                    <select value={m3ImageTestPurposes[index] || "project_scope_map"} onChange={(event) => updateM3ImageTestPurpose(index, event.target.value)}>
-                      {M3_IMAGE_PURPOSE_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>{option.label}（建议 {option.ratio}）</option>
-                      ))}
-                    </select>
-                  </div>
-                ))}
-              </div>
-              <div className="evidencePanel spaced">
-                <div className="sectionHeader">
-                  <h3>图片用途</h3>
-                  <span className="badge">固定枚举</span>
-                </div>
-                <div className="cases-capability-list">
-                  {M3_IMAGE_PURPOSE_OPTIONS.map((option) => (
-                    <div className="cases-capability-item" key={option.value}>{option.label}</div>
-                  ))}
-                </div>
-              </div>
-              <button className="primaryButton" disabled={busy} onClick={runM3ImageRenderTest} type="button">执行 M3 图片替换测试</button>
-              <p className="messageLine" style={m3ImageTestMessage && m3ImageTestMessage.includes("失败") ? {color: "#e74c3c"} : {}}>{m3ImageTestMessage}</p>
-            </div>
-
-            {m3ImageTestResult && m3ImageTestResult.ok ? (
-              <div className="resultGrid">
-                <article className="resultCard">
-                  <span>渲染状态</span>
-                  <strong>成功</strong>
-                  <p>文件路径：{m3ImageTestResult.pptx_path || "无"}</p>
-                </article>
-                <article className="resultCard wide">
-                  <span>下载链接</span>
-                  <strong>M3 图片测试 PPTX 已生成</strong>
-                  <p>
-                    <a href={`${API_BASE}${m3ImageTestResult.download_url}`} download>点击下载生成的 M3 图片测试 PPTX</a>
-                  </p>
-                </article>
-                <article className="resultCard">
-                  <span>图片数量</span>
-                  <strong>{Object.values(m3ImageTestResult.image_summary || {}).reduce((sum, count) => sum + count, 0)} 张</strong>
-                  <p>只统计本次图片替换测试上传素材。</p>
-                </article>
-              </div>
-            ) : null}
-          </section>
-        ) : null}
-
         {activeView === "m3-full-test" ? (
           <section id="m3-full-test" className="section">
             <div className="sectionHeader">
@@ -1870,7 +1729,7 @@ export default function HomePage() {
                         rows={3}
                       />
                     </label>
-                    <label className="uploadBox" style={{ marginTop: "10px" }}>
+                    <label className="uploadBox uploadBoxSpaced">
                       <span>上传{section.title}图片（可多张）</span>
                       <input
                         name={`m3_full_test_${section.textField}`}
@@ -1914,76 +1773,6 @@ export default function HomePage() {
           </section>
         ) : null}
 
-        {activeView === "m3-test" ? (
-          <section id="m3-test" className="section">
-            <div className="sectionHeader">
-              <h2>M3文字替换测试</h2>
-              <span className="badge">独立测试</span>
-            </div>
-            <div className="testPanel">
-              <div className="testInputs">
-                <label>项目名称<input value={m3TestProjectName} onChange={(event) => setM3TestProjectName(event.target.value)} /></label>
-                <label>项目所在地<input value={m3TestProjectLocation} onChange={(event) => setM3TestProjectLocation(event.target.value)} /></label>
-                <label>建设/业主单位<input value={m3TestOwnerUnit} onChange={(event) => setM3TestOwnerUnit(event.target.value)} /></label>
-                <label>产品线<input value={m3TestProductLine} onChange={(event) => setM3TestProductLine(event.target.value)} /></label>
-              </div>
-              <label>
-                模拟资料文本（多行，每行一段）
-                <textarea
-                  value={m3TestSources}
-                  onChange={(event) => setM3TestSources(event.target.value)}
-                  rows={6}
-                  placeholder="每行一段资料文本，用于 M3 字段提取测试..."
-                />
-              </label>
-              <button className="primaryButton" disabled={busy} onClick={runM3RenderTest} type="button">执行 M3 文字替换测试</button>
-              <p className="messageLine" style={m3TestMessage && m3TestMessage.includes("失败") ? {color: "#e74c3c"} : {}}>{m3TestMessage}</p>
-            </div>
-
-            {m3TestResult && m3TestResult.ok ? (
-              <div className="resultGrid">
-                <article className="resultCard">
-                  <span>渲染状态</span>
-                  <strong>成功</strong>
-                  <p>文件路径：{m3TestResult.pptx_path || "无"}</p>
-                </article>
-                {m3TestResult.download_url ? (
-                  <article className="resultCard wide">
-                    <span>下载链接</span>
-                    <strong>M3 PPTX 已生成</strong>
-                    <p>
-                      <a href={`${API_BASE}${m3TestResult.download_url}`} download>点击下载生成的 M3 PPTX</a>
-                    </p>
-                  </article>
-                ) : null}
-              </div>
-            ) : null}
-
-            {m3TestResult && m3TestResult.ok && m3TestResult.replacements && Object.keys(m3TestResult.replacements).length > 0 ? (
-              <div style={{ marginTop: "16px" }}>
-                <h3 style={{ fontSize: "14px", color: "var(--primary-dark)", marginBottom: "8px" }}>字段替换摘要</h3>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
-                  <thead>
-                    <tr style={{ background: "var(--surface-soft)" }}>
-                      <th style={{ padding: "6px 10px", textAlign: "left", borderBottom: "1px solid var(--line)" }}>字段</th>
-                      <th style={{ padding: "6px 10px", textAlign: "left", borderBottom: "1px solid var(--line)" }}>替换值</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Object.entries(m3TestResult.replacements)
-                      .filter(([key]) => M3_ACTIVE_REPLACEMENT_FIELDS.includes(key))
-                      .map(([key, value]) => (
-                      <tr key={key} style={{ borderBottom: "1px solid var(--line)" }}>
-                        <td style={{ padding: "6px 10px", color: "var(--muted)" }}>{key}</td>
-                        <td style={{ padding: "6px 10px", wordBreak: "break-word" }}>{String(value).slice(0, 120)}{String(value).length > 120 ? "…" : ""}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : null}
-          </section>
-        ) : null}
       </section>
     </main>
   );

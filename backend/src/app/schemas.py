@@ -33,6 +33,7 @@ class Project(ProjectCreate):
     classification_status: str = "pending"
     template_selection: dict[str, Any] = Field(default_factory=dict)
     case_selection: dict[str, Any] = Field(default_factory=dict)
+    quality_report: dict[str, Any] = Field(default_factory=dict)
 
 
 class StoredFile(BaseModel):
@@ -134,28 +135,6 @@ class LlmTestResponse(BaseModel):
     reply: str = ""
     error: str = ""
     configured: dict[str, bool] = Field(default_factory=dict)
-
-
-class M3RenderTestRequest(BaseModel):
-    project_name: str
-    project_location: str = ""
-    owner_unit: str = ""
-    product_line: str = ""
-    parsed_sources: list[str] = Field(default_factory=list)
-
-
-class M3RenderTestResponse(BaseModel):
-    ok: bool
-    pptx_path: str = ""
-    download_url: str = ""
-    replacements: dict[str, str] = Field(default_factory=dict)
-
-
-class M3ImageRenderTestResponse(BaseModel):
-    ok: bool
-    pptx_path: str = ""
-    download_url: str = ""
-    image_summary: dict[str, int] = Field(default_factory=dict)
 
 
 class M3FullRenderTestResponse(BaseModel):

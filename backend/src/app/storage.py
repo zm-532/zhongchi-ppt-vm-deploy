@@ -22,6 +22,7 @@ from .constants import (
 from .document_analysis import analyze_document
 from .m1m2_classifier import M1M2Classification, classify_m1_m2_project
 from .ppt_generation import render_project_ppt
+from .quality_review import quality_review_failed_report, review_project_quality
 
 
 def get_data_dir() -> Path:
@@ -126,6 +127,7 @@ class JsonStore:
             "classification_status": "pending",
             "template_selection": {},
             "case_selection": {},
+            "quality_report": {},
         }
         state["projects"].append(project)
         self.save(state)
@@ -356,6 +358,16 @@ class JsonStore:
     def _detect_project_type_by_rules(self, project: dict[str, Any], files: list[dict[str, Any]]) -> M1M2Classification:
         sources = self._detection_sources(project, files)
         text = " ".join(source_text for _, source_text in sources).lower()
+
+        # Rail context: keywords that indicate rail/transit projects
+        rail_context_keywords = ["地铁", "轨道交通", "铁路", "轨交", "城市轨道", "metro"]
+        # Strong constraint keywords: high weight when rail context present
+        strong_constraint_keywords = ["既有线", "运营线", "天窗", "短窗口"]
+        # Weak constraint keywords: low weight, need multiple to outweigh metro
+        weak_constraint_keywords = ["改造", "夜间"]
+
+        has_rail_context = any(kw in text for kw in rail_context_keywords)
+
         candidates = [
             ("existing_rail_transit", ["既有线", "改造", "夜间", "短窗口"]),
             ("metro", ["地铁", "metro", "轨道交通", "城市轨道", "昌平线", "轨交"]),
@@ -372,7 +384,23 @@ class JsonStore:
                     if item:
                         evidence.append(item)
                         break
-            scores.append((len(matched), project_type, matched, evidence))
+
+            if project_type == "existing_rail_transit":
+                if has_rail_context:
+                    # Weighted: strong=1.0, weak=0.5, generic "改造" alone won't beat metro
+                    strong = sum(1.0 for kw in matched if kw in strong_constraint_keywords)
+                    weak = sum(0.5 for kw in matched if kw in weak_constraint_keywords)
+                    effective_count = strong + weak
+                else:
+                    # Without rail context, only count strong rail-specific keywords
+                    effective_count = sum(1 for kw in matched if kw in strong_constraint_keywords)
+            elif project_type == "metro":
+                # When strong reconstruction constraints appear, metro should be demoted
+                has_strong_constraint = any(kw in text for kw in strong_constraint_keywords)
+                effective_count = len(matched) * (0.5 if has_strong_constraint else 1.0)
+            else:
+                effective_count = len(matched)
+            scores.append((effective_count, project_type, matched, evidence))
         score, project_type, matched_keywords, detection_evidence = max(scores, key=lambda item: item[0])
         if score == 0:
             return M1M2Classification("metro", 0.35, [], [], "rule_fallback", fallback_reason="规则未命中关键词，默认使用地铁模板")
@@ -554,6 +582,26 @@ class JsonStore:
             return None
         return project.get("classification_result")
 
+    # 特殊案例 ID 白名单：前端 M5_DEMO_CASE 使用 "m5_demo" 作为演示占位符
+    DEMO_CASE_IDS: frozenset[str] = frozenset({"m5_demo", "1", 1})
+
+    def _validate_case_id(self, case_id: str | int, classification: dict[str, Any], state: dict[str, Any]) -> bool:
+        """Validate that a case_id exists in recommended cases, store case library, or demo allowlist."""
+        str_id = str(case_id)
+        # Demo/演示占位符：前端内置的 M5 演示案例
+        if str_id in self.DEMO_CASE_IDS:
+            return True
+        # Check recommended cases from classification
+        recommended = classification.get("case_selection", {}).get("recommended_cases", [])
+        for case in recommended:
+            if str(case.get("case_id")) == str_id:
+                return True
+        # Check store's case library (mock demo cases)
+        for case in state.get("cases", []):
+            if str(case.get("case_id")) == str_id:
+                return True
+        return False
+
     def review_classification(
         self,
         project_id: int,
@@ -572,6 +620,11 @@ class JsonStore:
             return None
         if confirmed_project_type not in PROJECT_TYPES:
             return None
+
+        # Validate confirmed_case_id
+        if confirmed_case_id is not None and str(confirmed_case_id).strip() not in ("", "null", "None", "__none__"):
+            if not self._validate_case_id(confirmed_case_id, classification, state):
+                return {"_validation_error": "invalid_case_id"}
 
         project["confirmed_project_type"] = confirmed_project_type
         project["classification_status"] = "reviewed"
@@ -600,6 +653,7 @@ class JsonStore:
 
         # 生成前清空旧结果，避免失败后仍下载旧文件
         project["final_ppt_path"] = ""
+        project["quality_report"] = {}
         for module in project["modules"]:
             module["chapter_ppt_path"] = ""
             module["error_message"] = ""
@@ -662,6 +716,10 @@ class JsonStore:
                 self._set_module_status(module, "rendered")
                 module["chapter_ppt_path"] = str(chapter_paths[module["module_id"]])
         project["final_ppt_path"] = str(final_path)
+        try:
+            project["quality_report"] = review_project_quality(project, final_path)
+        except Exception as exc:
+            project["quality_report"] = quality_review_failed_report(exc)
         self._set_project_status(project, "合并中")
         self._set_project_status(project, "完成")
         self.save(state)

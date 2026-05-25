@@ -58,9 +58,12 @@ $env:NEXT_PUBLIC_API_BASE_URL='http://127.0.0.1:8010'
 ```powershell
 cd D:\中驰股份\code\backend
 uv run python -m unittest tests.test_api -v
+uv run python -m unittest tests.test_m3_materials_api tests.test_project_generation -v
+uv run python -m unittest tests.test_m3_full_api -v
 
 cd D:\中驰股份\code\frontend
-npm test -- static-structure.test.mjs
+npm test
+node --test tests/static-structure.test.mjs
 .\node_modules\.bin\tsc.cmd --noEmit
 ```
 
@@ -79,11 +82,9 @@ uv run python -m unittest tests.test_renderer -v
 前端“功能测试”是开发验证入口，不是普通用户主流程。当前包括：
 
 - M1/M2 选择测试。
+- M3 完整测试。
 - M5 案例匹配测试。
 - 文档解析测试。
 - 大模型连接测试。
-- M3 文字替换测试。
-- M3 图片替换测试。
-- M3 完整测试。
 
 功能测试使用独立输出目录或真实项目测试链路，具体边界见 `技术文档.md`。

@@ -75,9 +75,27 @@ def _ensure_case_library_dir() -> None:
 def _detect_project_type_from_text(text: str) -> str:
     """从文本中检测项目类型"""
     text_lower = _normalize_text(text)
-    scores: dict[str, int] = {}
+    # Rail context keywords that indicate a rail/transit project
+    rail_context_keywords = ["地铁", "轨道交通", "铁路", "轨交", "城市轨道", "metro"]
+    strong_constraint = ["既有线", "运营线", "天窗", "短窗口"]
+    weak_constraint = ["改造", "夜间", "加装"]
+    has_rail_context = any(kw in text_lower for kw in rail_context_keywords)
+
+    scores: dict[str, float] = {}
     for project_type, keywords in PROJECT_TYPE_KEYWORDS.items():
-        scores[project_type] = sum(1 for kw in keywords if kw.lower() in text_lower)
+        matched = [kw for kw in keywords if kw.lower() in text_lower]
+        if project_type == "existing_rail_transit":
+            if has_rail_context:
+                s = sum(1.0 for kw in matched if kw in strong_constraint)
+                w = sum(0.5 for kw in matched if kw in weak_constraint)
+                scores[project_type] = s + w
+            else:
+                scores[project_type] = sum(1 for kw in matched if kw in strong_constraint)
+        elif project_type == "metro":
+            has_strong_constraint = any(kw in text_lower for kw in strong_constraint)
+            scores[project_type] = len(matched) * (0.5 if has_strong_constraint else 1.0)
+        else:
+            scores[project_type] = len(matched)
     if not scores or max(scores.values()) == 0:
         return "metro"  # 默认地铁
     return max(scores, key=scores.get)

@@ -23,7 +23,7 @@
  */
 
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
 const pageSource = () => readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
@@ -56,9 +56,7 @@ test("[静态] page.tsx 源码中包含主要 workflow section 的文本标记",
     "生成状态",
     "下载最终 PPTX",
     "M3资料上传",
-    // M3 入口
-    "M3文字替换测试",
-    "M3 文字替换测试",
+    "M3完整测试",
   ].forEach((text) => assert.match(source, new RegExp(text)));
 });
 
@@ -70,6 +68,7 @@ test("[静态] page.tsx 将开发测试收纳到功能测试入口并包含大�
     "功能测试",
     "开发过程验证入口",
     "M1/M2选择测试",
+    "M3完整测试",
     "M5选择测试",
     "文档解析测试",
     "大模型测试",
@@ -81,6 +80,13 @@ test("[静态] page.tsx 将开发测试收纳到功能测试入口并包含大�
   assert.doesNotMatch(source, /href="#m1m2-test">M1\/M2选择测试/);
   assert.doesNotMatch(source, /href="#m5-test">M5选择测试/);
   assert.doesNotMatch(source, /href="#document-parse-test">文档解析测试/);
+  assert.doesNotMatch(source, /href="#m3-test"/);
+  assert.doesNotMatch(source, /href="#m3-image-test"/);
+
+  const order = ["#m1m2-test", "#m3-full-test", "#m5-test", "#document-parse-test", "#llm-test"];
+  const positions = order.map((text) => source.indexOf(text));
+  positions.forEach((position) => assert.notEqual(position, -1));
+  assert.deepEqual([...positions].sort((a, b) => a - b), positions);
 });
 
 test("[静态] page.tsx 源码中包含 M1/M2 测试视图的关键 UI 元素标记", () => {
@@ -109,20 +115,28 @@ test("[静态] page.tsx 源码中包含 M1/M2 测试视图的关键 UI 元素标
 });
 
 test("[静态] 项目文档收敛为根 README 和技术文档", () => {
-  const markdownFiles = [];
-  const walk = (url, prefix = "") => {
-    for (const entry of readdirSync(url, { withFileTypes: true })) {
-      if (entry.name === "node_modules" || entry.name === ".next" || entry.name === ".git" || entry.name === ".venv" || entry.name === ".pytest_cache") continue;
-      const nextPrefix = prefix ? `${prefix}/${entry.name}` : entry.name;
-      if (entry.isDirectory()) {
-        walk(new URL(`${nextPrefix}/`, repoRoot), nextPrefix);
-      } else if (entry.name.endsWith(".md")) {
-        markdownFiles.push(nextPrefix.replaceAll("\\", "/"));
-      }
-    }
-  };
-  walk(repoRoot);
-  assert.deepEqual(markdownFiles.sort(), ["README.md", "技术文档.md"].sort());
+  const rootPath = (name) => new URL(name, repoRoot);
+
+  // 旧文档路径应不存在
+  const oldDocs = [
+    "END_TO_END.md",
+    "asset_tools/README.md",
+    "backend/README.md",
+    "data/README.md",
+    "docker/README.md",
+    "frontend/README.md",
+    "ppt_engine/README.md",
+    "workflow/README.md",
+    "计划.md",
+    "文本解析入库与向量库构建计划.md",
+  ];
+  for (const doc of oldDocs) {
+    assert.ok(!existsSync(rootPath(doc)), `旧文档 ${doc} 应已移除`);
+  }
+
+  // 正式文档应存在
+  assert.ok(existsSync(rootPath("README.md")), "根 README.md 应存在");
+  assert.ok(existsSync(rootPath("技术文档.md")), "技术文档.md 应存在");
 });
 
 test("[静态] 根文档和页面元信息不再保留旧流程口径", () => {
@@ -151,6 +165,22 @@ test("[静态] 正式识别结果确认页包含 M1/M2 分析依据展开入口"
     "LLM 判断理由",
     "fallback_reason",
     "detection_evidence",
+  ].forEach((text) => assert.match(source, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))));
+});
+
+test("[静态] 生成状态区展示 QAReviewAgent 质量检查结果", () => {
+  const source = pageSource();
+  [
+    "quality_report",
+    "qualityReport",
+    "质量检查结果",
+    "QAReviewAgent",
+    "不影响下载",
+    "检查失败",
+    "有风险",
+    "通过",
+    "errors",
+    "warnings",
   ].forEach((text) => assert.match(source, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))));
 });
 
@@ -203,8 +233,8 @@ test("[静态] page.tsx 调用了所需的 backend API 端点字符串", () => {
     "/m3-materials",
     "NEXT_PUBLIC_API_BASE_URL",
     "fetch(",
-    // M3 测试接口
-    "/api/test/m3-render",
+    // M3 完整测试接口
+    "/api/test/m3-full-render",
   ].forEach((text) => assert.match(source, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))));
 });
 
@@ -294,7 +324,7 @@ test("[静态] page.tsx 包含文档解析测试视图的 UI 元素（使用真�
   ].forEach((text) => assert.match(source, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))));
 });
 
-test("[静态] page.tsx 包含 M3 文字替换测试视图的 UI 元素", () => {
+test("[静态] page.tsx 不再包含 M3 文字/图片拆分测试入口", () => {
   const source = pageSource();
   [
     "#m3-test",
@@ -313,12 +343,6 @@ test("[静态] page.tsx 包含 M3 文字替换测试视图的 UI 元素", () => 
     // replacements 摘要展示
     "字段替换摘要",
     "Object.entries(m3TestResult.replacements)",
-  ].forEach((text) => assert.match(source, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))));
-});
-
-test("[静态] page.tsx 包含 M3 图片替换测试视图的 UI 元素", () => {
-  const source = pageSource();
-  [
     "#m3-image-test",
     "M3图片替换测试",
     "m3ImageTestProjectName",
@@ -329,12 +353,7 @@ test("[静态] page.tsx 包含 M3 图片替换测试视图的 UI 元素", () => 
     "runM3ImageRenderTest",
     "/api/test/m3-image-render",
     "执行 M3 图片替换测试",
-    "项目建设范围图",
-    "项目线路图",
-    "踏勘路线/点位图",
-    "现场踏勘照片组",
-    "重难点证据图",
-  ].forEach((text) => assert.match(source, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))));
+  ].forEach((text) => assert.doesNotMatch(source, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))));
 });
 
 test("[静态] page.tsx 包含 M3 完整测试视图的 UI 元素", () => {

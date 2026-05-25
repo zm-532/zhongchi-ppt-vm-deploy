@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
 from .constants import ALLOWED_EXTENSIONS, ALLOWED_MODULE_IDS, PROJECT_TYPES
-from .schemas import ClassificationResult, ClassificationReviewRequest, DocumentParseTestResult, LlmTestRequest, LlmTestResponse, M3FullRenderTestResponse, M3ImageRenderTestResponse, M3MaterialsResponse, M3RenderTestRequest, M3RenderTestResponse, Project, ProjectCreate, ProjectUpdate, ReviewRequest, StoredFile, VectorIndexRequest, VectorIndexResponse
+from .schemas import ClassificationResult, ClassificationReviewRequest, DocumentParseTestResult, LlmTestRequest, LlmTestResponse, M3FullRenderTestResponse, M3MaterialsResponse, Project, ProjectCreate, ProjectUpdate, ReviewRequest, StoredFile, VectorIndexRequest, VectorIndexResponse
 from .storage import get_data_dir, get_store
 
 # 在模块加载时将 ppt_engine 路径注入 sys.path（供 TestClient 共享）
@@ -15,24 +15,6 @@ _ppt_engine_root = Path(__file__).resolve().parents[3] / "ppt_engine"
 if str(_ppt_engine_root) not in _sys.path:
     _sys.path.insert(0, str(_ppt_engine_root))
 del _sys, _ppt_engine_root
-
-
-def _m3_safe_filename(name: str) -> str:
-    """清洗文件名，移除 Windows 非法字符。"""
-    illegal = '\\/:*?"<>|'
-    for ch in illegal:
-        name = name.replace(ch, "_")
-    return name or "unnamed"
-
-
-def _get_m3_test_output_dir() -> Path:
-    """获取 M3 测试输出目录，运行时解析（受 ZHONGCHI_DATA_DIR 影响）。"""
-    return get_data_dir() / "outputs" / "m3_test"
-
-
-def _get_m3_image_test_output_dir() -> Path:
-    """获取 M3 图片替换测试输出目录，运行时解析（受 ZHONGCHI_DATA_DIR 影响）。"""
-    return get_data_dir() / "outputs" / "m3_image_test"
 
 
 def _get_m3_full_test_output_dir() -> Path:
@@ -252,6 +234,8 @@ def review_project_classification(project_id: int, payload: ClassificationReview
         m3_selection=payload.m3_selection,
         notes=payload.notes,
     )
+    if isinstance(classification, dict) and classification.get("_validation_error") == "invalid_case_id":
+        raise HTTPException(status_code=400, detail="confirmed_case_id 无效：未在推荐案例或案例库中找到该 ID")
     if classification is None:
         project = get_store().get_project(project_id)
         if project is None:
@@ -269,13 +253,20 @@ def generate_project(project_id: int) -> dict:
             "task_status": reviewed_project["task_status"],
             "status_history": reviewed_project["status_history"],
             "modules": reviewed_project["modules"],
+            "quality_report": reviewed_project.get("quality_report", {}),
         }
     # 兼容旧 mock 链路：历史测试会在未 classification/review 时直接 generate + review。
     # 正式流程应先调用 /classification/review，再由 generate_reviewed_project 生成。
     project = get_store().generate_mock_outline(project_id)
     if project is None:
         raise HTTPException(status_code=404, detail="项目不存在")
-    return {"project_id": project_id, "task_status": project["task_status"], "status_history": project["status_history"], "modules": project["modules"]}
+    return {
+        "project_id": project_id,
+        "task_status": project["task_status"],
+        "status_history": project["status_history"],
+        "modules": project["modules"],
+        "quality_report": project.get("quality_report", {}),
+    }
 
 
 @app.get("/api/projects/{project_id}/task")
@@ -283,7 +274,13 @@ def get_project_task(project_id: int) -> dict:
     project = get_store().get_project(project_id)
     if project is None:
         raise HTTPException(status_code=404, detail="项目不存在")
-    return {"project_id": project_id, "task_status": project["task_status"], "status_history": project["status_history"], "modules": project["modules"]}
+    return {
+        "project_id": project_id,
+        "task_status": project["task_status"],
+        "status_history": project["status_history"],
+        "modules": project["modules"],
+        "quality_report": project.get("quality_report", {}),
+    }
 
 
 @app.post("/api/projects/{project_id}/review", deprecated=True)
@@ -425,146 +422,6 @@ def _ensure_ppt_engine_path() -> None:
     ppt_engine_dir = code_dir / "ppt_engine"
     if str(ppt_engine_dir) not in sys.path:
         sys.path.insert(0, str(ppt_engine_dir))
-
-
-@app.post("/api/test/m3-render", response_model=M3RenderTestResponse)
-def m3_render_test(payload: M3RenderTestRequest) -> dict:
-    """M3 独立测试接口：将模拟资料文本替换到 M3 PPT 模板并输出独立 PPTX。
-
-    不接入正式生产流程，不修改 render_project_ppt() 的行为。
-    输出文件存放在 data/outputs/m3_test/ 目录下（受 ZHONGCHI_DATA_DIR 影响）。
-    """
-    _ensure_ppt_engine_path()
-    from ppt_engine.renderer import build_m3_replacement_map, render_m3_test_ppt
-
-    if not payload.project_name or not payload.project_name.strip():
-        raise HTTPException(status_code=400, detail="project_name 不能为空")
-
-    safe_name = _m3_safe_filename(payload.project_name)
-    project = {
-        "project_name": payload.project_name,
-        "project_location": payload.project_location,
-        "owner_unit": payload.owner_unit,
-        "product_line": payload.product_line,
-    }
-
-    output_dir = _get_m3_test_output_dir()
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    try:
-        # 构建替换映射（用于返回给前端）
-        replacements = build_m3_replacement_map(project, payload.parsed_sources)
-
-        pptx_path = render_m3_test_ppt(project, payload.parsed_sources, output_dir)
-        filename = pptx_path.name
-        return {
-            "ok": True,
-            "pptx_path": str(pptx_path),
-            "download_url": f"/api/test/m3-render/download/{filename}",
-            "replacements": replacements,
-        }
-    except FileNotFoundError as exc:
-        raise HTTPException(status_code=500, detail=f"M3 模板缺失：{exc}")
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"M3 渲染失败：{exc}")
-
-
-@app.get("/api/test/m3-render/download/{filename}")
-def m3_render_download(filename: str) -> FileResponse:
-    """下载 M3 测试生成的 PPTX 文件。
-
-    安全约束：
-    - 只允许下载 data/outputs/m3_test 目录下的文件
-    - 防止路径穿越（不允许 .. 或绝对路径）
-    """
-    # 防止路径穿越：禁止包含 .. 或绝对路径标记
-    if ".." in filename or filename.startswith("/") or "\\" in filename:
-        raise HTTPException(status_code=400, detail="无效的文件名")
-
-    # 白名单：限制在 m3_test 目录（运行时解析，受 ZHONGCHI_DATA_DIR 影响）
-    safe_dir = _get_m3_test_output_dir().resolve()
-    file_path = safe_dir / filename
-
-    # 确保文件在安全目录内
-    try:
-        resolved = file_path.resolve()
-        if not resolved.is_relative_to(safe_dir):
-            raise HTTPException(status_code=400, detail="无效的文件名")
-    except Exception:
-        raise HTTPException(status_code=400, detail="无效的文件名")
-
-    if not resolved.exists():
-        raise HTTPException(status_code=404, detail="文件不存在")
-
-    return FileResponse(resolved, filename=filename)
-
-
-@app.post("/api/test/m3-image-render", response_model=M3ImageRenderTestResponse)
-async def m3_image_render_test(
-    project_name: str = Form(...),
-    purposes: list[str] = Form(...),
-    files: list[UploadFile] = File(...),
-) -> dict:
-    """M3 图片替换独立测试接口，不接入正式生产流程。"""
-    _ensure_ppt_engine_path()
-    from ppt_engine.renderer import M3_IMAGE_PURPOSES, render_m3_image_test_ppt
-
-    if not project_name or not project_name.strip():
-        raise HTTPException(status_code=400, detail="project_name 不能为空")
-    if len(files) != len(purposes):
-        raise HTTPException(status_code=400, detail="图片文件数量和用途数量必须一致")
-
-    images_by_purpose: dict[str, list[bytes]] = {}
-    for purpose, upload in zip(purposes, files):
-        if purpose not in M3_IMAGE_PURPOSES:
-            raise HTTPException(status_code=400, detail=f"非法图片用途：{purpose}")
-        if not (upload.content_type or "").startswith("image/"):
-            raise HTTPException(status_code=400, detail=f"文件不是图片：{upload.filename}")
-        blob = await upload.read()
-        images_by_purpose.setdefault(purpose, []).append(blob)
-
-    output_dir = _get_m3_image_test_output_dir()
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    try:
-        pptx_path = render_m3_image_test_ppt(project_name, images_by_purpose, output_dir)
-    except FileNotFoundError as exc:
-        raise HTTPException(status_code=500, detail=f"M3 图片测试模板缺失：{exc}")
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"M3 图片替换失败：{exc}")
-
-    summary = {purpose: len(items) for purpose, items in images_by_purpose.items()}
-    filename = pptx_path.name
-    return {
-        "ok": True,
-        "pptx_path": str(pptx_path),
-        "download_url": f"/api/test/m3-image-render/download/{filename}",
-        "image_summary": summary,
-    }
-
-
-@app.get("/api/test/m3-image-render/download/{filename}")
-def m3_image_render_download(filename: str) -> FileResponse:
-    """下载 M3 图片替换测试生成的 PPTX 文件。"""
-    if ".." in filename or filename.startswith("/") or "\\" in filename:
-        raise HTTPException(status_code=400, detail="无效的文件名")
-
-    safe_dir = _get_m3_image_test_output_dir().resolve()
-    file_path = safe_dir / filename
-
-    try:
-        resolved = file_path.resolve()
-        if not resolved.is_relative_to(safe_dir):
-            raise HTTPException(status_code=400, detail="无效的文件名")
-    except Exception:
-        raise HTTPException(status_code=400, detail="无效的文件名")
-
-    if not resolved.exists():
-        raise HTTPException(status_code=404, detail="文件不存在")
-
-    return FileResponse(resolved, filename=filename)
 
 
 @app.post("/api/test/m3-full-render", response_model=M3FullRenderTestResponse)

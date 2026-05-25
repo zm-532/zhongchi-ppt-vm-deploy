@@ -173,6 +173,11 @@ def _normalize_llm_result(data: dict[str, Any]) -> M1M2Classification:
         confidence = float(data.get("confidence", 0))
     except (TypeError, ValueError) as exc:
         raise RuntimeError("LLM 返回 confidence 非法") from exc
+    import math
+    if not math.isfinite(confidence):
+        raise RuntimeError(f"LLM 返回 confidence 非有限值：{confidence}")
+    if confidence < 0 or confidence > 1:
+        raise RuntimeError(f"LLM 返回 confidence 超出 0-1 范围：{confidence}")
     if confidence < MIN_LLM_CONFIDENCE:
         raise RuntimeError(f"LLM 置信度过低：{confidence}")
 
