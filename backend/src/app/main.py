@@ -324,6 +324,55 @@ def download_project(project_id: int) -> FileResponse:
     return FileResponse(final_path, filename=Path(final_path).name)
 
 
+@app.post("/api/projects/{project_id}/preview")
+def generate_project_preview(project_id: int) -> dict:
+    """生成或复用项目 PPT 预览图片。"""
+    project = get_store().get_project(project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="项目不存在")
+    final_path = project.get("final_ppt_path")
+    if not final_path or not Path(final_path).exists():
+        raise HTTPException(status_code=400, detail="最终PPTX尚未生成，请先完成PPT生成")
+    try:
+        from .ppt_preview import build_project_ppt_preview
+        output_root = get_data_dir() / "outputs" / f"project_{project_id}"
+        return build_project_ppt_preview(project_id, project, output_root)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.get("/api/projects/{project_id}/preview/slides/{filename:path}")
+def get_preview_slide(project_id: int, filename: str) -> FileResponse:
+    """返回项目预览的单页 PNG 图片。仅允许读取当前项目 preview 目录下的 .png 文件。"""
+    project = get_store().get_project(project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="项目不存在")
+
+    # 路径穿越防护
+    if ".." in filename or filename.startswith("/") or "\\" in filename:
+        raise HTTPException(status_code=400, detail="无效的文件名")
+
+    safe_dir = (get_data_dir() / "outputs" / f"project_{project_id}" / "preview").resolve()
+    file_path = safe_dir / filename
+
+    try:
+        resolved = file_path.resolve()
+        if not resolved.is_relative_to(safe_dir):
+            raise HTTPException(status_code=400, detail="无效的文件名")
+    except (ValueError, OSError):
+        raise HTTPException(status_code=400, detail="无效的文件名")
+
+    if not resolved.exists() or not resolved.is_file():
+        raise HTTPException(status_code=404, detail="预览图片不存在")
+
+    if resolved.suffix.lower() != ".png":
+        raise HTTPException(status_code=400, detail="仅允许预览 PNG 文件")
+
+    return FileResponse(resolved, media_type="image/png")
+
+
 @app.get("/api/assets", deprecated=True)
 def list_assets(module_id: str | None = None) -> list[dict]:
     """兼容旧资产调试查询接口，不作为正式生成主流程入口。"""

@@ -200,6 +200,13 @@ export default function HomePage() {
   const [m3MaterialsMessage, setM3MaterialsMessage] = useState("进入页面后批量上传按九类命名的 M3 图片，并填写可选描述。");
   const [m3NamingHelpOpen, setM3NamingHelpOpen] = useState(false);
 
+  // PPT 预览
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewSlides, setPreviewSlides] = useState<{index: number; image_url: string}[]>([]);
+  const [previewCurrentIndex, setPreviewCurrentIndex] = useState(0);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState("");
+
   // 项目基础信息编辑
   const [isEditingProject, setIsEditingProject] = useState(false);
   const [editForm, setEditForm] = useState({ project_name: "", project_location: "", owner_unit: "", product_line: "" });
@@ -915,6 +922,27 @@ export default function HomePage() {
     window.location.href = `${API_BASE}/api/projects/${currentProject.project_id}/download`;
   }
 
+  async function previewFinalPpt() {
+    if (!currentProject) return setMessage("请先创建项目。");
+    setPreviewLoading(true);
+    setPreviewError("");
+    try {
+      const result = await requestJson<{slide_count: number; slides: {index: number; image_url: string}[]}>(
+        `/api/projects/${currentProject.project_id}/preview`,
+        { method: "POST" },
+      );
+      setPreviewSlides(result.slides);
+      setPreviewCurrentIndex(0);
+      setPreviewOpen(true);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "预览生成失败";
+      setPreviewError(msg);
+      setMessage(msg);
+    } finally {
+      setPreviewLoading(false);
+    }
+  }
+
   const pageTitle = viewTitles[activeView];
   const isFunctionTestView = activeView === "function-tests" || activeView === "m1m2-test" || activeView === "m3-full-test" || activeView === "m5-test" || activeView === "document-parse-test" || activeView === "llm-test";
 
@@ -935,6 +963,56 @@ export default function HomePage() {
               <p>如果只有一张图，可以使用“项目基本情况.jpg”。</p>
               <p>多张图必须使用“项目基本情况-1.jpg”“项目基本情况-2.jpg”。</p>
               <p>描述文本按同样编号填写，例如“项目基本情况-1：第一张图片说明”。</p>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {previewOpen ? (
+        <div className="modalBackdrop" role="presentation" onMouseDown={() => setPreviewOpen(false)}>
+          <div aria-modal="true" className="previewModalPanel" role="dialog" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="modalHeader">
+              <h2>PPT 预览 ({previewCurrentIndex + 1} / {previewSlides.length})</h2>
+              <button aria-label="关闭预览" className="iconCloseButton" onClick={() => setPreviewOpen(false)} type="button">&times;</button>
+            </div>
+            {previewError ? <div className="previewError">{previewError}</div> : null}
+            <div className="previewBody">
+              <button
+                className="previewNavButton"
+                disabled={previewCurrentIndex <= 0}
+                onClick={() => setPreviewCurrentIndex((i) => Math.max(0, i - 1))}
+                type="button"
+              >&lsaquo;</button>
+              <div className="previewImageContainer">
+                {previewSlides.length > 0 ? (
+                  <img
+                    className="previewImage"
+                    src={`${API_BASE}${previewSlides[previewCurrentIndex].image_url}`}
+                    alt={`第 ${previewCurrentIndex + 1} 页`}
+                  />
+                ) : null}
+              </div>
+              <button
+                className="previewNavButton"
+                disabled={previewCurrentIndex >= previewSlides.length - 1}
+                onClick={() => setPreviewCurrentIndex((i) => Math.min(previewSlides.length - 1, i + 1))}
+                type="button"
+              >&rsaquo;</button>
+            </div>
+            <div className="previewThumbnailStrip">
+              {previewSlides.map((slide, idx) => (
+                <button
+                  key={slide.index}
+                  className={`previewThumbnail${idx === previewCurrentIndex ? " previewThumbnailActive" : ""}`}
+                  onClick={() => setPreviewCurrentIndex(idx)}
+                  type="button"
+                >
+                  <img src={`${API_BASE}${slide.image_url}`} alt={`缩略图 ${slide.index}`} />
+                  <span>{slide.index}</span>
+                </button>
+              ))}
+            </div>
+            <div className="previewFooter">
+              <a className="primaryButton btn-xs" href={`${API_BASE}/api/projects/${currentProject?.project_id}/download`} download>下载 PPTX</a>
             </div>
           </div>
         </div>
@@ -1216,7 +1294,7 @@ export default function HomePage() {
                       </div>
                     </div>
                   ) : null}
-                  <div className="downloadRow"><div><h3>最终文件</h3><p id="finalFileDesc">生成完成后可下载 PPTX</p></div><div className="downloadActions"><button className="secondaryButton btn-xs" disabled={busy} onClick={downloadFinal} type="button">下载最终 PPTX</button><span className="badge">{activeStatus}</span></div></div>
+                  <div className="downloadRow"><div><h3>最终文件</h3><p id="finalFileDesc">生成完成后可下载或预览 PPT</p></div><div className="downloadActions"><button className="secondaryButton btn-xs" disabled={busy || previewLoading} onClick={previewFinalPpt} type="button">{previewLoading ? "生成预览中..." : "预览 PPT"}</button><button className="secondaryButton btn-xs" disabled={busy} onClick={downloadFinal} type="button">下载最终 PPTX</button><span className="badge">{activeStatus}</span></div></div>
                 </section>
               </>
             ) : null}

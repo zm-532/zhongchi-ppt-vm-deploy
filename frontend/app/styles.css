@@ -1984,3 +1984,133 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 }
+
+/* PPT 预览弹窗 */
+.previewModalPanel {
+  width: min(1100px, 95vw);
+  max-height: min(850px, calc(100vh - 48px));
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.22);
+  display: flex;
+  flex-direction: column;
+}
+
+.previewBody {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.previewImageContainer {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.previewImage {
+  max-width: 100%;
+  max-height: 60vh;
+  object-fit: contain;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+
+.previewNavButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: #ffffff;
+  color: var(--text);
+  font-size: 22px;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.previewNavButton:hover:not(:disabled) {
+  border-color: var(--primary-line);
+  background: var(--primary-soft);
+}
+
+.previewNavButton:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.previewThumbnailStrip {
+  display: flex;
+  gap: 8px;
+  padding: 8px 12px;
+  overflow-x: auto;
+  border-top: 1px solid var(--line);
+  background: var(--surface-soft);
+}
+
+.previewThumbnail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border: 2px solid transparent;
+  border-radius: 4px;
+  background: #ffffff;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.previewThumbnail img {
+  width: 80px;
+  height: 45px;
+  object-fit: cover;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+}
+
+.previewThumbnail span {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.previewThumbnailActive {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.previewThumbnail:hover:not(.previewThumbnailActive) {
+  border-color: var(--primary-line);
+}
+
+.previewFooter {
+  display: flex;
+  justify-content: flex-end;
+  padding: 10px 16px;
+  border-top: 1px solid var(--line);
+  gap: 8px;
+}
+
+.previewError {
+  padding: 8px 12px;
+  margin: 0 12px 8px;
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fca5a5;
+  border-radius: 6px;
+  font-size: 13px;
+}
