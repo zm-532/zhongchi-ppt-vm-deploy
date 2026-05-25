@@ -1,5 +1,4 @@
 import importlib
-import json
 import os
 import tempfile
 import unittest
@@ -13,19 +12,6 @@ def _png_bytes(color=(20, 120, 200)) -> bytes:
     buffer = BytesIO()
     Image.new("RGB", (640, 360), color).save(buffer, format="PNG")
     return buffer.getvalue()
-
-
-TEXTS = {
-    "m3_basic_summary": "项目基本情况正式文字",
-    "m3_line_summary": "项目线路图正式文字",
-    "m3_sensitive_points_summary": "敏感点路段正式文字",
-    "m3_quantity_summary": "工程量统计正式文字",
-    "m3_structure_summary": "结构形式正式文字",
-    "m3_site_survey_summary": "现场踏勘正式文字",
-    "m3_investigation_summary": "现场勘察情况正式文字",
-    "m3_risk_summary": "项目重难点分析正式文字",
-    "m3_solution_summary": "重难点应对措施正式文字",
-}
 
 
 class M3MaterialsApiTest(unittest.TestCase):
@@ -52,65 +38,75 @@ class M3MaterialsApiTest(unittest.TestCase):
         response = self.client.post(
             f"/api/projects/{self.project_id}/m3-materials",
             files=[
-                ("texts", (None, json.dumps(TEXTS, ensure_ascii=False))),
-                ("purposes", (None, "image:m3_basic")),
-                ("purposes", (None, "image:m3_basic")),
-                ("purposes", (None, "image:m3_site_survey")),
-                ("files", ("basic1.png", _png_bytes(), "image/png")),
-                ("files", ("basic2.png", _png_bytes((200, 80, 20)), "image/png")),
-                ("files", ("survey.png", _png_bytes((40, 180, 80)), "image/png")),
+                ("descriptions", (None, "项目基本情况-1：正式第一张\n项目基本情况-2：正式第二张\n现场踏勘-1：踏勘说明")),
+                ("files", ("项目基本情况-1.png", _png_bytes(), "image/png")),
+                ("files", ("项目基本情况-2.png", _png_bytes((200, 80, 20)), "image/png")),
+                ("files", ("现场踏勘-1.png", _png_bytes((40, 180, 80)), "image/png")),
             ],
         )
 
         self.assertEqual(response.status_code, 200, response.text)
         body = response.json()
         self.assertEqual(body["project_id"], self.project_id)
-        self.assertEqual(body["texts"]["m3_site_survey_summary"], "现场踏勘正式文字")
-        self.assertEqual(body["text_completed_count"], 9)
+        self.assertEqual(body["texts"]["m3_basic_summary"], "正式第一张")
+        self.assertEqual(body["texts"]["m3_site_survey_summary"], "踏勘说明")
+        self.assertEqual(body["text_completed_count"], 2)
         self.assertEqual(body["image_count"], 3)
         self.assertEqual(body["image_summary"]["image:m3_basic"], 2)
         self.assertEqual(body["image_summary"]["image:m3_site_survey"], 1)
+        self.assertEqual(body["images"][0]["description"], "正式第一张")
+        self.assertEqual(body["images"][1]["description"], "正式第二张")
+        self.assertEqual(body["page_texts"]["image:m3_basic"], ["正式第一张", "正式第二张"])
 
         get_response = self.client.get(f"/api/projects/{self.project_id}/m3-materials")
         self.assertEqual(get_response.status_code, 200)
         saved = get_response.json()
         self.assertEqual(saved["texts"], body["texts"])
+        self.assertEqual(saved["page_texts"], body["page_texts"])
         self.assertEqual(saved["image_count"], 3)
         for image in saved["images"]:
             self.assertTrue(Path(image["stored_path"]).exists())
 
-    def test_m3_materials_rejects_mismatched_files_and_purposes(self):
+    def test_m3_materials_rejects_description_without_image(self):
         response = self.client.post(
             f"/api/projects/{self.project_id}/m3-materials",
             files=[
-                ("texts", (None, json.dumps(TEXTS, ensure_ascii=False))),
-                ("files", ("basic.png", _png_bytes(), "image/png")),
+                ("descriptions", (None, "项目基本情况-2：没有对应图片")),
+                ("files", ("项目基本情况-1.png", _png_bytes(), "image/png")),
             ],
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("图片文件数量和用途数量必须一致", response.text)
+        self.assertIn("描述没有对应图片", response.text)
 
-    def test_m3_materials_rejects_invalid_purpose(self):
+    def test_m3_materials_rejects_unknown_filename_category(self):
         response = self.client.post(
             f"/api/projects/{self.project_id}/m3-materials",
             files=[
-                ("texts", (None, json.dumps(TEXTS, ensure_ascii=False))),
-                ("purposes", (None, "bad_purpose")),
-                ("files", ("basic.png", _png_bytes(), "image/png")),
+                ("files", ("其他图片-1.png", _png_bytes(), "image/png")),
             ],
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("非法图片用途", response.text)
+        self.assertIn("无法识别图片分类", response.text)
+
+    def test_m3_materials_rejects_purposes_manual_mode(self):
+        response = self.client.post(
+            f"/api/projects/{self.project_id}/m3-materials",
+            files=[
+                ("purposes", (None, "image:m3_basic")),
+                ("files", ("项目基本情况-1.png", _png_bytes(), "image/png")),
+            ],
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("不再支持按模块手动上传", response.text)
 
     def test_m3_materials_rejects_damaged_image(self):
         response = self.client.post(
             f"/api/projects/{self.project_id}/m3-materials",
             files=[
-                ("texts", (None, json.dumps(TEXTS, ensure_ascii=False))),
-                ("purposes", (None, "image:m3_basic")),
-                ("files", ("bad.png", b"not an image", "image/png")),
+                ("files", ("项目基本情况-1.png", b"not an image", "image/png")),
             ],
         )
 

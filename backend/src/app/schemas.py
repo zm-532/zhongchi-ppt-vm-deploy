@@ -150,12 +150,15 @@ class M3MaterialImage(BaseModel):
     filename: str
     content_type: str = ""
     stored_path: str
+    description: str = ""
+    page_index: int = 1
 
 
 class M3MaterialsResponse(BaseModel):
     project_id: int
     texts: dict[str, str] = Field(default_factory=dict)
     images: list[M3MaterialImage] = Field(default_factory=list)
+    page_texts: dict[str, list[str]] = Field(default_factory=dict)
     text_completed_count: int = 0
     text_total_count: int = 9
     image_count: int = 0

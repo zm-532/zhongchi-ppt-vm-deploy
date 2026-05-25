@@ -68,6 +68,41 @@ class M3FullRendererTest(unittest.TestCase):
             prs = Presentation(str(output_path))
             self.assertEqual(len(prs.slides), 12)
 
+    def test_render_m3_full_uses_page_texts_for_duplicated_image_pages(self):
+        images = {
+            "image:m3_basic": [_png_bytes(), _png_bytes((40, 200, 40))],
+        }
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = render_m3_full_test_ppt(
+                "M3完整逐页描述",
+                TEXTS,
+                images,
+                temp_dir,
+                {"image:m3_basic": ["第一张描述", "第二张描述"]},
+            )
+            prs = Presentation(str(output_path))
+            first_slide_text = "\n".join(shape.text for shape in prs.slides[0].shapes if hasattr(shape, "text"))
+            second_slide_text = "\n".join(shape.text for shape in prs.slides[1].shapes if hasattr(shape, "text"))
+            self.assertIn("第一张描述", first_slide_text)
+            self.assertIn("第二张描述", second_slide_text)
+
+    def test_render_m3_full_removes_text_when_page_text_is_empty(self):
+        images = {
+            "image:m3_basic": [_png_bytes()],
+        }
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = render_m3_full_test_ppt(
+                "M3完整空描述",
+                TEXTS,
+                images,
+                temp_dir,
+                {"image:m3_basic": [""]},
+            )
+            prs = Presentation(str(output_path))
+            slide_text = "\n".join(shape.text for shape in prs.slides[0].shapes if hasattr(shape, "text"))
+            self.assertNotIn("{{m3_basic_summary}}", slide_text)
+            self.assertNotIn("项目基本情况测试文字", slide_text)
+
     def test_render_m3_full_does_not_modify_source_template(self):
         template = PPT_TEMPLATE_ROOT / M3_FULL_TEST_TEMPLATE_FILENAME
         before = template.stat().st_mtime

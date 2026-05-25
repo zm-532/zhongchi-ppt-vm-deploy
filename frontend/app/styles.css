@@ -1110,6 +1110,10 @@ textarea:focus-visible,
   font-size: 13px;
 }
 
+.errorText {
+  color: #b42318;
+}
+
 .flowStatusPanel {
   margin-top: 20px;
   padding: 16px;
@@ -1862,4 +1866,121 @@ button:disabled {
 
 .test-hub-action {
   align-self: flex-start;
+}
+
+.inlineTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.iconHelpButton,
+.iconCloseButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  background: #ffffff;
+  color: var(--primary-dark);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.iconHelpButton {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border-color: #2563eb;
+  background: #2563eb;
+  color: #ffffff;
+  font-size: 13px;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.iconCloseButton {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  font-size: 18px;
+}
+
+.iconHelpButton:hover,
+.iconCloseButton:hover {
+  border-color: var(--primary-line);
+  background: #eef6ff;
+}
+
+.iconHelpButton:hover {
+  border-color: #1d4ed8;
+  background: #1d4ed8;
+  color: #ffffff;
+}
+
+.modalBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.35);
+}
+
+.modalPanel {
+  width: min(620px, 100%);
+  max-height: min(720px, calc(100vh - 48px));
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.22);
+}
+
+.modalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.modalHeader h2 {
+  margin: 0;
+  color: var(--primary-dark);
+  font-size: 20px;
+}
+
+.namingRules {
+  display: grid;
+  gap: 14px;
+  padding: 20px;
+  color: var(--text);
+  line-height: 1.6;
+}
+
+.namingRules p {
+  margin: 0;
+}
+
+.ruleGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.ruleGrid span {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface-soft);
+  color: var(--primary-dark);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+@media (max-width: 640px) {
+  .ruleGrid {
+    grid-template-columns: 1fr;
+  }
 }

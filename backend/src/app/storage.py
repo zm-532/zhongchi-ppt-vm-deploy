@@ -182,6 +182,7 @@ class JsonStore:
         materials = project.get("m3_materials") or {}
         texts = materials.get("texts") or {}
         images = materials.get("images") or []
+        page_texts = materials.get("page_texts") or {}
         image_summary: dict[str, int] = {}
         for image in images:
             purpose = image.get("purpose", "")
@@ -190,6 +191,7 @@ class JsonStore:
             "project_id": project["project_id"],
             "texts": texts,
             "images": images,
+            "page_texts": page_texts,
             "text_completed_count": sum(1 for value in texts.values() if isinstance(value, str) and value.strip()),
             "text_total_count": 9,
             "image_count": len(images),
@@ -207,7 +209,8 @@ class JsonStore:
         self,
         project_id: int,
         texts: dict[str, str],
-        images: list[tuple[str, str, str, bytes]],
+        images: list[dict[str, Any]],
+        page_texts: dict[str, list[str]] | None = None,
     ) -> dict[str, Any] | None:
         state = self.load()
         project = next((item for item in state["projects"] if item["project_id"] == project_id), None)
@@ -223,7 +226,11 @@ class JsonStore:
             materials_dir.mkdir(parents=True, exist_ok=True)
 
             image_records = []
-            for index, (purpose, filename, content_type, content) in enumerate(images, start=1):
+            for index, image in enumerate(images, start=1):
+                purpose = str(image.get("purpose", ""))
+                filename = str(image.get("filename", "upload"))
+                content_type = str(image.get("content_type", "application/octet-stream"))
+                content = image.get("content", b"")
                 safe_filename = Path(filename).name or "upload"
                 stored_path = materials_dir / f"{index}_{safe_filename}"
                 stored_path.write_bytes(content)
@@ -233,12 +240,15 @@ class JsonStore:
                         "filename": safe_filename,
                         "content_type": content_type,
                         "stored_path": str(stored_path),
+                        "description": str(image.get("description", "")),
+                        "page_index": int(image.get("page_index", 1)),
                     }
                 )
 
         project["m3_materials"] = {
             "texts": texts,
             "images": image_records,
+            "page_texts": page_texts or {},
         }
         self.save(state)
         return self._m3_materials_response(project)

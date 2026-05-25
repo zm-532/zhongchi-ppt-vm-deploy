@@ -1,5 +1,4 @@
 import importlib
-import json
 import os
 import tempfile
 import unittest
@@ -14,19 +13,6 @@ def _png_bytes(color=(20, 120, 200)) -> bytes:
     buffer = BytesIO()
     Image.new("RGB", (640, 360), color).save(buffer, format="PNG")
     return buffer.getvalue()
-
-
-TEXTS = {
-    "m3_basic_summary": "正式项目基本情况文字",
-    "m3_line_summary": "正式项目线路图文字",
-    "m3_sensitive_points_summary": "正式敏感点路段文字",
-    "m3_quantity_summary": "正式工程量统计文字",
-    "m3_structure_summary": "正式结构形式文字",
-    "m3_site_survey_summary": "正式现场踏勘文字",
-    "m3_investigation_summary": "正式现场勘察情况文字",
-    "m3_risk_summary": "正式项目重难点分析文字",
-    "m3_solution_summary": "正式重难点应对措施文字",
-}
 
 
 class ProjectGenerationM3MaterialsTest(unittest.TestCase):
@@ -75,11 +61,10 @@ class ProjectGenerationM3MaterialsTest(unittest.TestCase):
         save_response = self.client.post(
             f"/api/projects/{project_id}/m3-materials",
             files=[
-                ("texts", (None, json.dumps(TEXTS, ensure_ascii=False))),
-                ("purposes", (None, "image:m3_basic")),
-                ("purposes", (None, "image:m3_basic")),
-                ("files", ("basic1.png", _png_bytes(), "image/png")),
-                ("files", ("basic2.png", _png_bytes((200, 80, 20)), "image/png")),
+                ("descriptions", (None, "项目基本情况-1：正式第一张\n项目基本情况-2：正式第二张\n项目线路图-1：正式线路图")),
+                ("files", ("项目基本情况-1.png", _png_bytes(), "image/png")),
+                ("files", ("项目基本情况-2.png", _png_bytes((200, 80, 20)), "image/png")),
+                ("files", ("项目线路图-1.png", _png_bytes((80, 20, 200)), "image/png")),
             ],
         )
         self.assertEqual(save_response.status_code, 200, save_response.text)
@@ -100,8 +85,9 @@ class ProjectGenerationM3MaterialsTest(unittest.TestCase):
             for shape in slide.shapes
             if hasattr(shape, "text") and shape.text
         )
-        self.assertIn("正式现场踏勘文字", m3_text)
-        self.assertIn("正式项目线路图文字", m3_text)
+        self.assertIn("正式第一张", m3_text)
+        self.assertIn("正式第二张", m3_text)
+        self.assertIn("正式线路图", m3_text)
         self.assertNotIn("{{m3_", m3_text)
         self.assertNotIn("{{image:m3_basic}}", m3_text)
 
@@ -113,7 +99,7 @@ class ProjectGenerationM3MaterialsTest(unittest.TestCase):
         self._review_project(project_id)
         save_response = self.client.post(
             f"/api/projects/{project_id}/m3-materials",
-            files=[("texts", (None, json.dumps(TEXTS, ensure_ascii=False)))],
+            files=[],
         )
         self.assertEqual(save_response.status_code, 200, save_response.text)
 

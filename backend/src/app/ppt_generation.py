@@ -86,6 +86,7 @@ def render_project_ppt(project: dict[str, Any], output_dir: Path) -> tuple[Path,
         m3_outline["m3_materials"] = {
             "texts": m3_materials.get("texts") or {},
             "images_by_purpose": images_by_purpose,
+            "page_texts": m3_materials.get("page_texts") or {},
         }
 
     # 新版 outline 结构

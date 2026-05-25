@@ -1,4 +1,3 @@
-import json
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile, status
@@ -57,25 +56,6 @@ def validate_project_type(project_type: str) -> None:
     if project_type not in PROJECT_TYPES:
         allowed = ", ".join(PROJECT_TYPES)
         raise HTTPException(status_code=400, detail=f"project_type 只允许 {allowed}")
-
-
-def _validate_m3_material_texts(raw_texts: str) -> dict[str, str]:
-    _ensure_ppt_engine_path()
-    from ppt_engine.renderer import M3_FULL_SECTIONS
-
-    try:
-        text_payload = json.loads(raw_texts or "{}")
-    except json.JSONDecodeError as exc:
-        raise HTTPException(status_code=400, detail=f"texts 不是合法 JSON：{exc}")
-    if not isinstance(text_payload, dict):
-        raise HTTPException(status_code=400, detail="texts 必须是 JSON 对象")
-
-    normalized: dict[str, str] = {}
-    for section in M3_FULL_SECTIONS:
-        field = section["text_field"]
-        value = text_payload.get(field, "")
-        normalized[field] = value if isinstance(value, str) else str(value)
-    return normalized
 
 
 def _validate_image_blob(blob: bytes) -> None:
@@ -169,36 +149,54 @@ def get_project_m3_materials(project_id: int) -> dict:
 @app.post("/api/projects/{project_id}/m3-materials", response_model=M3MaterialsResponse)
 async def save_project_m3_materials(
     project_id: int,
-    texts: str = Form("{}"),
+    descriptions: str = Form(""),
     purposes: list[str] = Form([]),
     files: list[UploadFile] = File([]),
 ) -> dict:
-    _ensure_ppt_engine_path()
-    from ppt_engine.renderer import M3_FULL_IMAGE_FIELDS
-
     project = get_store().get_project(project_id)
     if project is None:
         raise HTTPException(status_code=404, detail="项目不存在")
-    if len(files) != len(purposes):
-        raise HTTPException(status_code=400, detail="图片文件数量和用途数量必须一致")
+    if purposes:
+        raise HTTPException(status_code=400, detail="M3资料上传不再支持按模块手动上传，请按文件名自动分类批量上传")
 
-    normalized_texts = _validate_m3_material_texts(texts)
-    upload_items: list[tuple[str, str, str, bytes]] = []
-    for purpose, upload in zip(purposes, files):
-        if purpose not in M3_FULL_IMAGE_FIELDS:
-            raise HTTPException(status_code=400, detail=f"非法图片用途：{purpose}")
+    from .m3_auto_matcher import build_m3_auto_render_payload
+
+    filenames: list[str] = []
+    blobs: list[bytes] = []
+    content_types: dict[str, str] = {}
+    for upload in files:
         if not (upload.content_type or "").startswith("image/"):
             raise HTTPException(status_code=400, detail=f"文件不是图片：{upload.filename}")
         blob = await upload.read()
         _validate_image_blob(blob)
-        upload_items.append((
-            purpose,
-            upload.filename or "upload",
-            upload.content_type or "application/octet-stream",
-            blob,
-        ))
+        filename = upload.filename or "upload"
+        filenames.append(filename)
+        blobs.append(blob)
+        content_types[filename] = upload.content_type or "application/octet-stream"
 
-    saved = get_store().save_m3_materials(project_id, normalized_texts, upload_items)
+    try:
+        auto_payload = build_m3_auto_render_payload(filenames, blobs, descriptions)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    upload_items = [
+        {
+            "purpose": item["purpose"],
+            "filename": item["filename"],
+            "content_type": content_types.get(str(item["filename"]), "application/octet-stream"),
+            "content": item["blob"],
+            "description": item["description"],
+            "page_index": item["page_index"],
+        }
+        for item in auto_payload.ordered_images
+    ]
+
+    saved = get_store().save_m3_materials(
+        project_id,
+        auto_payload.texts,
+        upload_items,
+        auto_payload.page_texts,
+    )
     if saved is None:
         raise HTTPException(status_code=404, detail="项目不存在")
     return saved
@@ -427,41 +425,45 @@ def _ensure_ppt_engine_path() -> None:
 @app.post("/api/test/m3-full-render", response_model=M3FullRenderTestResponse)
 async def m3_full_render_test(
     project_name: str = Form(...),
-    texts: str = Form("{}"),
+    descriptions: str = Form(""),
     purposes: list[str] = Form([]),
     files: list[UploadFile] = File([]),
 ) -> dict:
     """M3 完整独立测试接口：9 部分文字 + 图片替换，支持多图扩页。"""
     _ensure_ppt_engine_path()
     from pptx import Presentation
-    from ppt_engine.renderer import M3_FULL_IMAGE_FIELDS, render_m3_full_test_ppt
+    from ppt_engine.renderer import render_m3_full_test_ppt
 
     if not project_name or not project_name.strip():
         raise HTTPException(status_code=400, detail="project_name 不能为空")
-    if len(files) != len(purposes):
-        raise HTTPException(status_code=400, detail="图片文件数量和用途数量必须一致")
+    if purposes:
+        raise HTTPException(status_code=400, detail="M3完整测试不再支持按模块手动上传，请按文件名自动分类批量上传")
 
-    try:
-        text_payload = json.loads(texts or "{}")
-    except json.JSONDecodeError as exc:
-        raise HTTPException(status_code=400, detail=f"texts 不是合法 JSON：{exc}")
-    if not isinstance(text_payload, dict):
-        raise HTTPException(status_code=400, detail="texts 必须是 JSON 对象")
+    from .m3_auto_matcher import build_m3_auto_render_payload
 
-    images_by_purpose: dict[str, list[bytes]] = {}
-    for purpose, upload in zip(purposes, files):
-        if purpose not in M3_FULL_IMAGE_FIELDS:
-            raise HTTPException(status_code=400, detail=f"非法图片用途：{purpose}")
+    filenames: list[str] = []
+    blobs: list[bytes] = []
+    for upload in files:
         if not (upload.content_type or "").startswith("image/"):
             raise HTTPException(status_code=400, detail=f"文件不是图片：{upload.filename}")
-        blob = await upload.read()
-        images_by_purpose.setdefault(purpose, []).append(blob)
+        filenames.append(upload.filename or "upload")
+        blobs.append(await upload.read())
+    try:
+        auto_payload = build_m3_auto_render_payload(filenames, blobs, descriptions)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
     output_dir = _get_m3_full_test_output_dir()
     output_dir.mkdir(parents=True, exist_ok=True)
 
     try:
-        pptx_path = render_m3_full_test_ppt(project_name, text_payload, images_by_purpose, output_dir)
+        pptx_path = render_m3_full_test_ppt(
+            project_name,
+            auto_payload.texts,
+            auto_payload.images_by_purpose,
+            output_dir,
+            auto_payload.page_texts,
+        )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=500, detail=f"M3 完整测试模板缺失：{exc}")
     except ValueError as exc:
@@ -469,7 +471,7 @@ async def m3_full_render_test(
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"M3 完整测试渲染失败：{exc}")
 
-    summary = {purpose: len(items) for purpose, items in images_by_purpose.items()}
+    summary = {purpose: len(items) for purpose, items in auto_payload.images_by_purpose.items()}
     filename = pptx_path.name
     slide_count = len(Presentation(str(pptx_path)).slides)
     return {

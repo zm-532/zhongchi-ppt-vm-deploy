@@ -716,6 +716,7 @@ def render_chapter_ppt(
                 m3_materials.get("texts") or {},
                 m3_materials.get("images_by_purpose") or {},
                 output_path,
+                m3_materials.get("page_texts") or None,
             )
         return render_m3_module(project, outline.get("parsed_sources", []), output_path)
 
@@ -1327,12 +1328,28 @@ def replace_m3_full_image_on_slide(slide, image_field: str, blob: bytes) -> None
     _add_cover_picture(slide, blob, left, top, width, height)
 
 
+def replace_m3_full_text_on_slide(slide, text_field: str, value: str) -> None:
+    marker = f"{{{{{text_field}}}}}"
+    replaced = False
+    for shape in slide.shapes:
+        if not hasattr(shape, "text_frame"):
+            continue
+        for paragraph in shape.text_frame.paragraphs:
+            for run in paragraph.runs:
+                if marker in run.text:
+                    run.text = run.text.replace(marker, value)
+                    replaced = True
+    if not replaced:
+        raise ValueError(f"M3 完整测试模板缺少文字槽：{marker}")
+
+
 def _render_m3_full_ppt(
     project_name: str,
     texts: dict[str, str],
     images_by_purpose: dict[str, list[bytes]],
     output_dir: str | Path,
     dest_filename: str,
+    page_texts: dict[str, list[str]] | None = None,
 ) -> Path:
     """渲染 M3 九部分文字 + 图片 PPTX，支持多图扩页。"""
     source_template = PPT_TEMPLATE_ROOT / M3_FULL_TEST_TEMPLATE_FILENAME
@@ -1353,32 +1370,34 @@ def _render_m3_full_ppt(
     target.slide_width = source.slide_width
     target.slide_height = source.slide_height
 
-    generated: list[tuple[int, str, int | None]] = []
+    generated: list[tuple[int, str, str, int | None]] = []
     for section_index, section in enumerate(M3_FULL_SECTIONS):
         image_field = section["image_field"]
+        text_field = section["text_field"]
         blobs = normalized_images.get(image_field, [])
         repeat_count = max(1, len(blobs))
         for image_index in range(repeat_count):
             _append_slide(target, source.slides[section_index])
-            generated.append((len(target.slides) - 1, image_field, image_index if image_index < len(blobs) else None))
+            generated.append((len(target.slides) - 1, image_field, text_field, image_index if image_index < len(blobs) else None))
 
     target.save(str(dest_path))
 
-    replacements = {
-        section["text_field"]: _safe_text(texts.get(section["text_field"], ""), section["title"])
-        for section in M3_FULL_SECTIONS
-    }
-    replace_text_placeholders(dest_path, replacements)
-
     rendered = Presentation(str(dest_path))
-    for slide_index, image_field, image_index in generated:
-        if image_index is None:
-            continue
-        replace_m3_full_image_on_slide(
-            rendered.slides[slide_index],
-            image_field,
-            normalized_images[image_field][image_index],
-        )
+    section_titles = {section["text_field"]: section["title"] for section in M3_FULL_SECTIONS}
+    for slide_index, image_field, text_field, image_index in generated:
+        slide = rendered.slides[slide_index]
+        if page_texts is not None and image_index is not None:
+            values = page_texts.get(image_field, [])
+            text_value = values[image_index] if image_index < len(values) else ""
+        else:
+            text_value = _safe_text(texts.get(text_field, ""), section_titles[text_field])
+        replace_m3_full_text_on_slide(slide, text_field, text_value)
+        if image_index is not None:
+            replace_m3_full_image_on_slide(
+                slide,
+                image_field,
+                normalized_images[image_field][image_index],
+            )
     rendered.save(str(dest_path))
     return dest_path
 
@@ -1388,6 +1407,7 @@ def render_m3_full_test_ppt(
     texts: dict[str, str],
     images_by_purpose: dict[str, list[bytes]],
     output_dir: str | Path,
+    page_texts: dict[str, list[str]] | None = None,
 ) -> Path:
     """渲染 M3 完整功能测试 PPTX：9 部分文字 + 图片，支持多图扩页。"""
     safe_name = _safe_pptx_filename(project_name)
@@ -1397,6 +1417,7 @@ def render_m3_full_test_ppt(
         images_by_purpose,
         output_dir,
         f"M3_完整测试_{safe_name}.pptx",
+        page_texts,
     )
 
 
@@ -1405,6 +1426,7 @@ def render_m3_full_project_ppt(
     texts: dict[str, str],
     images_by_purpose: dict[str, list[bytes]],
     output_dir: str | Path,
+    page_texts: dict[str, list[str]] | None = None,
 ) -> Path:
     """渲染正式流程 M3 完整资料 PPTX。"""
     return _render_m3_full_ppt(
@@ -1413,6 +1435,7 @@ def render_m3_full_project_ppt(
         images_by_purpose,
         output_dir,
         "M3_项目深化方案.pptx",
+        page_texts,
     )
 
 

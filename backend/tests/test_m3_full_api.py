@@ -1,5 +1,4 @@
 import importlib
-import json
 import os
 import tempfile
 import unittest
@@ -13,19 +12,6 @@ def _png_bytes() -> bytes:
     buffer = BytesIO()
     Image.new("RGB", (640, 360), (20, 120, 200)).save(buffer, format="PNG")
     return buffer.getvalue()
-
-
-TEXTS = {
-    "m3_basic_summary": "项目基本情况文字",
-    "m3_line_summary": "项目线路图文字",
-    "m3_sensitive_points_summary": "敏感点路段文字",
-    "m3_quantity_summary": "工程量统计文字",
-    "m3_structure_summary": "结构形式文字",
-    "m3_site_survey_summary": "现场踏勘文字",
-    "m3_investigation_summary": "现场勘察情况文字",
-    "m3_risk_summary": "项目重难点分析文字",
-    "m3_solution_summary": "重难点应对措施文字",
-}
 
 
 class M3FullApiTest(unittest.TestCase):
@@ -47,12 +33,11 @@ class M3FullApiTest(unittest.TestCase):
     def test_m3_full_render_accepts_valid_upload(self):
         response = self.client.post(
             "/api/test/m3-full-render",
-            data={
-                "project_name": "M3完整接口测试",
-                "texts": json.dumps(TEXTS, ensure_ascii=False),
-                "purposes": "image:m3_basic",
-            },
-            files=[("files", ("basic.png", _png_bytes(), "image/png"))],
+            files=[
+                ("project_name", (None, "M3完整接口测试")),
+                ("descriptions", (None, "项目基本情况-1：基础描述")),
+                ("files", ("项目基本情况-1.png", _png_bytes(), "image/png")),
+            ],
         )
 
         self.assertEqual(response.status_code, 200, response.text)
@@ -66,43 +51,40 @@ class M3FullApiTest(unittest.TestCase):
             "/api/test/m3-full-render",
             files=[
                 ("project_name", (None, "M3完整多图接口测试")),
-                ("texts", (None, json.dumps(TEXTS, ensure_ascii=False))),
-                ("purposes", (None, "image:m3_basic")),
-                ("purposes", (None, "image:m3_basic")),
-                ("files", ("basic1.png", _png_bytes(), "image/png")),
-                ("files", ("basic2.png", _png_bytes(), "image/png")),
+                ("descriptions", (None, "项目基本情况-1：第一张\n项目基本情况-2：第二张")),
+                ("files", ("项目基本情况-1.png", _png_bytes(), "image/png")),
+                ("files", ("项目基本情况-2.png", _png_bytes(), "image/png")),
             ],
         )
 
         self.assertEqual(response.status_code, 200, response.text)
         self.assertEqual(response.json()["slide_count"], 10)
 
-    def test_m3_full_render_rejects_mismatched_files_and_purposes(self):
+    def test_m3_full_render_rejects_description_without_image(self):
         response = self.client.post(
             "/api/test/m3-full-render",
-            data={
-                "project_name": "M3完整数量错误",
-                "texts": json.dumps(TEXTS, ensure_ascii=False),
-            },
-            files=[("files", ("basic.png", _png_bytes(), "image/png"))],
+            files=[
+                ("project_name", (None, "M3完整描述错误")),
+                ("descriptions", (None, "项目基本情况-2：多余描述")),
+                ("files", ("项目基本情况-1.png", _png_bytes(), "image/png")),
+            ],
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("图片文件数量和用途数量必须一致", response.text)
+        self.assertIn("描述没有对应图片", response.text)
 
-    def test_m3_full_render_rejects_invalid_purpose(self):
+    def test_m3_full_render_rejects_purposes_manual_mode(self):
         response = self.client.post(
             "/api/test/m3-full-render",
-            data={
-                "project_name": "M3完整非法用途",
-                "texts": json.dumps(TEXTS, ensure_ascii=False),
-                "purposes": "bad_purpose",
-            },
-            files=[("files", ("basic.png", _png_bytes(), "image/png"))],
+            files=[
+                ("project_name", (None, "M3完整手动模式错误")),
+                ("purposes", (None, "image:m3_basic")),
+                ("files", ("项目基本情况-1.png", _png_bytes(), "image/png")),
+            ],
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("非法图片用途", response.text)
+        self.assertIn("不再支持按模块手动上传", response.text)
 
     def test_m3_full_download_rejects_path_traversal(self):
         response = self.client.get("/api/test/m3-full-render/download/..%2Fbad.pptx")

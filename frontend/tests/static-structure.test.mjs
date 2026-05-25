@@ -362,13 +362,21 @@ test("[静态] page.tsx 包含 M3 完整测试视图的 UI 元素", () => {
     "#m3-full-test",
     "M3完整测试",
     "m3FullTestProjectName",
-    "m3FullTestTexts",
-    "m3FullTestFiles",
+    "m3FullTestBulkFiles",
+    "m3FullTestDescriptions",
     "m3FullTestResult",
     "m3FullTestMessage",
     "runM3FullRenderTest",
     "/api/test/m3-full-render",
     "执行 M3 完整测试",
+    "批量图片自动分类",
+    "批量描述文本",
+    "自动匹配预览",
+    "m3NamingHelpOpen",
+    "M3图片命名规则",
+    "命名规则",
+    "如果只有一张图，可以使用“项目基本情况.jpg”",
+    "多张图必须使用“项目基本情况-1.jpg”“项目基本情况-2.jpg”",
     "项目基本情况",
     "项目线路图",
     "敏感点路段",
@@ -379,6 +387,14 @@ test("[静态] page.tsx 包含 M3 完整测试视图的 UI 元素", () => {
     "项目重难点分析",
     "重难点应对措施",
   ].forEach((text) => assert.match(source, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))));
+
+  [
+    "手动上传 fallback",
+    "未选择批量图片时生效",
+    "m3FullTestFiles",
+    "updateM3FullTestText",
+    "updateM3FullTestFiles",
+  ].forEach((text) => assert.doesNotMatch(source, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))));
 });
 
 test("[静态] page.tsx 包含正式流程 M3资料上传独立页面", () => {
@@ -391,14 +407,18 @@ test("[静态] page.tsx 包含正式流程 M3资料上传独立页面", () => {
     "保存M3资料",
     "保存并返回我的项目",
     "返回我的项目",
-    "m3MaterialTexts",
-    "m3MaterialFiles",
+    "m3MaterialBulkFiles",
+    "m3MaterialDescriptions",
+    "m3MaterialAutoPreview",
     "m3MaterialsResult",
     "m3MaterialsMessage",
     "loadM3Materials",
     "saveM3Materials",
     "/api/projects/${currentProject.project_id}/m3-materials",
-    "project_m3_material_",
+    "project_m3_material_bulk_images",
+    "批量图片自动分类",
+    "批量描述文本",
+    "自动匹配预览",
     "项目基本情况",
     "项目线路图",
     "敏感点路段",
@@ -409,6 +429,15 @@ test("[静态] page.tsx 包含正式流程 M3资料上传独立页面", () => {
     "项目重难点分析",
     "重难点应对措施",
   ].forEach((text) => assert.match(source, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))));
+
+  [
+    "m3MaterialTexts",
+    "m3MaterialFiles",
+    "updateM3MaterialText",
+    "updateM3MaterialFiles",
+    "project_m3_material_${section.textField}",
+    "上传{section.title}图片",
+  ].forEach((text) => assert.doesNotMatch(source, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))));
 });
 
 test("[静态] 人工确认表单中 M3 在 M5 前面且包含 M5 演示案例", () => {
