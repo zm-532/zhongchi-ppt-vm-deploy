@@ -1,6 +1,6 @@
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class ModuleResult(BaseModel):
@@ -15,11 +15,18 @@ class ModuleResult(BaseModel):
 
 
 class ProjectCreate(BaseModel):
-    project_name: str
+    project_name: str = Field(..., min_length=1, max_length=120)
     project_location: str = ""
     owner_unit: str = ""
     product_line: str = ""
     project_fields: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("project_name", mode="before")
+    @classmethod
+    def _strip_project_name(cls, v: str) -> str:
+        if isinstance(v, str):
+            v = v.strip()
+        return v
 
 
 class Project(ProjectCreate):

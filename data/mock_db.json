@@ -1,7 +1,7 @@
 {
   "counters": {
-    "project_id": 42,
-    "file_id": 105,
+    "project_id": 44,
+    "file_id": 107,
     "case_id": 1
   },
   "projects": [
@@ -10076,6 +10076,166 @@
       "classification_review": {
         "notes": "前端人工确认"
       }
+    },
+    {
+      "project_name": "test",
+      "product_line": "metro",
+      "project_id": 42,
+      "task_status": "资料解析中",
+      "status_history": [
+        "待生成",
+        "待分析",
+        "资料解析中"
+      ],
+      "modules": [
+        {
+          "module_id": "M1",
+          "status": "pending",
+          "status_history": [
+            "pending"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {},
+          "chapter_ppt_path": "",
+          "error_message": ""
+        },
+        {
+          "module_id": "M2",
+          "status": "pending",
+          "status_history": [
+            "pending"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {},
+          "chapter_ppt_path": "",
+          "error_message": ""
+        },
+        {
+          "module_id": "M3",
+          "status": "pending",
+          "status_history": [
+            "pending"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {},
+          "chapter_ppt_path": "",
+          "error_message": ""
+        },
+        {
+          "module_id": "M5",
+          "status": "pending",
+          "status_history": [
+            "pending"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {},
+          "chapter_ppt_path": "",
+          "error_message": ""
+        },
+        {
+          "module_id": "M6",
+          "status": "pending",
+          "status_history": [
+            "pending"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {},
+          "chapter_ppt_path": "",
+          "error_message": ""
+        }
+      ],
+      "final_ppt_path": "",
+      "detected_project_type": null,
+      "confirmed_project_type": null,
+      "classification_status": "pending",
+      "template_selection": {},
+      "case_selection": {},
+      "quality_report": {}
+    },
+    {
+      "project_name": "test",
+      "product_line": "metro",
+      "project_id": 43,
+      "task_status": "资料解析中",
+      "status_history": [
+        "待生成",
+        "待分析",
+        "资料解析中"
+      ],
+      "modules": [
+        {
+          "module_id": "M1",
+          "status": "pending",
+          "status_history": [
+            "pending"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {},
+          "chapter_ppt_path": "",
+          "error_message": ""
+        },
+        {
+          "module_id": "M2",
+          "status": "pending",
+          "status_history": [
+            "pending"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {},
+          "chapter_ppt_path": "",
+          "error_message": ""
+        },
+        {
+          "module_id": "M3",
+          "status": "pending",
+          "status_history": [
+            "pending"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {},
+          "chapter_ppt_path": "",
+          "error_message": ""
+        },
+        {
+          "module_id": "M5",
+          "status": "pending",
+          "status_history": [
+            "pending"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {},
+          "chapter_ppt_path": "",
+          "error_message": ""
+        },
+        {
+          "module_id": "M6",
+          "status": "pending",
+          "status_history": [
+            "pending"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {},
+          "chapter_ppt_path": "",
+          "error_message": ""
+        }
+      ],
+      "final_ppt_path": "",
+      "detected_project_type": null,
+      "confirmed_project_type": null,
+      "classification_status": "pending",
+      "template_selection": {},
+      "case_selection": {},
+      "quality_report": {}
     }
   ],
   "files": [
@@ -11465,6 +11625,38 @@
       ],
       "parse_status": "parsed",
       "parsed_text_path": "D:\\中驰股份\\code\\data\\parsed_text\\41\\104.txt",
+      "error_message": "",
+      "vector_status": "not_indexed",
+      "vector_chunk_count": 0,
+      "vector_error_message": ""
+    },
+    {
+      "file_id": 105,
+      "project_id": 42,
+      "module_id": null,
+      "filename": "test.pdf",
+      "content_type": "application/pdf",
+      "stored_path": "D:\\中驰股份\\code\\data\\uploads\\42\\unclassified\\105_test.pdf",
+      "document_role": "unknown",
+      "assigned_modules": [],
+      "parse_status": "pending",
+      "parsed_text_path": "",
+      "error_message": "",
+      "vector_status": "not_indexed",
+      "vector_chunk_count": 0,
+      "vector_error_message": ""
+    },
+    {
+      "file_id": 106,
+      "project_id": 43,
+      "module_id": null,
+      "filename": "test.pdf",
+      "content_type": "application/pdf",
+      "stored_path": "D:\\中驰股份\\code\\data\\uploads\\43\\unclassified\\106_test.pdf",
+      "document_role": "unknown",
+      "assigned_modules": [],
+      "parse_status": "pending",
+      "parsed_text_path": "",
       "error_message": "",
       "vector_status": "not_indexed",
       "vector_chunk_count": 0,

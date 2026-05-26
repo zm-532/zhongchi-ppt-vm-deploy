@@ -3,7 +3,16 @@
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass, field
+
+
+def _sanitize_table_name(name: str) -> str:
+    """只允许 [A-Za-z_][A-Za-z0-9_]*，非法时返回空字符串。"""
+    cleaned = re.sub(r"[^A-Za-z0-9_]", "", name)
+    if cleaned and re.match(r"^[A-Za-z_]", cleaned):
+        return cleaned
+    return ""
 
 try:
     import psycopg
@@ -55,19 +64,29 @@ class PgVectorStore:
         if config is None:
             dsn = os.environ.get("ZHONGCHI_VECTOR_DSN", "")
             table_name = os.environ.get("ZHONGCHI_VECTOR_TABLE", "zhongchi_embeddings")
-            # Sanitize table_name to only allow safe SQL identifiers
-            import re
-            table_name = re.sub(r"[^A-Za-z0-9_]", "", table_name)
-            if not table_name:
-                table_name = "zhongchi_embeddings"
+            table_name = _sanitize_table_name(table_name) or "zhongchi_embeddings"
             embedding_dim_str = os.environ.get("ZHONGCHI_EMBEDDING_DIM", "")
-            embedding_dim = int(embedding_dim_str) if embedding_dim_str else 1536
+            try:
+                embedding_dim = int(embedding_dim_str) if embedding_dim_str else 1536
+            except (ValueError, TypeError):
+                embedding_dim = 1536
+            embedding_dim = max(1, min(embedding_dim, 4096))
             config = PgVectorConfig(
                 enabled=bool(dsn),
                 dsn=dsn,
                 table_name=table_name,
                 embedding_dimension=embedding_dim,
             )
+        else:
+            safe_table = _sanitize_table_name(config.table_name) or "zhongchi_embeddings"
+            safe_dim = max(1, min(int(config.embedding_dimension), 4096))
+            if safe_table != config.table_name or safe_dim != config.embedding_dimension:
+                config = PgVectorConfig(
+                    enabled=config.enabled,
+                    dsn=config.dsn,
+                    table_name=safe_table,
+                    embedding_dimension=safe_dim,
+                )
         self.config = config
 
     def is_available(self) -> bool:
@@ -231,6 +250,8 @@ class PgVectorStore:
         """
         if not self.is_available():
             raise NotImplementedError("pgvector 未启用，请使用关键词/标签 fallback 完成素材匹配。")
+
+        top_k = max(1, min(int(top_k), 100))
 
         embedding_str = "[" + ",".join(str(v) for v in embedding) + "]"
 

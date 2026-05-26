@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile, status
@@ -58,6 +59,37 @@ def validate_project_type(project_type: str) -> None:
         raise HTTPException(status_code=400, detail=f"project_type 只允许 {allowed}")
 
 
+def _get_max_upload_bytes() -> int:
+    """获取上传文件大小上限（字节），默认 200MB，可通过 ZHONGCHI_MAX_UPLOAD_BYTES 环境变量配置。"""
+    raw = os.environ.get("ZHONGCHI_MAX_UPLOAD_BYTES", "")
+    if raw:
+        try:
+            value = int(raw)
+            if value > 0:
+                return value
+        except ValueError:
+            pass
+    return 200 * 1024 * 1024  # 200 MB
+
+
+async def _read_file_with_size_limit(file: UploadFile, label: str = "文件") -> bytes:
+    """分块读取上传文件内容，累计超过上限时立即抛出 413，避免超大文件全量进入内存。"""
+    max_bytes = _get_max_upload_bytes()
+    chunk_size = 1024 * 1024  # 1 MB
+    collected = bytearray()
+    while True:
+        chunk = await file.read(chunk_size)
+        if not chunk:
+            break
+        collected.extend(chunk)
+        if len(collected) > max_bytes:
+            raise HTTPException(
+                status_code=413,
+                detail=f"{label}大小超出限制（最大 {max_bytes // (1024 * 1024)}MB）",
+            )
+    return bytes(collected)
+
+
 def _validate_image_blob(blob: bytes) -> None:
     from io import BytesIO
 
@@ -113,7 +145,7 @@ async def upload_module_file(project_id: int, module_id: str, file: UploadFile =
     """兼容历史模块上传测试接口；正式流程请使用 /api/projects/{project_id}/files。"""
     validate_module_id(module_id)
     validate_extension(file.filename or "")
-    content = await file.read()
+    content = await _read_file_with_size_limit(file, "上传文件")
     file_record = get_store().add_file(
         project_id=project_id,
         module_id=module_id,
@@ -131,7 +163,7 @@ async def upload_project_files(project_id: int, files: list[UploadFile] = File(.
     upload_items: list[tuple[str, str, bytes]] = []
     for file in files:
         validate_extension(file.filename or "")
-        upload_items.append((file.filename or "upload", file.content_type or "application/octet-stream", await file.read()))
+        upload_items.append((file.filename or "upload", file.content_type or "application/octet-stream", await _read_file_with_size_limit(file, file.filename or "上传文件")))
     file_records = get_store().add_project_files(project_id=project_id, files=upload_items)
     if file_records is None:
         raise HTTPException(status_code=404, detail="项目不存在")
@@ -167,7 +199,7 @@ async def save_project_m3_materials(
     for upload in files:
         if not (upload.content_type or "").startswith("image/"):
             raise HTTPException(status_code=400, detail=f"文件不是图片：{upload.filename}")
-        blob = await upload.read()
+        blob = await _read_file_with_size_limit(upload, upload.filename or "M3图片")
         _validate_image_blob(blob)
         filename = upload.filename or "upload"
         filenames.append(filename)
@@ -496,7 +528,7 @@ async def m3_full_render_test(
         if not (upload.content_type or "").startswith("image/"):
             raise HTTPException(status_code=400, detail=f"文件不是图片：{upload.filename}")
         filenames.append(upload.filename or "upload")
-        blobs.append(await upload.read())
+        blobs.append(await _read_file_with_size_limit(upload, upload.filename or "M3图片"))
     try:
         auto_payload = build_m3_auto_render_payload(filenames, blobs, descriptions)
     except ValueError as exc:
@@ -598,7 +630,7 @@ async def document_parse_test(files: list[UploadFile] = File(...)) -> list[dict]
 
         # Read file content
         try:
-            content = await file.read()
+            content = await _read_file_with_size_limit(file, filename)
         except Exception as exc:
             results.append({
                 "filename": filename,

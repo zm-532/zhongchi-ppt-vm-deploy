@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, Fragment, useCallback, useEffect, useMemo, useState } from "react";
 
 const statuses = ["待上传", "资料解析中", "类型识别中", "案例匹配中", "待确认", "生成中", "合并中", "完成"];
 
@@ -366,17 +366,7 @@ export default function HomePage() {
     });
   }, [classification, recommendedCases]);
 
-  useEffect(() => {
-    if (!currentProject) {
-      setM3MaterialsResult(null);
-      setM3MaterialBulkFiles([]);
-      setM3MaterialDescriptions("");
-      return;
-    }
-    loadM3Materials(currentProject.project_id);
-  }, [currentProject?.project_id]);
-
-  async function loadM3Materials(projectId: number) {
+  const loadM3Materials = useCallback(async (projectId: number) => {
     try {
       const result = await requestJson<M3MaterialsResult>(`/api/projects/${projectId}/m3-materials`);
       setM3MaterialsResult(result);
@@ -398,7 +388,17 @@ export default function HomePage() {
       setM3MaterialDescriptions("");
       setM3MaterialsMessage(error instanceof Error ? error.message : "M3资料加载失败");
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    if (!currentProject) {
+      setM3MaterialsResult(null);
+      setM3MaterialBulkFiles([]);
+      setM3MaterialDescriptions("");
+      return;
+    }
+    loadM3Materials(currentProject.project_id);
+  }, [currentProject?.project_id, loadM3Materials]);
 
   function updateM3MaterialBulkFiles(files: File[]) {
     setM3MaterialBulkFiles(files);
@@ -1140,16 +1140,16 @@ export default function HomePage() {
                     <div className="fileList">
                       {(selectedFiles.length ? selectedFiles : uploadedFiles).map((file) => <span key={"name" in file ? file.name : file.file_id}>{"name" in file ? file.name : file.filename}</span>)}
                     </div>
-                    {uploadSuccess && <div className="uploadSuccess">上传成功，已上传 {uploadedFiles.length} 个文件</div>}
                   </div>
                   <div className="m3-material-entry">
                     <div>
                       <strong>M3资料上传</strong>
                       <span>用于项目深化方案 M3 章节生成</span>
                     </div>
-                    <p>已填写 {m3MaterialsResult?.text_completed_count ?? 0}/{m3MaterialsResult?.text_total_count ?? 9} 个部分，已上传 {m3MaterialsResult?.image_count ?? 0} 张图片</p>
+                    <p className="m3-upload-summary"><strong>M3上传情况：</strong>已填写 {m3MaterialsResult?.text_completed_count ?? 0}/{m3MaterialsResult?.text_total_count ?? 9} 个部分，已上传 {m3MaterialsResult?.image_count ?? 0} 张图片</p>
                     <a className="secondaryButton" href="#project-m3-materials">进入M3资料上传</a>
                   </div>
+                  {uploadSuccess && <div className="uploadSuccess">上传成功</div>}
                   <div className="upload-actions-bar">
                     <button className="primaryButton" disabled={busy} onClick={uploadProjectFiles} type="button">统一上传项目资料</button>
                     <button className="secondaryButton" disabled={busy} onClick={analyzeProject} type="button">开始识别资料</button>
@@ -1813,8 +1813,8 @@ export default function HomePage() {
                       </thead>
                       <tbody>
                         {docParseTestResult.files.map((f, idx) => (
-                          <>
-                            <tr key={idx} className="doc-parse-table-row">
+                          <Fragment key={idx}>
+                            <tr className="doc-parse-table-row">
                               <td className="doc-parse-table-cell">{f.filename}</td>
                               <td className="doc-parse-table-cell">
                                 <span className={`parseStatus ${f.parse_status}`}>{f.parse_status}</span>
@@ -1865,7 +1865,7 @@ export default function HomePage() {
                                 </td>
                               </tr>
                             ) : null}
-                          </>
+                          </Fragment>
                         ))}
                       </tbody>
                     </table>

@@ -440,6 +440,24 @@ test("[静态] page.tsx 包含正式流程 M3资料上传独立页面", () => {
   ].forEach((text) => assert.doesNotMatch(source, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))));
 });
 
+test("[静态] 统一资料上传页将上传成功提示放在 M3 上传情况之后", () => {
+  const source = pageSource();
+
+  assert.match(source, /M3上传情况/);
+  assert.match(source, /<div className="uploadSuccess">上传成功<\/div>/);
+  assert.doesNotMatch(source, /上传成功，已上传 \{uploadedFiles\.length\} 个文件/);
+
+  const uploadPanelPosition = source.indexOf('className="uploadPanel"');
+  const m3EntryPosition = source.indexOf('className="m3-material-entry"');
+  const successPosition = source.indexOf('className="uploadSuccess"');
+
+  assert.notEqual(uploadPanelPosition, -1);
+  assert.notEqual(m3EntryPosition, -1);
+  assert.notEqual(successPosition, -1);
+  assert.ok(uploadPanelPosition < m3EntryPosition);
+  assert.ok(m3EntryPosition < successPosition);
+});
+
 test("[静态] 人工确认表单中 M3 在 M5 前面且包含 M5 演示案例", () => {
   const source = pageSource();
   assert.match(source, /确认 M3 模块[\s\S]*确认 M5 案例/);

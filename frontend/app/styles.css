@@ -332,12 +332,6 @@ input:disabled {
   margin-top: 10px;
 }
 
-.projectList {
-  display: grid;
-  gap: 10px;
-  margin-top: 16px;
-}
-
 .projectRow {
   display: flex;
   align-items: center;
@@ -980,6 +974,10 @@ textarea:focus-visible,
 .m3-material-entry p {
   margin: 0;
   color: var(--text);
+}
+
+.m3-upload-summary strong {
+  color: var(--primary-dark);
 }
 
 .statusList {
