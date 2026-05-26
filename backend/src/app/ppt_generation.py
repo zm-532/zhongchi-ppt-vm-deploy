@@ -5,6 +5,8 @@ import shutil
 from pathlib import Path
 from typing import Any
 
+from .m5_case_scanner import get_m5_case_by_id
+
 
 def _ensure_ppt_engine_path() -> None:
     code_dir = Path(__file__).resolve().parents[3]
@@ -89,11 +91,30 @@ def render_project_ppt(project: dict[str, Any], output_dir: Path) -> tuple[Path,
             "page_texts": m3_materials.get("page_texts") or {},
         }
 
+    # 构建 M5 case_data：fixed_m5_case 需要解析完整案例信息
+    m5_case_data: dict[str, Any] | None = None
+    if has_case:
+        m5_case_data = {"case_id": raw_case_id}
+        # 如果是 fixed_m5_case，从 M5 文件夹解析完整案例信息
+        if str(raw_case_id).startswith("fixed_m5_case:"):
+            resolved = get_m5_case_by_id(str(raw_case_id))
+            if not resolved:
+                raise FileNotFoundError(
+                    f"fixed_m5_case 未在 M5 文件夹中找到：case_id={raw_case_id}。"
+                    "案例文件可能已被移动或删除，请重新扫描 M5 案例库。"
+                )
+            m5_case_data.update({
+                "source_path": resolved["source_path"],
+                "filename": resolved["filename"],
+                "title": resolved["title"],
+                "source_type": resolved["source_type"],
+            })
+
     # 新版 outline 结构
     outlines = {
         "M1_M2": {"project_type": confirmed_project_type},
         "M3": m3_outline,
-        "M5": {"case_data": {"case_id": raw_case_id} if has_case else None},
+        "M5": {"case_data": m5_case_data},
         "M6": {},
     }
 

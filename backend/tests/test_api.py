@@ -1788,6 +1788,290 @@ class BackendApiTest(unittest.TestCase):
             "地铁项目含短窗口/天窗等强约束时应判为既有线轨交",
         )
 
+    # ---- M5 文件夹案例库扫描测试 ----
+
+    def test_m5_folder_cases_appear_in_api_cases(self):
+        """验证 GET /api/cases 返回 M5 文件夹中的固定案例。"""
+        response = self.client.get("/api/cases")
+        self.assertEqual(response.status_code, 200)
+        cases = response.json()
+
+        # 应包含 M5 文件夹案例
+        m5_cases = [c for c in cases if c.get("source_type") == "fixed_m5"]
+        self.assertGreaterEqual(len(m5_cases), 3, "应至少包含 3 个 M5 文件夹案例")
+
+        # 验证字段完整性
+        required_fields = ["case_id", "title", "filename", "project_type", "source_path", "module_id", "source_type"]
+        for case in m5_cases:
+            for field in required_fields:
+                self.assertIn(field, case, f"M5 案例缺少字段: {field}")
+            self.assertTrue(case["case_id"].startswith("fixed_m5_case:"), f"case_id 格式错误: {case['case_id']}")
+            self.assertEqual(case["module_id"], "M5")
+            self.assertEqual(case["source_type"], "fixed_m5")
+
+        # 验证类型映射
+        type_map = {c["project_type"] for c in m5_cases}
+        self.assertIn("highway", type_map, "应有 highway 类型案例")
+        self.assertIn("railway", type_map, "应有 railway 类型案例")
+        self.assertIn("metro", type_map, "应有 metro 类型案例")
+
+    def test_m5_folder_case_id_is_stable(self):
+        """验证 M5 案例 case_id 基于文件名 hash，多次调用结果一致。"""
+        from app.m5_case_scanner import scan_m5_cases
+
+        first = scan_m5_cases()
+        second = scan_m5_cases()
+
+        self.assertEqual(len(first), len(second))
+        for a, b in zip(first, second):
+            self.assertEqual(a["case_id"], b["case_id"])
+            self.assertEqual(a["title"], b["title"])
+
+    def test_m5_recommend_highway_for_highway_project(self):
+        """验证 highway 项目类型推荐公路开头的 M5 案例。"""
+        from app.m5_case_scanner import recommend_m5_case
+
+        case = recommend_m5_case("highway")
+        self.assertIsNotNone(case, "highway 应有推荐案例")
+        self.assertTrue(case["filename"].startswith("公路"), f"文件名应以'公路'开头: {case['filename']}")
+        self.assertEqual(case["project_type"], "highway")
+
+    def test_m5_recommend_railway_for_railway_project(self):
+        """验证 railway 项目类型推荐铁路开头的 M5 案例。"""
+        from app.m5_case_scanner import recommend_m5_case
+
+        case = recommend_m5_case("railway")
+        self.assertIsNotNone(case, "railway 应有推荐案例")
+        self.assertTrue(case["filename"].startswith("铁路"), f"文件名应以'铁路'开头: {case['filename']}")
+        self.assertEqual(case["project_type"], "railway")
+
+    def test_m5_recommend_metro_for_metro_project(self):
+        """验证 metro 项目类型推荐轨道交通开头的 M5 案例。"""
+        from app.m5_case_scanner import recommend_m5_case
+
+        case = recommend_m5_case("metro")
+        self.assertIsNotNone(case, "metro 应有推荐案例")
+        self.assertTrue(case["filename"].startswith("轨道交通"), f"文件名应以'轨道交通'开头: {case['filename']}")
+        self.assertEqual(case["project_type"], "metro")
+
+    def test_m5_recommend_metro_for_existing_rail_transit(self):
+        """验证 existing_rail_transit 暂时推荐轨道交通开头的 M5 案例。"""
+        from app.m5_case_scanner import recommend_m5_case
+
+        case = recommend_m5_case("existing_rail_transit")
+        self.assertIsNotNone(case, "existing_rail_transit 应有推荐案例")
+        self.assertTrue(case["filename"].startswith("轨道交通"), f"文件名应以'轨道交通'开头: {case['filename']}")
+
+    def test_m5_case_id_accepted_in_review(self):
+        """验证 M5 文件夹案例的 case_id 能通过 review 校验。"""
+        from app.m5_case_scanner import scan_m5_cases
+
+        m5_cases = scan_m5_cases()
+        if not m5_cases:
+            self.skipTest("M5 文件夹无案例")
+
+        project_id = self.client.post(
+            "/api/projects",
+            json={"project_name": "M5 校验测试", "product_line": "公路声屏障"},
+        ).json()["project_id"]
+        self.client.post(
+            f"/api/projects/{project_id}/files",
+            files=[("files", ("高速项目简介.pdf", b"highway noise barrier", "application/pdf"))],
+        )
+        classification = self.client.post(f"/api/projects/{project_id}/analyze").json()
+
+        # 用 M5 文件夹案例的 case_id 做 review
+        m5_case_id = m5_cases[0]["case_id"]
+        response = self.client.post(
+            f"/api/projects/{project_id}/classification/review",
+            json={
+                "confirmed_project_type": "highway",
+                "template_selection": classification["template_selection"],
+                "confirmed_case_id": m5_case_id,
+                "notes": "使用 M5 文件夹案例",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["case_selection"]["confirmed_case_id"], m5_case_id)
+
+    def test_analyze_recommends_m5_folder_case_for_metro(self):
+        """验证 analyze 返回的 recommended_cases 包含 M5 文件夹推荐案例。"""
+        project_id = self.client.post(
+            "/api/projects",
+            json={"project_name": "地铁 M5 推荐测试", "product_line": "地铁声屏障"},
+        ).json()["project_id"]
+        self.client.post(
+            f"/api/projects/{project_id}/files",
+            files=[("files", ("地铁项目简介.pdf", b"metro line noise barrier", "application/pdf"))],
+        )
+        classification = self.client.post(f"/api/projects/{project_id}/analyze").json()
+
+        recommended = classification.get("case_selection", {}).get("recommended_cases", [])
+        m5_cases = [c for c in recommended if c.get("case_id", "").startswith("fixed_m5_case:")]
+        self.assertGreater(len(m5_cases), 0, "recommended_cases 应包含 M5 文件夹案例")
+        # 通过 source_path 验证是轨道交通文件
+        self.assertIn("轨道交通", m5_cases[0]["source_path"])
+
+    def test_analyze_recommended_cases_returns_exactly_one_m5_case(self):
+        """验证 analyze 对 4 类 project_type 的 recommended_cases 长度为 1，且以 fixed_m5_case: 开头。"""
+        test_cases = [
+            ("高速 M5 长度测试", "公路声屏障", [("files", ("高速.pdf", b"highway noise barrier", "application/pdf"))]),
+            ("铁路 M5 长度测试", "铁路声屏障", [("files", ("铁路.pdf", b"railway noise barrier", "application/pdf"))]),
+            ("地铁 M5 长度测试", "地铁声屏障", [("files", ("地铁.pdf", b"metro line noise barrier", "application/pdf"))]),
+            ("既有线 M5 长度测试", "轨交既有线改造", [("files", ("既有线.pdf", "既有线 轨道交通 改造 夜间 施工窗口".encode(), "application/pdf"))]),
+        ]
+        for name, product_line, files in test_cases:
+            with self.subTest(name=name):
+                project_id = self.client.post(
+                    "/api/projects",
+                    json={"project_name": name, "product_line": product_line},
+                ).json()["project_id"]
+                self.client.post(f"/api/projects/{project_id}/files", files=files)
+                classification = self.client.post(f"/api/projects/{project_id}/analyze").json()
+
+                recommended = classification.get("case_selection", {}).get("recommended_cases", [])
+                self.assertEqual(len(recommended), 1, f"{name}: recommended_cases 应恰好 1 个，实际 {len(recommended)}")
+                self.assertTrue(
+                    recommended[0]["case_id"].startswith("fixed_m5_case:"),
+                    f"{name}: case_id 应以 fixed_m5_case: 开头，实际 {recommended[0]['case_id']}",
+                )
+
+    # ---- M5 fixed_m5_case 生成链路测试 ----
+
+    def test_generate_with_fixed_m5_case_copies_source_pptx(self):
+        """验证选择 fixed_m5_case 后 generate 的 M5 章节文件与源 PPTX 一致。"""
+        from app.m5_case_scanner import recommend_m5_case
+
+        # 先确定一个 fixed_m5_case 及其源文件
+        m5_case = recommend_m5_case("highway")
+        self.assertIsNotNone(m5_case, "应有 highway 类型 M5 案例")
+        source_bytes = Path(m5_case["source_path"]).read_bytes()
+
+        project_id = self.client.post(
+            "/api/projects",
+            json={"project_name": "M5 源文件复制测试", "product_line": "公路声屏障"},
+        ).json()["project_id"]
+        self.client.post(
+            f"/api/projects/{project_id}/files",
+            files=[("files", ("高速.pdf", b"highway noise barrier", "application/pdf"))],
+        )
+        classification = self.client.post(f"/api/projects/{project_id}/analyze").json()
+        recommended = classification["case_selection"]["recommended_cases"]
+        self.assertEqual(len(recommended), 1)
+        fixed_case_id = recommended[0]["case_id"]
+        self.assertTrue(fixed_case_id.startswith("fixed_m5_case:"))
+
+        review_resp = self.client.post(
+            f"/api/projects/{project_id}/classification/review",
+            json={
+                "confirmed_project_type": "highway",
+                "template_selection": classification["template_selection"],
+                "confirmed_case_id": fixed_case_id,
+                "notes": "使用 fixed_m5_case",
+            },
+        )
+        self.assertEqual(review_resp.status_code, 200)
+
+        generate_resp = self.client.post(f"/api/projects/{project_id}/generate")
+        self.assertEqual(generate_resp.status_code, 202)
+        generated = generate_resp.json()
+        m5_module = next(m for m in generated["modules"] if m["module_id"] == "M5")
+        self.assertEqual(m5_module["status"], "rendered")
+        self.assertTrue(m5_module["chapter_ppt_path"])
+
+        # 验证 M5 章节文件内容与源 PPTX 一致
+        chapter_bytes = Path(m5_module["chapter_ppt_path"]).read_bytes()
+        self.assertEqual(chapter_bytes, source_bytes, "M5 章节文件应与源 PPTX 字节一致")
+
+    def test_generate_with_m5_demo_case_id_uses_fallback_template(self):
+        """验证 m5_demo / case_id=1 等非 fixed_m5_case 仍使用 M5示例.pptx。"""
+        project_id = self.client.post(
+            "/api/projects",
+            json={"project_name": "M5 demo 兼容测试", "product_line": "地铁声屏障"},
+        ).json()["project_id"]
+        self.client.post(
+            f"/api/projects/{project_id}/files",
+            files=[("files", ("地铁.pdf", b"metro line noise barrier", "application/pdf"))],
+        )
+        classification = self.client.post(f"/api/projects/{project_id}/analyze").json()
+
+        # 使用旧 case_id=1（演示案例）
+        review_resp = self.client.post(
+            f"/api/projects/{project_id}/classification/review",
+            json={
+                "confirmed_project_type": "metro",
+                "template_selection": classification["template_selection"],
+                "confirmed_case_id": 1,
+                "notes": "使用旧演示案例",
+            },
+        )
+        self.assertEqual(review_resp.status_code, 200)
+
+        generate_resp = self.client.post(f"/api/projects/{project_id}/generate")
+        self.assertEqual(generate_resp.status_code, 202)
+        generated = generate_resp.json()
+        m5_module = next(m for m in generated["modules"] if m["module_id"] == "M5")
+        self.assertEqual(m5_module["status"], "rendered")
+        self.assertTrue(m5_module["chapter_ppt_path"])
+        self.assertTrue(Path(m5_module["chapter_ppt_path"]).exists())
+
+    def test_renderer_rejects_fixed_m5_source_path_outside_m5_dir(self):
+        """验证 renderer 拒绝 M5 目录外的 source_path。"""
+        from ppt_engine.renderer import _render_m5_case_template
+
+        case_data = {
+            "case_id": "fixed_m5_case:fake",
+            "source_path": str(Path(__file__).resolve()),  # 指向测试文件自身
+            "filename": "test_api.py",
+            "title": "非法路径",
+            "source_type": "fixed_m5",
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(ValueError) as ctx:
+                _render_m5_case_template(case_data, {}, Path(tmp))
+            self.assertIn("超出 M5 目录范围", str(ctx.exception))
+
+    def test_generate_fails_when_fixed_m5_case_disappears_after_review(self):
+        """验证 review 后源案例失效时 generate 应失败，不静默回退到 M5示例.pptx。"""
+        from app.m5_case_scanner import recommend_m5_case
+
+        m5_case = recommend_m5_case("railway")
+        self.assertIsNotNone(m5_case, "应有 railway 类型 M5 案例")
+        fixed_case_id = m5_case["case_id"]
+
+        project_id = self.client.post(
+            "/api/projects",
+            json={"project_name": "M5 源案例失效测试", "product_line": "铁路声屏障"},
+        ).json()["project_id"]
+        self.client.post(
+            f"/api/projects/{project_id}/files",
+            files=[("files", ("铁路.pdf", b"railway noise barrier", "application/pdf"))],
+        )
+        classification = self.client.post(f"/api/projects/{project_id}/analyze").json()
+
+        review_resp = self.client.post(
+            f"/api/projects/{project_id}/classification/review",
+            json={
+                "confirmed_project_type": "railway",
+                "template_selection": classification["template_selection"],
+                "confirmed_case_id": fixed_case_id,
+                "notes": "确认铁路案例",
+            },
+        )
+        self.assertEqual(review_resp.status_code, 200)
+
+        # 模拟 M5 扫描解析不到该 case（文件被移动/删除）
+        with patch("app.ppt_generation.get_m5_case_by_id", return_value=None):
+            generate_resp = self.client.post(f"/api/projects/{project_id}/generate")
+
+        self.assertEqual(generate_resp.status_code, 202)
+        generated = generate_resp.json()
+        self.assertEqual(generated["task_status"], "失败")
+        m5_module = next(m for m in generated["modules"] if m["module_id"] == "M5")
+        self.assertEqual(m5_module["status"], "failed")
+        # 确认错误信息中包含提示
+        self.assertIn("fixed_m5_case", m5_module["error_message"])
+
 
 class RemovedM3PartialRenderTest(unittest.TestCase):
     """验证 M3 文字/图片拆分测试接口已下线。"""

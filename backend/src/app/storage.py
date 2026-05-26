@@ -13,8 +13,8 @@ _db_lock = threading.Lock()
 from .case_matcher import (
     extract_project_tags,
     load_case_index,
-    match_cases,
 )
+from .m5_case_scanner import get_m5_case_by_id, recommend_m5_case, scan_m5_cases
 from .constants import (
     ALLOWED_MODULE_IDS,
     INITIAL_TASK_STATUS,
@@ -469,37 +469,29 @@ class JsonStore:
         return reviewed_selection
 
     def _recommended_cases(self, project_type: str, files: list[dict[str, Any]], project_tags: dict[str, Any] | None = None) -> list[dict[str, Any]]:
-        """使用真实案例库匹配推荐案例"""
-        # 加载案例索引
-        case_index = load_case_index()
+        """推荐 M5 案例。
 
-        if not case_index:
+        第 1 阶段：只推荐 1 个 M5 文件夹固定案例，不混入旧 case_matcher 结果。
+        后续阶段可扩展为多来源混合推荐。
+        """
+        m5_recommended = recommend_m5_case(project_type)
+        if m5_recommended is None:
             return []
 
-        # 如果没有传入项目标签，从文件解析提取
-        if project_tags is None:
-            # 从文件名和解析文本中提取标签
-            filename_text = " ".join(file_record.get("filename", "") for file_record in files)
-            parsed_texts = []
-            for file_record in files:
-                parsed_path = file_record.get("parsed_text_path")
-                if parsed_path and Path(parsed_path).exists():
-                    try:
-                        text = Path(parsed_path).read_text(encoding="utf-8", errors="ignore")
-                        parsed_texts.append(text)
-                    except OSError:
-                        pass
-            combined_text = filename_text + " " + " ".join(parsed_texts)
-            project_tags = extract_project_tags(combined_text, {
-                "project_type": project_type,
-            })
-            # 确保项目类型被设置
-            project_tags.setdefault("project_type", project_type)
-
-        # 使用 case_matcher 进行匹配
-        recommendations = match_cases(project_tags, case_index, top_n=3)
-
-        return recommendations
+        type_names = {
+            "highway": "公路",
+            "railway": "铁路",
+            "metro": "轨道交通",
+            "existing_rail_transit": "轨道交通",
+        }
+        type_name = type_names.get(project_type, project_type)
+        return [{
+            "case_id": m5_recommended["case_id"],
+            "title": m5_recommended["title"],
+            "match_reason": f"同为{type_name}类型固定案例",
+            "matched_tags": [f"项目类型:{project_type}"],
+            "source_path": m5_recommended["source_path"],
+        }]
 
     def analyze_project(self, project_id: int) -> dict[str, Any] | None:
         with self._transaction() as state:
@@ -641,6 +633,9 @@ class JsonStore:
         for case in state.get("cases", []):
             if str(case.get("case_id")) == str_id:
                 return True
+        # Check M5 folder cases
+        if get_m5_case_by_id(str_id) is not None:
+            return True
         return False
 
     def review_classification(
@@ -857,7 +852,18 @@ class JsonStore:
         return assets
 
     def get_cases(self) -> list[dict[str, Any]]:
-        return self.load()["cases"]
+        # 合并 mock cases 和 M5 文件夹扫描结果
+        mock_cases = self.load()["cases"]
+        m5_cases = scan_m5_cases()
+        # 按 case_id 去重，M5 文件夹案例优先
+        seen = {c["case_id"] for c in m5_cases}
+        merged = list(m5_cases)
+        for c in mock_cases:
+            cid = str(c.get("case_id", ""))
+            if cid not in seen:
+                seen.add(cid)
+                merged.append(c)
+        return merged
 
     def index_project_vector(
         self,

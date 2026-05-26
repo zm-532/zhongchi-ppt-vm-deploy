@@ -88,6 +88,7 @@ type ReviewForm = { projectType: string; m1m2Template: string; caseId?: string; 
 type RecommendedCase = { case_id: number | string; title: string; match_reason?: string; matched_tags?: string[]; source_path?: string };
 type LlmTestResult = { ok: boolean; status_code: number; model: string; reply: string; error: string; configured: Record<string, boolean> };
 type M3FullTestResult = { ok: boolean; pptx_path: string; download_url: string; slide_count: number; image_summary: Record<string, number> };
+type CaseLibraryItem = { case_id: string | number; title: string; filename?: string; project_type?: string; source_path?: string; module_id?: string; source_type?: string };
 type M3MaterialImage = { purpose: string; filename: string; content_type?: string; stored_path: string; description?: string; page_index?: number };
 type M3MaterialsResult = {
   project_id: number;
@@ -159,6 +160,7 @@ export default function HomePage() {
   const [classification, setClassification] = useState<ClassificationResult | null>(null);
   const [showClassificationDetails, setShowClassificationDetails] = useState(false);
   const [reviewForm, setReviewForm] = useState<ReviewForm>({ projectType: "", m1m2Template: "", caseId: undefined, m3Selection: "m3_template", notes: "" });
+  const [caseLibraryItems, setCaseLibraryItems] = useState<CaseLibraryItem[]>([]);
   const [m1m2TestFiles, setM1m2TestFiles] = useState<File[]>([]);
   const [m1m2TestProjectName, setM1m2TestProjectName] = useState("M1/M2选择测试项目");
   const [m1m2TestResult, setM1m2TestResult] = useState<ClassificationResult | null>(null);
@@ -220,6 +222,7 @@ export default function HomePage() {
   const [selectedProjectIds, setSelectedProjectIds] = useState<number[]>([]);
   const activeStatus = task?.task_status ?? currentProject?.task_status ?? "待上传";
   const recommendedCases = useMemo(() => classification?.case_selection?.recommended_cases ?? [], [classification]);
+  const m5FixedCases = useMemo(() => caseLibraryItems.filter((item) => item.source_type === "fixed_m5" && item.module_id === "M5"), [caseLibraryItems]);
   const hasMoreProjects = projects.length > PROJECT_LIST_PREVIEW_LIMIT;
   const totalProjectPages = Math.ceil(projects.length / PROJECT_LIST_PAGE_SIZE);
   const visibleProjects = projectListExpanded
@@ -339,6 +342,12 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
+    requestJson<CaseLibraryItem[]>("/api/cases")
+      .then((items) => setCaseLibraryItems(items))
+      .catch(() => setCaseLibraryItems([]));
+  }, []);
+
+  useEffect(() => {
     const detectedType = classification?.confirmed_project_type || classification?.detected_project_type || "";
     const templateKey = classification?.template_selection?.M1_M2?.template_key || detectedType;
     const confirmedCaseId = classification?.case_selection?.confirmed_case_id;
@@ -349,10 +358,10 @@ export default function HomePage() {
       const needsInitCaseId = value.caseId === undefined || value.caseId === null;
       let newCaseId = value.caseId;
       if (needsInitCaseId) {
-        // 首次初始化：优先用后端确认的 caseId，其次用推荐列表第一个，均无则为 null（表示暂不选择）
+        // 首次初始化：优先用后端确认的 caseId，其次用推荐列表第一个，均无则为空（暂不选择）
         newCaseId = confirmedCaseId !== undefined && confirmedCaseId !== null
           ? String(confirmedCaseId)
-          : (recommendedCases[0]?.case_id !== undefined ? String(recommendedCases[0].case_id) : String(M5_DEMO_CASE.case_id));
+          : (recommendedCases[0]?.case_id !== undefined ? String(recommendedCases[0].case_id) : "");
       }
 
       return {
@@ -505,6 +514,13 @@ export default function HomePage() {
       setClassification(result);
       setShowClassificationDetails(false);
       setCurrentProject(await requestJson<Project>(`/api/projects/${currentProject.project_id}`));
+      // 重置 reviewForm 为新识别结果，确保 M5 默认选中新推荐案例
+      const detectedType = result.confirmed_project_type || result.detected_project_type || "";
+      const templateKey = result.template_selection?.M1_M2?.template_key || detectedType;
+      const newCaseId = result.case_selection?.confirmed_case_id != null
+        ? String(result.case_selection.confirmed_case_id)
+        : (result.case_selection?.recommended_cases?.[0]?.case_id != null ? String(result.case_selection.recommended_cases[0].case_id) : "");
+      setReviewForm({ projectType: detectedType, m1m2Template: templateKey, caseId: newCaseId, m3Selection: "m3_template", notes: "" });
       setMessage("识别结果已返回，请确认项目类型、模板与案例。");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "资料识别失败");
@@ -1045,7 +1061,7 @@ export default function HomePage() {
                       <span className={`project-status-badge ${getProjectStatusClass(project.task_status)}`}>{project.task_status}</span>
                     </label>
                   ) : (
-                    <button className={currentProject?.project_id === project.project_id ? "projectItem selected" : "projectItem"} key={project.project_id} onClick={() => { setCurrentProject(project); setTask(null); setClassification(null); setShowClassificationDetails(false); }} type="button"><strong>{project.project_name}</strong><span className={`project-status-badge ${getProjectStatusClass(project.task_status)}`}>{project.task_status}</span></button>
+                    <button className={currentProject?.project_id === project.project_id ? "projectItem selected" : "projectItem"} key={project.project_id} onClick={() => { setCurrentProject(project); setTask(null); setClassification(null); setShowClassificationDetails(false); setReviewForm({ projectType: "", m1m2Template: "", caseId: undefined, m3Selection: "m3_template", notes: "" }); }} type="button"><strong>{project.project_name}</strong><span className={`project-status-badge ${getProjectStatusClass(project.task_status)}`}>{project.task_status}</span></button>
                   ))}</div>
                   {hasMoreProjects ? (
                     <div className="projectListFooter">
@@ -1174,8 +1190,8 @@ export default function HomePage() {
                         </article>
                         <article className="resultCard">
                           <span>M5 推荐案例</span>
-                          <strong>{recommendedCases[0]?.title ?? "M5案例示例"}</strong>
-                          <p>{recommendedCases[0]?.match_reason ?? "系统未返回高匹配案例时，请在人工确认时补充选择。"}</p>
+                          <strong>{recommendedCases[0]?.title || recommendedCases[0]?.source_path?.split(/[\\/]/).pop() || "暂无推荐案例"}</strong>
+                          <p>{recommendedCases[0]?.match_reason ?? "暂无推荐案例，可在下方人工确认中选择 M5 案例或暂不选择。"}</p>
                         </article>
                         <article className="resultCard">
                           <span>M6 固定模板</span>
@@ -1246,7 +1262,7 @@ export default function HomePage() {
                         <label>确认项目类型<select aria-label="确认项目类型" value={reviewForm.projectType} onChange={(event) => setReviewForm((value) => ({ ...value, projectType: event.target.value }))}>{projectTypes.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
                         <label>确认 M1/M2 模板<select aria-label="确认 M1/M2 模板" value={reviewForm.m1m2Template} onChange={(event) => setReviewForm((value) => ({ ...value, m1m2Template: event.target.value }))}>{m1m2Templates.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
                         <label>确认 M3 模块<select aria-label="确认 M3 模块" value={reviewForm.m3Selection} onChange={(event) => setReviewForm((value) => ({ ...value, m3Selection: event.target.value }))}><option value="m3_template">M3模板</option><option value="m3_skip">暂不选择</option></select></label>
-                        <label>确认 M5 案例<select aria-label="确认 M5 案例" value={reviewForm.caseId} onChange={(event) => setReviewForm((value) => ({ ...value, caseId: event.target.value }))}><option value="m5_demo">M5示例案例</option><option value="">暂不选择案例</option>{recommendedCases.map((item) => <option key={item.case_id} value={item.case_id}>{item.title}</option>)}</select></label>
+                        <label>确认 M5 案例<select aria-label="确认 M5 案例" value={reviewForm.caseId ?? ""} onChange={(event) => setReviewForm((value) => ({ ...value, caseId: event.target.value }))}>{recommendedCases[0] ? <option value={String(recommendedCases[0].case_id)}>{recommendedCases[0].title || recommendedCases[0].case_id}</option> : null}{m5FixedCases.filter((item) => String(item.case_id) !== String(recommendedCases[0]?.case_id)).map((item) => <option key={item.case_id} value={item.case_id}>{item.filename || item.title}</option>)}<option value="">暂不选择案例</option></select></label>
                         <label>确认备注<input value={reviewForm.notes} onChange={(event) => setReviewForm((value) => ({ ...value, notes: event.target.value }))} placeholder="可填写模板或案例调整原因" /></label>
                         <button className="primaryButton" disabled={busy} type="submit">提交人工确认</button>
                       </form>
@@ -1428,16 +1444,30 @@ export default function HomePage() {
 
         {activeView === "cases" ? (
           <section id="cases" className="section">
-            <div className="sectionHeader"><h2>案例库管理</h2><button className="secondaryButton" type="button">新增案例</button></div>
-            <div className="cases-empty-panel">
-              <h3 className="cases-empty-title">案例库暂未配置</h3>
-              <p className="cases-empty-desc">添加历史项目案例后，系统会根据项目类型、场景标签和匹配理由推荐 M5 案例。</p>
-              <div className="cases-capability-list">
-                <div className="cases-capability-item">历史项目案例归档</div>
-                <div className="cases-capability-item">项目标签与场景匹配</div>
-                <div className="cases-capability-item">M5 推荐案例辅助生成</div>
+            <div className="sectionHeader"><h2>案例库管理</h2><button className="secondaryButton" disabled type="button">新增案例</button></div>
+            {m5FixedCases.length > 0 ? (
+              <div className="evidenceList">
+                {m5FixedCases.map((item) => (
+                  <article className="evidenceItem" key={item.case_id}>
+                    <div>
+                      <strong>{item.filename || item.title}</strong>
+                      <span>case_id: {String(item.case_id)}</span>
+                    </div>
+                    {item.project_type ? <p>项目类型：{item.project_type}</p> : null}
+                  </article>
+                ))}
               </div>
-            </div>
+            ) : (
+              <div className="cases-empty-panel">
+                <h3 className="cases-empty-title">暂未发现 M5 案例文件</h3>
+                <p className="cases-empty-desc">请检查 ppt_engine/templates/solution_fixed_modules/M5 目录下是否存在 .pptx 案例文件。</p>
+                <div className="cases-capability-list">
+                  <div className="cases-capability-item">历史项目案例归档</div>
+                  <div className="cases-capability-item">项目标签与场景匹配</div>
+                  <div className="cases-capability-item">M5 推荐案例辅助生成</div>
+                </div>
+              </div>
+            )}
           </section>
         ) : null}
 
