@@ -466,6 +466,15 @@ test("[静态] 人工确认表单中 M3 在 M5 前面且包含 M5 案例选择",
   assert.match(source, /m5FixedCases/);
 });
 
+test("[静态] 人工确认表单支持选择尾页打印版", () => {
+  const source = pageSource();
+  assert.match(source, /includePrintTailPage: boolean/);
+  assert.match(source, /includePrintTailPage: false/);
+  assert.match(source, /确认备注[\s\S]*添加尾页打印版/);
+  assert.match(source, /type="checkbox"/);
+  assert.match(source, /include_print_tail_page: reviewForm\.includePrintTailPage/);
+});
+
 test("[静态] analyzeProject 成功后重置 reviewForm 为新识别结果", () => {
   const source = pageSource();
   // analyzeProject 内必须在 setClassification 之后调用 setReviewForm

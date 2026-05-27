@@ -40,6 +40,7 @@ class Project(ProjectCreate):
     classification_status: str = "pending"
     template_selection: dict[str, Any] = Field(default_factory=dict)
     case_selection: dict[str, Any] = Field(default_factory=dict)
+    include_print_tail_page: bool = False
     quality_report: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -89,6 +90,7 @@ class ClassificationReviewRequest(BaseModel):
     template_selection: dict[str, Any] = Field(default_factory=dict)
     confirmed_case_id: str | int | None = None
     m3_selection: str = "m3_template"  # "m3_template" = 包含M3, "m3_skip" = 跳过M3
+    include_print_tail_page: bool = False
     notes: str = ""
 
 

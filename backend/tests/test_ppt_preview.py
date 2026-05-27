@@ -2,12 +2,58 @@ import importlib
 import json
 import os
 import tempfile
+import types
 import unittest
 from io import BytesIO
 from pathlib import Path
 from unittest.mock import patch
 
 from PIL import Image
+
+
+class _BusySlide:
+    def __init__(self, calls):
+        self.calls = calls
+
+    def Export(self, output_path, fmt, width, height):
+        self.calls["export"] += 1
+        if self.calls["export"] == 1:
+            raise RuntimeError("(-2147418111, '被呼叫方拒绝接收呼叫。', None, None)")
+        Path(output_path).write_bytes(_png_bytes())
+
+
+class _BusySlides:
+    Count = 1
+
+    def __init__(self, calls):
+        self.calls = calls
+
+    def __call__(self, index):
+        return _BusySlide(self.calls)
+
+
+class _BusyPresentation:
+    def __init__(self, calls):
+        self.Slides = _BusySlides(calls)
+
+    def Close(self):
+        pass
+
+
+class _BusyPresentations:
+    def __init__(self, calls):
+        self.calls = calls
+
+    def Open(self, *args, **kwargs):
+        return _BusyPresentation(self.calls)
+
+
+class _BusyPowerPointApp:
+    def __init__(self, calls):
+        self.Presentations = _BusyPresentations(calls)
+
+    def Quit(self):
+        pass
 
 
 def _png_bytes(color=(20, 120, 200)) -> bytes:
@@ -191,6 +237,31 @@ class PptPreviewTest(unittest.TestCase):
         self.assertEqual(response.status_code, 500)
         self.assertIn("pywin32", response.text)
         self.assertIn("仍可下载", response.text)
+
+    def test_export_slides_retries_when_powerpoint_rejects_call(self):
+        from app import ppt_preview
+
+        project_id, pptx_path = self._create_project_with_pptx()
+        preview_dir = Path(self.temp_dir.name) / "outputs" / f"project_{project_id}" / "preview_retry"
+        calls = {"export": 0}
+
+        class FakeClient:
+            @staticmethod
+            def DispatchEx(name):
+                self.assertEqual(name, "PowerPoint.Application")
+                return _BusyPowerPointApp(calls)
+
+        fake_win32com = types.SimpleNamespace(client=FakeClient)
+
+        with patch.object(ppt_preview.os, "name", "nt"), \
+             patch.dict("sys.modules", {"win32com": fake_win32com, "win32com.client": FakeClient}), \
+             patch.object(ppt_preview.time, "sleep", return_value=None):
+            slide_count, slide_files = ppt_preview._export_slides_to_png(pptx_path, preview_dir)
+
+        self.assertEqual(slide_count, 1)
+        self.assertEqual(slide_files, ["slide-001.png"])
+        self.assertEqual(calls["export"], 2)
+        self.assertTrue((preview_dir / "slide-001.png").exists())
 
     # ── 附加测试: slide 图片接口正常返回 ──
 

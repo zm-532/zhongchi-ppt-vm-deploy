@@ -262,6 +262,7 @@ def review_project_classification(project_id: int, payload: ClassificationReview
         template_selection=payload.template_selection,
         confirmed_case_id=payload.confirmed_case_id,
         m3_selection=payload.m3_selection,
+        include_print_tail_page=payload.include_print_tail_page,
         notes=payload.notes,
     )
     if isinstance(classification, dict) and classification.get("_validation_error") == "invalid_case_id":

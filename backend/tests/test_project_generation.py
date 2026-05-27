@@ -108,6 +108,67 @@ class ProjectGenerationM3MaterialsTest(unittest.TestCase):
         detail = self.client.get(f"/api/projects/{project_id}").json()
         self.assertTrue(Path(detail["final_ppt_path"]).exists())
 
+    def test_generate_adds_fixed_tail_by_default_without_print_tail(self):
+        project_id = self.client.post(
+            "/api/projects",
+            json={"project_name": "默认固定尾页项目", "project_location": "南京"},
+        ).json()["project_id"]
+        self._review_project(project_id)
+
+        generate_response = self.client.post(f"/api/projects/{project_id}/generate")
+        self.assertEqual(generate_response.status_code, 202, generate_response.text)
+
+        detail = self.client.get(f"/api/projects/{project_id}").json()
+        final_path = Path(detail["final_ppt_path"])
+        chapters_dir = final_path.parent / "chapters"
+        self.assertFalse(detail["include_print_tail_page"])
+        self.assertTrue((chapters_dir / "TAIL_FIXED_固定尾页.pptx").exists())
+        self.assertFalse((chapters_dir / "TAIL_PRINT_尾页打印版.pptx").exists())
+        self.assertEqual(
+            len(Presentation(str(final_path)).slides),
+            sum(len(Presentation(str(path)).slides) for path in chapters_dir.glob("*.pptx")),
+        )
+
+    def test_generate_adds_print_tail_after_fixed_tail_when_selected(self):
+        project_id = self.client.post(
+            "/api/projects",
+            json={"project_name": "打印版尾页项目", "project_location": "南京"},
+        ).json()["project_id"]
+        self.client.post(
+            f"/api/projects/{project_id}/files",
+            files=[("files", ("南京地铁项目简介.pdf", b"metro line noise barrier", "application/pdf"))],
+        )
+        classification = self.client.post(f"/api/projects/{project_id}/analyze").json()
+        response = self.client.post(
+            f"/api/projects/{project_id}/classification/review",
+            json={
+                "confirmed_project_type": "metro",
+                "template_selection": classification["template_selection"],
+                "confirmed_case_id": None,
+                "m3_selection": "m3_template",
+                "include_print_tail_page": True,
+                "notes": "确认添加打印版尾页",
+            },
+        )
+        self.assertEqual(response.status_code, 200, response.text)
+
+        generate_response = self.client.post(f"/api/projects/{project_id}/generate")
+        self.assertEqual(generate_response.status_code, 202, generate_response.text)
+
+        detail = self.client.get(f"/api/projects/{project_id}").json()
+        final_path = Path(detail["final_ppt_path"])
+        chapters_dir = final_path.parent / "chapters"
+        fixed_tail = chapters_dir / "TAIL_FIXED_固定尾页.pptx"
+        print_tail = chapters_dir / "TAIL_PRINT_尾页打印版.pptx"
+        self.assertTrue(detail["include_print_tail_page"])
+        self.assertTrue(fixed_tail.exists())
+        self.assertTrue(print_tail.exists())
+        self.assertGreater(len(Presentation(str(print_tail)).slides), 0)
+        self.assertEqual(
+            len(Presentation(str(final_path)).slides),
+            sum(len(Presentation(str(path)).slides) for path in chapters_dir.glob("*.pptx")),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

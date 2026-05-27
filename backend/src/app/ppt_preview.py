@@ -2,7 +2,12 @@ import json
 import os
 import shutil
 import tempfile
+import time
 from pathlib import Path
+
+
+POWERPOINT_RETRY_ATTEMPTS = 3
+POWERPOINT_RETRY_DELAY_SECONDS = 0.8
 
 
 def build_project_ppt_preview(project_id: int, project: dict, output_root: Path) -> dict:
@@ -119,9 +124,13 @@ def _export_slides_to_png(pptx_path: Path, preview_dir: Path) -> tuple[int, list
     app = None
     presentation = None
     try:
-        app = win32com.client.DispatchEx("PowerPoint.Application")
-        presentation = app.Presentations.Open(
-            str(local_pptx_path.resolve()), ReadOnly=True, Untitled=False, WithWindow=False
+        app = _call_powerpoint_with_retry(
+            lambda: win32com.client.DispatchEx("PowerPoint.Application")
+        )
+        presentation = _call_powerpoint_with_retry(
+            lambda: app.Presentations.Open(
+                str(local_pptx_path.resolve()), ReadOnly=True, Untitled=False, WithWindow=False
+            )
         )
         slide_count = presentation.Slides.Count
         slide_files: list[str] = []
@@ -129,7 +138,11 @@ def _export_slides_to_png(pptx_path: Path, preview_dir: Path) -> tuple[int, list
             filename = f"slide-{i:03d}.png"
             temp_output_path = work_dir / filename
             final_output_path = preview_dir / filename
-            presentation.Slides(i).Export(str(temp_output_path), "PNG", 1920, 1080)
+            _call_powerpoint_with_retry(
+                lambda i=i, temp_output_path=temp_output_path: presentation.Slides(i).Export(
+                    str(temp_output_path), "PNG", 1920, 1080
+                )
+            )
             if not temp_output_path.exists():
                 raise RuntimeError(f"PowerPoint 未成功导出预览图片：{filename}")
             shutil.copy2(temp_output_path, final_output_path)
@@ -151,3 +164,21 @@ def _export_slides_to_png(pptx_path: Path, preview_dir: Path) -> tuple[int, list
             except Exception:
                 pass
         shutil.rmtree(work_dir, ignore_errors=True)
+
+
+def _is_powerpoint_rejected_call(exc: Exception) -> bool:
+    text = str(exc)
+    return "-2147418111" in text or "被呼叫方拒绝接收呼叫" in text
+
+
+def _call_powerpoint_with_retry(operation):
+    last_exc = None
+    for attempt in range(POWERPOINT_RETRY_ATTEMPTS):
+        try:
+            return operation()
+        except Exception as exc:
+            last_exc = exc
+            if not _is_powerpoint_rejected_call(exc) or attempt == POWERPOINT_RETRY_ATTEMPTS - 1:
+                raise
+            time.sleep(POWERPOINT_RETRY_DELAY_SECONDS)
+    raise last_exc

@@ -52,6 +52,7 @@ def render_project_ppt(project: dict[str, Any], output_dir: Path) -> tuple[Path,
 
     # M3 选择：默认包含M3，"m3_skip" 时跳过
     include_m3 = project.get("m3_selection", "m3_template") == "m3_template"
+    include_print_tail_page = bool(project.get("include_print_tail_page", False))
 
     parsed_sources: list[str] = []
     for file_record in project.get("classification_result", {}).get("files", []):
@@ -127,6 +128,9 @@ def render_project_ppt(project: dict[str, Any], output_dir: Path) -> tuple[Path,
         # 跳过 M3（当用户选择跳过 M3 时）
         if module_id == "M3" and not include_m3:
             continue
+        # 跳过尾页打印版（当用户未选择添加时）
+        if module_id == "TAIL_PRINT" and not include_print_tail_page:
+            continue
         outline = outlines.get(module_id, {})
         chapter_paths_new[module_id] = render_chapter_ppt(
             module_id, project, outline, chapters_dir
@@ -151,8 +155,8 @@ def render_project_ppt(project: dict[str, Any], output_dir: Path) -> tuple[Path,
         char if char not in '\\/:*?"<>|' else "_"
         for char in project.get("project_name", "中驰智能PPT")
     )
-    # 根据是否包含 M5 动态调整文件名和合并顺序
-    merge_order = tuple(k for k in ("M1_M2", "M3", "M5", "M6") if k in chapter_paths_new)
+    # 根据实际渲染出的章节动态调整文件名和合并顺序，保持与 ppt_engine.MERGE_ORDER 一致。
+    merge_order = tuple(k for k in MERGE_ORDER if k in chapter_paths_new)
     final_name = f"{safe_name}_{'_'.join(merge_order)}_最终稿.pptx"
     final_path = output_dir / final_name
     merge_pptx([chapter_paths_new[module_id] for module_id in merge_order], final_path)

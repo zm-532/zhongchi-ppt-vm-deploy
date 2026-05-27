@@ -48,6 +48,7 @@ type Project = {
   task_status: string;
   status_history?: string[];
   final_ppt_path?: string;
+  include_print_tail_page?: boolean;
   quality_report?: QualityReport;
 };
 type QualityReport = {
@@ -84,7 +85,7 @@ type ClassificationResult = {
   files?: StoredFile[];
 };
 type TaskState = { project_id: number; task_status: string; status_history: string[]; quality_report?: QualityReport };
-type ReviewForm = { projectType: string; m1m2Template: string; caseId?: string; m3Selection: string; notes: string };
+type ReviewForm = { projectType: string; m1m2Template: string; caseId?: string; m3Selection: string; includePrintTailPage: boolean; notes: string };
 type RecommendedCase = { case_id: number | string; title: string; match_reason?: string; matched_tags?: string[]; source_path?: string };
 type LlmTestResult = { ok: boolean; status_code: number; model: string; reply: string; error: string; configured: Record<string, boolean> };
 type M3FullTestResult = { ok: boolean; pptx_path: string; download_url: string; slide_count: number; image_summary: Record<string, number> };
@@ -159,7 +160,7 @@ export default function HomePage() {
   const [uploadedFiles, setUploadedFiles] = useState<StoredFile[]>([]);
   const [classification, setClassification] = useState<ClassificationResult | null>(null);
   const [showClassificationDetails, setShowClassificationDetails] = useState(false);
-  const [reviewForm, setReviewForm] = useState<ReviewForm>({ projectType: "", m1m2Template: "", caseId: undefined, m3Selection: "m3_template", notes: "" });
+  const [reviewForm, setReviewForm] = useState<ReviewForm>({ projectType: "", m1m2Template: "", caseId: undefined, m3Selection: "m3_template", includePrintTailPage: false, notes: "" });
   const [caseLibraryItems, setCaseLibraryItems] = useState<CaseLibraryItem[]>([]);
   const [m1m2TestFiles, setM1m2TestFiles] = useState<File[]>([]);
   const [m1m2TestProjectName, setM1m2TestProjectName] = useState("M1/M2选择测试项目");
@@ -474,7 +475,7 @@ export default function HomePage() {
       setUploadSuccess(false);
       setClassification(null);
       setShowClassificationDetails(false);
-      setReviewForm({ projectType: "", m1m2Template: "", caseId: undefined, m3Selection: "m3_template", notes: "" });
+      setReviewForm({ projectType: "", m1m2Template: "", caseId: undefined, m3Selection: "m3_template", includePrintTailPage: false, notes: "" });
       setActiveView("projects");
       window.location.hash = "projects";
       setMessage(`项目已创建：${project.project_name}`);
@@ -520,7 +521,7 @@ export default function HomePage() {
       const newCaseId = result.case_selection?.confirmed_case_id != null
         ? String(result.case_selection.confirmed_case_id)
         : (result.case_selection?.recommended_cases?.[0]?.case_id != null ? String(result.case_selection.recommended_cases[0].case_id) : "");
-      setReviewForm({ projectType: detectedType, m1m2Template: templateKey, caseId: newCaseId, m3Selection: "m3_template", notes: "" });
+      setReviewForm({ projectType: detectedType, m1m2Template: templateKey, caseId: newCaseId, m3Selection: "m3_template", includePrintTailPage: false, notes: "" });
       setMessage("识别结果已返回，请确认项目类型、模板与案例。");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "资料识别失败");
@@ -545,6 +546,7 @@ export default function HomePage() {
           },
           confirmed_case_id: reviewForm.caseId || null,
           m3_selection: reviewForm.m3Selection,
+          include_print_tail_page: reviewForm.includePrintTailPage,
           notes: reviewForm.notes || "前端人工确认",
         }),
       });
@@ -1061,7 +1063,7 @@ export default function HomePage() {
                       <span className={`project-status-badge ${getProjectStatusClass(project.task_status)}`}>{project.task_status}</span>
                     </label>
                   ) : (
-                    <button className={currentProject?.project_id === project.project_id ? "projectItem selected" : "projectItem"} key={project.project_id} onClick={() => { setCurrentProject(project); setTask(null); setClassification(null); setShowClassificationDetails(false); setReviewForm({ projectType: "", m1m2Template: "", caseId: undefined, m3Selection: "m3_template", notes: "" }); }} type="button"><strong>{project.project_name}</strong><span className={`project-status-badge ${getProjectStatusClass(project.task_status)}`}>{project.task_status}</span></button>
+                    <button className={currentProject?.project_id === project.project_id ? "projectItem selected" : "projectItem"} key={project.project_id} onClick={() => { setCurrentProject(project); setTask(null); setClassification(null); setShowClassificationDetails(false); setReviewForm({ projectType: "", m1m2Template: "", caseId: undefined, m3Selection: "m3_template", includePrintTailPage: false, notes: "" }); }} type="button"><strong>{project.project_name}</strong><span className={`project-status-badge ${getProjectStatusClass(project.task_status)}`}>{project.task_status}</span></button>
                   ))}</div>
                   {hasMoreProjects ? (
                     <div className="projectListFooter">
@@ -1264,6 +1266,7 @@ export default function HomePage() {
                         <label>确认 M3 模块<select aria-label="确认 M3 模块" value={reviewForm.m3Selection} onChange={(event) => setReviewForm((value) => ({ ...value, m3Selection: event.target.value }))}><option value="m3_template">M3模板</option><option value="m3_skip">暂不选择</option></select></label>
                         <label>确认 M5 案例<select aria-label="确认 M5 案例" value={reviewForm.caseId ?? ""} onChange={(event) => setReviewForm((value) => ({ ...value, caseId: event.target.value }))}>{recommendedCases[0] ? <option value={String(recommendedCases[0].case_id)}>{recommendedCases[0].title || recommendedCases[0].case_id}</option> : null}{m5FixedCases.filter((item) => String(item.case_id) !== String(recommendedCases[0]?.case_id)).map((item) => <option key={item.case_id} value={item.case_id}>{item.filename || item.title}</option>)}<option value="">暂不选择案例</option></select></label>
                         <label>确认备注<input value={reviewForm.notes} onChange={(event) => setReviewForm((value) => ({ ...value, notes: event.target.value }))} placeholder="可填写模板或案例调整原因" /></label>
+                        <label className="checkboxField"><input checked={reviewForm.includePrintTailPage} onChange={(event) => setReviewForm((value) => ({ ...value, includePrintTailPage: event.target.checked }))} type="checkbox" />添加尾页打印版</label>
                         <button className="primaryButton" disabled={busy} type="submit">提交人工确认</button>
                       </form>
                       <div className="actions actionsSpaced">

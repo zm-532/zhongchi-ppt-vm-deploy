@@ -165,6 +165,7 @@ class JsonStore:
                 "classification_status": "pending",
                 "template_selection": {},
                 "case_selection": {},
+                "include_print_tail_page": False,
                 "quality_report": {},
             }
             state["projects"].append(project)
@@ -645,6 +646,7 @@ class JsonStore:
         template_selection: dict[str, Any],
         confirmed_case_id: str | int | None,
         m3_selection: str,
+        include_print_tail_page: bool,
         notes: str,
     ) -> dict[str, Any] | None:
         with self._transaction() as state:
@@ -670,6 +672,7 @@ class JsonStore:
             project["case_selection"] = case_selection
             # m3_selection: "m3_template" = 包含M3, "m3_skip" = 跳过M3
             project["m3_selection"] = m3_selection if m3_selection in ("m3_template", "m3_skip") else "m3_template"
+            project["include_print_tail_page"] = bool(include_print_tail_page)
             project["classification_review"] = {"notes": notes}
 
             classification["classification_status"] = "reviewed"

@@ -37,8 +37,17 @@ M5_TEMPLATE_FILENAME = "M5示例.pptx"
 # M6 固定模板文件名
 M6_TEMPLATE_FILENAME = "中驰企业介绍合并初版（M6）.pptx"
 
+# 固定尾页模板文件名
+TAIL_FIXED_TEMPLATE_FILENAME = "固定尾页.pptx"
+
+# 尾页打印版模板文件名
+TAIL_PRINT_TEMPLATE_FILENAME = "尾页-打印版.pptx"
+
 # M3 固定模板文件名
 M3_TEMPLATE_FILENAME = "M3_项目深化方案模板.pptx"
+
+# 首页固定模板文件名
+HOME_TEMPLATE_FILENAME = "首页.pptx"
 
 # M3 完整测试模板文件名。仅用于功能测试，不接入正式完整流程。
 M3_FULL_TEST_TEMPLATE_FILENAME = "M3_项目深化方案模板_最终版本.pptx"
@@ -83,14 +92,17 @@ M3_ACTIVE_FIELD_NAMES = (
 # =============================================================================
 # 合并顺序与模块标题
 # =============================================================================
-# 最终 PPT 合并顺序：M1/M2 -> M3 -> M5 -> M6
-MERGE_ORDER = ("M1_M2", "M3", "M5", "M6")
+# 最终 PPT 合并顺序：首页 -> M1/M2 -> M3 -> M5 -> M6 -> 固定尾页 -> 打印版尾页
+MERGE_ORDER = ("HOME", "M1_M2", "M3", "M5", "M6", "TAIL_FIXED", "TAIL_PRINT")
 
 MODULE_TITLES = {
+    "HOME": "首页",
     "M1_M2": "行业背景与技术标准",
     "M3": "项目深化方案",
     "M5": "同类型案例匹配",
     "M6": "企业背书与荣誉",
+    "TAIL_FIXED": "固定尾页",
+    "TAIL_PRINT": "尾页打印版",
 }
 
 # M1/M2 模板的 project_type 枚举
@@ -146,13 +158,27 @@ def _validate_project_type(project_type: str) -> None:
 def _validate_module(module_id: str) -> None:
     """验证 module_id 是否为合法模块。"""
     if module_id not in MERGE_ORDER:
-        raise ValueError("本阶段 PPT 引擎只支持 M1_M2/M3/M5/M6，M4 暂未接入。")
+        raise ValueError("本阶段 PPT 引擎只支持 HOME/M1_M2/M3/M5/M6/TAIL_FIXED/TAIL_PRINT，M4 暂未接入。")
 
 
 def _safe_text(value: Any, field_name: str) -> str:
     if value is None or value == "":
         return _missing_placeholder(field_name)
     return str(value)
+
+
+def _replace_placeholders_in_text(text: str, replacements: dict[str, str]) -> str:
+    """替换字符串中的已知和未知占位符。"""
+    new_text = text
+    for placeholder, value in replacements.items():
+        pattern = f"{{{{{placeholder}}}}}"
+        if pattern in new_text:
+            new_text = new_text.replace(pattern, value)
+    for match in PLACEHOLDER_PATTERN.finditer(new_text):
+        field_name = match.group(1)
+        if field_name not in replacements:
+            new_text = new_text.replace(match.group(0), _missing_placeholder(field_name))
+    return new_text
 
 
 # =============================================================================
@@ -487,22 +513,21 @@ def replace_text_placeholders(pptx_path: str | Path, replacements: dict[str, str
             if not hasattr(shape, "text_frame"):
                 continue
             tf = shape.text_frame
+            changed_in_runs = False
             for paragraph in tf.paragraphs:
                 for run in paragraph.runs:
                     original_text = run.text
-                    new_text = original_text
-                    # 先替换已知的占位符
-                    for placeholder, value in replacements.items():
-                        pattern = f"{{{{{placeholder}}}}}"
-                        if pattern in new_text:
-                            new_text = new_text.replace(pattern, value)
-                    # 再处理未知占位符（模板有但 replacements 中没有的），替换为中文兜底
-                    for match in PLACEHOLDER_PATTERN.finditer(new_text):
-                        field_name = match.group(1)
-                        if field_name not in replacements:
-                            new_text = new_text.replace(match.group(0), _missing_placeholder(field_name))
+                    new_text = _replace_placeholders_in_text(original_text, replacements)
                     if new_text != original_text:
                         run.text = new_text
+                        changed_in_runs = True
+                if not changed_in_runs and "{{" in paragraph.text and paragraph.runs:
+                    original_text = paragraph.text
+                    new_text = _replace_placeholders_in_text(original_text, replacements)
+                    if new_text != original_text:
+                        paragraph.runs[0].text = new_text
+                        for run in paragraph.runs[1:]:
+                            run.text = ""
 
     prs.save(str(path))
     return path
@@ -532,44 +557,49 @@ def _render_m6_fixed_template(project: dict[str, Any], output_dir: Path) -> Path
     return file_path
 
 
-def move_project_info_slide_to_front(pptx_path: str | Path) -> Path:
-    """将包含"项目生成信息"的幻灯片移动到 PPTX 第一页。
+def _render_home_fixed_template(project: dict[str, Any], output_dir: Path) -> Path:
+    """渲染首页固定模板，只替换项目名称占位符。"""
+    source_template = PPT_TEMPLATE_ROOT / HOME_TEMPLATE_FILENAME
+    if not source_template.exists():
+        raise FileNotFoundError(
+            f"首页固定模板未找到：{source_template}。"
+            "请确认 PPT_TEMPLATE_ROOT 配置正确且模板文件存在。"
+        )
 
-    如果该页已在第一页或找不到"项目生成信息"页，保持幂等（直接返回）。
-    使用 Presentation.slides._sldIdLst 操作 slide 顺序，不复制页面。
-    """
-    path = Path(pptx_path)
-    prs = Presentation(str(path))
+    file_path = output_dir / f"HOME_{MODULE_TITLES['HOME']}.pptx"
+    _copy_fixed_template(source_template, file_path)
+    replace_text_placeholders(file_path, {
+        "project_name": _safe_text(project.get("project_name"), "项目名称"),
+    })
+    return file_path
 
-    target_index = None
-    for idx, slide in enumerate(prs.slides):
-        for shape in slide.shapes:
-            if not hasattr(shape, "text_frame"):
-                continue
-            tf = shape.text_frame
-            for para in tf.paragraphs:
-                for run in para.runs:
-                    if "项目生成信息" in run.text:
-                        target_index = idx
-                        break
-                if target_index is not None:
-                    break
-            if target_index is not None:
-                break
-        if target_index is not None:
-            break
 
-    if target_index is None or target_index == 0:
-        prs.save(str(path))
-        return path
+def _render_tail_fixed_template(output_dir: Path) -> Path:
+    """渲染固定尾页模板（不做字段替换）。"""
+    source_template = PPT_TEMPLATE_ROOT / TAIL_FIXED_TEMPLATE_FILENAME
+    if not source_template.exists():
+        raise FileNotFoundError(
+            f"固定尾页模板未找到：{source_template}。"
+            "请确认 PPT_TEMPLATE_ROOT 配置正确且模板文件存在。"
+        )
 
-    sldIdLst = prs.slides._sldIdLst
-    slide_id = sldIdLst[target_index]
-    sldIdLst.remove(slide_id)
-    sldIdLst.insert(0, slide_id)
+    file_path = output_dir / f"TAIL_FIXED_{MODULE_TITLES['TAIL_FIXED']}.pptx"
+    _copy_fixed_template(source_template, file_path)
+    return file_path
 
-    prs.save(str(path))
-    return path
+
+def _render_tail_print_template(output_dir: Path) -> Path:
+    """渲染尾页打印版模板（不做字段替换）。"""
+    source_template = PPT_TEMPLATE_ROOT / TAIL_PRINT_TEMPLATE_FILENAME
+    if not source_template.exists():
+        raise FileNotFoundError(
+            f"尾页打印版模板未找到：{source_template}。"
+            "请确认 PPT_TEMPLATE_ROOT 配置正确且模板文件存在。"
+        )
+
+    file_path = output_dir / f"TAIL_PRINT_{MODULE_TITLES['TAIL_PRINT']}.pptx"
+    _copy_fixed_template(source_template, file_path)
+    return file_path
 
 
 def _render_m1_m2_fixed(
@@ -593,9 +623,6 @@ def _render_m1_m2_fixed(
 
     file_path = output_dir / f"M1_M2_{MODULE_TITLES['M1_M2']}.pptx"
     _copy_fixed_template(source_template, file_path)
-
-    # 将"项目生成信息"页移动到第一页
-    move_project_info_slide_to_front(file_path)
 
     # 执行 M1/M2 字段替换
     replacements = build_m1_m2_replacement_map(project, outline)
@@ -688,7 +715,7 @@ def render_chapter_ppt(
     """渲染单个章节 PPTX。
 
     Args:
-        module_id: 模块标识，支持 M1_M2 / M3 / M5 / M6。
+        module_id: 模块标识，支持 HOME / M1_M2 / M3 / M5 / M6 / TAIL_FIXED / TAIL_PRINT。
         project: 项目基础信息字典。
         outline: 章节配置。对于 M1_M2，outline 应包含 project_type；对于 M3，可包含 parsed_sources；
                  对于 M5，应包含 case_data；对于 M6，outline 被忽略（固定模板）。
@@ -700,6 +727,10 @@ def render_chapter_ppt(
     _validate_module(module_id)
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
+
+    if module_id == "HOME":
+        # HOME：首页固定模板，只替换项目名称
+        return _render_home_fixed_template(project, output_path)
 
     if module_id == "M1_M2":
         # M1/M2：根据 project_type 选择固定模板并执行字段替换
@@ -728,6 +759,12 @@ def render_chapter_ppt(
     if module_id == "M6":
         # M6：直接使用固定企业介绍模板，不做字段替换
         return _render_m6_fixed_template(project, output_path)
+
+    if module_id == "TAIL_FIXED":
+        return _render_tail_fixed_template(output_path)
+
+    if module_id == "TAIL_PRINT":
+        return _render_tail_print_template(output_path)
 
     # 不应到达此处（_validate_module 已拦截）
     raise ValueError(f"不支持的模块：{module_id}")
@@ -969,12 +1006,13 @@ def render_final_ppt(
     outlines: dict[str, dict[str, Any]],
     output_dir: str | Path,
 ) -> Path:
-    """按 M1/M2 -> M3 -> M5 -> M6 顺序合并章节 PPTX。
+    """按 HOME -> M1/M2 -> M3 -> M5 -> M6 -> 尾页顺序合并章节 PPTX。
 
     Args:
         project: 项目基础信息字典。
         outlines: 章节配置字典，key 为模块标识，value 为模块配置。
-                  M1_M2 需要包含 project_type；M3 可包含 parsed_sources；M5 需要包含 case_data；M6 被忽略。
+                  HOME/M6 被忽略；M1_M2 需要包含 project_type；M3 可包含 parsed_sources；
+                  M5 需要包含 case_data。
         output_dir: 输出目录路径。
 
     Returns:
@@ -989,6 +1027,8 @@ def render_final_ppt(
             case_data = outline.get("case_data")
             if not case_data or not case_data.get("case_id"):
                 continue
+        if module_id == "TAIL_PRINT" and not project.get("include_print_tail_page", False):
+            continue
         chapter_path = render_chapter_ppt(module_id, project, outline, chapters_dir)
         chapter_paths.append(chapter_path)
     final_name = f"{_safe_text(project.get('project_name'), '项目名称')}_中驰智能PPT_Demo.pptx"

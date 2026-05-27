@@ -7,17 +7,21 @@ from collections import Counter
 from pathlib import Path
 
 from pptx import Presentation
+from pptx.enum.text import PP_ALIGN
 from pptx.util import Inches
+from pptx.util import Pt
 
 from ppt_engine.renderer import (
+    HOME_TEMPLATE_FILENAME,
     MERGE_ORDER,
     M1_M2_TEMPLATE_MAP,
     M5_TEMPLATE_FILENAME,
     M6_TEMPLATE_FILENAME,
     PPT_TEMPLATE_ROOT,
+    TAIL_FIXED_TEMPLATE_FILENAME,
+    TAIL_PRINT_TEMPLATE_FILENAME,
     build_m1_m2_replacement_map,
     merge_pptx,
-    move_project_info_slide_to_front,
     render_chapter_ppt,
     render_final_ppt,
     replace_text_placeholders,
@@ -63,12 +67,11 @@ OUTLINES_WITH_M5 = {
     "M5": {"case_data": M5_CASE_DATA},
 }
 
-# Full outlines with all three modules
+# Final render outlines without M5 case_data, so tests do not depend on optional M5 template files.
 OUTLINES_FULL = {
     "M1_M2": {
         "project_type": "metro",
     },
-    "M5": {"case_data": M5_CASE_DATA},
     "M6": {},
 }
 
@@ -137,14 +140,21 @@ class TemplateConfigTest(unittest.TestCase):
             {"highway", "metro", "existing_rail_transit", "railway"},
         )
 
-    def test_merge_order_is_m1_m2_then_m5_then_m6(self):
-        self.assertEqual(MERGE_ORDER, ("M1_M2", "M3", "M5", "M6"))
+    def test_merge_order_starts_with_home_and_ends_with_tail_pages(self):
+        self.assertEqual(MERGE_ORDER, ("HOME", "M1_M2", "M3", "M5", "M6", "TAIL_FIXED", "TAIL_PRINT"))
+
+    def test_home_template_filename_correct(self):
+        self.assertEqual(HOME_TEMPLATE_FILENAME, "首页.pptx")
 
     def test_m6_template_filename_correct(self):
         self.assertEqual(M6_TEMPLATE_FILENAME, "中驰企业介绍合并初版（M6）.pptx")
 
     def test_m5_template_filename_correct(self):
         self.assertEqual(M5_TEMPLATE_FILENAME, "M5示例.pptx")
+
+    def test_tail_template_filenames_correct(self):
+        self.assertEqual(TAIL_FIXED_TEMPLATE_FILENAME, "固定尾页.pptx")
+        self.assertEqual(TAIL_PRINT_TEMPLATE_FILENAME, "尾页-打印版.pptx")
 
 
 class M1M2TemplateSelectionTest(unittest.TestCase):
@@ -241,6 +251,24 @@ class M6FixedTemplateTest(unittest.TestCase):
             # Verify project data does NOT appear (no field substitution)
             self.assertNotIn("某城市轨道交通声屏障改造项目", text_blob)
             self.assertNotIn("轨交既有线改造", text_blob)
+
+
+class TailFixedTemplateTest(unittest.TestCase):
+    """验证尾页固定模板渲染。"""
+
+    def test_tail_fixed_template_produces_valid_pptx(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = render_chapter_ppt("TAIL_FIXED", PROJECT, {}, temp_dir)
+
+            self.assertTrue(output_path.exists())
+            self.assertGreater(slide_count(output_path), 0)
+
+    def test_tail_print_template_produces_valid_pptx(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = render_chapter_ppt("TAIL_PRINT", PROJECT, {}, temp_dir)
+
+            self.assertTrue(output_path.exists())
+            self.assertGreater(slide_count(output_path), 0)
 
 
 class RenderChapterPptValidationTest(unittest.TestCase):
@@ -373,7 +401,7 @@ class MergePptxTest(unittest.TestCase):
 
 
 class RenderFinalPptTest(unittest.TestCase):
-    """验证 render_final_ppt 按 M1/M2 -> M5 -> M6 顺序合并。"""
+    """验证 render_final_ppt 按模块顺序合并并追加尾页。"""
 
     def test_final_ppt_merge_order(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -408,6 +436,35 @@ class RenderFinalPptTest(unittest.TestCase):
             final_path = render_final_ppt(PROJECT, OUTLINES_FULL, temp_dir)
 
             self.assertIn("某城市轨道交通声屏障改造项目", final_path.name)
+
+    def test_final_ppt_adds_fixed_tail_by_default_and_skips_print_tail(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            final_path = render_final_ppt(PROJECT, OUTLINES_FULL, temp_dir)
+
+            chapters_dir = Path(temp_dir) / "chapters"
+            fixed_tail = chapters_dir / "TAIL_FIXED_固定尾页.pptx"
+            print_tail = chapters_dir / "TAIL_PRINT_尾页打印版.pptx"
+            self.assertTrue(fixed_tail.exists())
+            self.assertFalse(print_tail.exists())
+            self.assertEqual(
+                slide_count(final_path),
+                sum(slide_count(path) for path in chapters_dir.glob("*.pptx")),
+            )
+
+    def test_final_ppt_adds_print_tail_when_project_requests_it(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project = {**PROJECT, "include_print_tail_page": True}
+            final_path = render_final_ppt(project, OUTLINES_FULL, temp_dir)
+
+            chapters_dir = Path(temp_dir) / "chapters"
+            fixed_tail = chapters_dir / "TAIL_FIXED_固定尾页.pptx"
+            print_tail = chapters_dir / "TAIL_PRINT_尾页打印版.pptx"
+            self.assertTrue(fixed_tail.exists())
+            self.assertTrue(print_tail.exists())
+            self.assertEqual(
+                slide_count(final_path),
+                sum(slide_count(path) for path in chapters_dir.glob("*.pptx")),
+            )
 
 
 class ReplaceTextPlaceholdersTest(unittest.TestCase):
@@ -504,6 +561,37 @@ class ReplaceTextPlaceholdersTest(unittest.TestCase):
             self.assertIn("南京地铁3号线", text_blob)
             self.assertIn("南京市", text_blob)
             self.assertIn("南京地铁集团", text_blob)
+
+    def test_split_placeholder_replacement_preserves_paragraph_style(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            prs = Presentation()
+            prs.slide_width = Inches(10)
+            prs.slide_height = Inches(5.625)
+            slide = prs.slides.add_slide(prs.slide_layouts[6])
+            shape = slide.shapes.add_textbox(Inches(1), Inches(1), Inches(8), Inches(1))
+            tf = shape.text_frame
+            tf.clear()
+            para = tf.paragraphs[0]
+            para.alignment = PP_ALIGN.CENTER
+            run1 = para.add_run()
+            run1.text = "{{project"
+            run1.font.name = "Microsoft YaHei"
+            run1.font.size = Pt(32)
+            run2 = para.add_run()
+            run2.text = "_name}}"
+            run2.font.name = "Microsoft YaHei"
+            run2.font.size = Pt(32)
+            pptx_path = Path(temp_dir) / "split_placeholder.pptx"
+            prs.save(str(pptx_path))
+
+            replace_text_placeholders(pptx_path, {"project_name": "南京地铁3号线既有线声屏障改造工程"})
+
+            prs2 = Presentation(str(pptx_path))
+            para2 = prs2.slides[0].shapes[0].text_frame.paragraphs[0]
+            self.assertEqual(para2.text, "南京地铁3号线既有线声屏障改造工程")
+            self.assertEqual(para2.alignment, PP_ALIGN.CENTER)
+            self.assertEqual(para2.runs[0].font.name, "Microsoft YaHei")
+            self.assertEqual(para2.runs[0].font.size, Pt(32))
 
 
 class BuildM1M2ReplacementMapTest(unittest.TestCase):
@@ -733,37 +821,38 @@ class M6FixedTemplateNoProjectFieldsTest(unittest.TestCase):
             self.assertNotIn("某城市轨道交通声屏障改造项目", text_blob)
 
 
-REQUIRED_PLACEHOLDERS = [
-    "project_name",
-    "project_location",
-    "owner_unit",
-    "product_line",
-    "line_name",
-    "site_pain_points",
-    "construction_scenario",
-]
-
-
 class M1M2TemplateHasPlaceholdersTest(unittest.TestCase):
-    """验证 4 个 M1/M2 固化模板已包含项目信息占位符。"""
+    """验证首页占位符和 M1/M2 旧项目信息页清理状态。"""
 
-    def test_all_four_m1_m2_templates_contain_all_seven_placeholders(self):
-        """验证每个 M1/M2 模板都包含完整 7 个占位符。"""
+    def test_home_template_contains_only_project_name_placeholder(self):
+        """首页模板只要求包含项目名称占位符。"""
         import re
         PLACEHOLDER_PATTERN = re.compile(r"\{\{(\w+)\}\}")
+        home_path = PPT_TEMPLATE_ROOT / HOME_TEMPLATE_FILENAME
+        prs = Presentation(str(home_path))
+        all_text = ""
+        for slide in prs.slides:
+            for shape in slide.shapes:
+                if hasattr(shape, "text") and shape.text:
+                    all_text += shape.text
+        self.assertEqual(set(PLACEHOLDER_PATTERN.findall(all_text)), {"project_name"})
+
+    def test_all_four_m1_m2_templates_do_not_contain_project_info_page(self):
+        """M1/M2 模板不应再包含旧的"项目生成信息"页。"""
         for tmpl_filename in M1_M2_TEMPLATE_MAP.values():
             tmpl_path = PPT_TEMPLATE_ROOT / tmpl_filename
             prs = Presentation(str(tmpl_path))
-            all_text = ""
-            for slide in prs.slides:
+            slides_with_project_info = []
+            for index, slide in enumerate(prs.slides, 1):
+                slide_text = ""
                 for shape in slide.shapes:
                     if hasattr(shape, "text") and shape.text:
-                        all_text += shape.text
-            found_placeholders = set(PLACEHOLDER_PATTERN.findall(all_text))
-            missing = [f for f in REQUIRED_PLACEHOLDERS if f not in found_placeholders]
+                        slide_text += shape.text
+                if "项目生成信息" in slide_text:
+                    slides_with_project_info.append(index)
             self.assertEqual(
-                missing, [],
-                f"{tmpl_filename} 缺少占位符: {missing}",
+                slides_with_project_info, [],
+                f"{tmpl_filename} 仍包含旧项目生成信息页: {slides_with_project_info}",
             )
 
     def test_rendered_m1_m2_output_no_longer_contains_placeholder(self):
@@ -779,79 +868,66 @@ class M1M2TemplateHasPlaceholdersTest(unittest.TestCase):
                         all_text += shape.text
             self.assertNotIn("{{project_name}}", all_text)
 
-    def test_rendered_m1_m2_output_contains_project_name(self):
-        """渲染 M1/M2 模板后，输出 PPTX 包含测试项目的名称。"""
+    def test_rendered_m1_m2_output_does_not_contain_project_info_page(self):
+        """渲染 M1/M2 模板后，不应出现旧的项目生成信息页。"""
         with tempfile.TemporaryDirectory() as temp_dir:
             outline = {"project_type": "metro"}
             output_path = render_chapter_ppt("M1_M2", PROJECT, outline, temp_dir)
             prs = Presentation(str(output_path))
-            all_text = ""
-            for slide in prs.slides:
+            slides_with_project_info = []
+            for index, slide in enumerate(prs.slides, 1):
+                slide_text = ""
                 for shape in slide.shapes:
                     if hasattr(shape, "text") and shape.text:
-                        all_text += shape.text
+                        slide_text += shape.text
+                if "项目生成信息" in slide_text:
+                    slides_with_project_info.append(index)
+            self.assertEqual(slides_with_project_info, [])
+
+    def test_rendered_m1_m2_output_keeps_original_first_slide(self):
+        """渲染 M1/M2 模板后，不再把末页移动到第一页。"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            outline = {"project_type": "metro"}
+            output_path = render_chapter_ppt("M1_M2", PROJECT, outline, temp_dir)
+            prs = Presentation(str(output_path))
+            first_text = "".join(
+                shape.text
+                for shape in prs.slides[0].shapes
+                if hasattr(shape, "text") and shape.text
+            )
+            self.assertNotIn("项目生成信息", first_text)
+
+
+class HomeTemplateRenderTest(unittest.TestCase):
+    """验证首页模板渲染与最终拼接位置。"""
+
+    def test_home_template_render_replaces_project_name(self):
+        """首页渲染后包含实际项目名，不再包含占位符。"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = render_chapter_ppt("HOME", PROJECT, {}, temp_dir)
+            self.assertTrue(output_path.exists())
+            prs = Presentation(str(output_path))
+            all_text = "".join(
+                shape.text
+                for slide in prs.slides
+                for shape in slide.shapes
+                if hasattr(shape, "text") and shape.text
+            )
             self.assertIn("某城市轨道交通声屏障改造项目", all_text)
-
-    def test_rendered_m1_m2_output_contains_project_info_fields(self):
-        """渲染 M1/M2 模板后，输出 PPTX 包含项目信息的实际值，不含待补充标记。"""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            outline = {"project_type": "metro"}
-            output_path = render_chapter_ppt("M1_M2", PROJECT, outline, temp_dir)
-            prs = Presentation(str(output_path))
-            all_text = ""
-            for slide in prs.slides:
-                for shape in slide.shapes:
-                    if hasattr(shape, "text") and shape.text:
-                        all_text += shape.text
-            # 关键字段应被替换为实际值
-            self.assertIn("某城市轨道交通声屏障改造项目", all_text)  # project_name
-            self.assertIn("南京", all_text)  # project_location
-            self.assertIn("某建设单位", all_text)  # owner_unit
-            self.assertIn("轨交既有线改造", all_text)  # product_line
-            # 不应出现未替换的占位符标记
             self.assertNotIn("{{project_name}}", all_text)
-            self.assertNotIn("{{project_location}}", all_text)
 
-
-class ProjectInfoSlideReorderTest(unittest.TestCase):
-    """验证"项目生成信息"页被移动到 M1/M2 章节第一页。"""
-
-    def test_project_info_slide_is_first_after_render(self):
-        """渲染后第1页应为"项目生成信息"页，且字段已替换。"""
+    def test_final_ppt_first_slide_is_home(self):
+        """最终 PPT 第一页来自首页模板，并包含项目名。"""
         with tempfile.TemporaryDirectory() as temp_dir:
-            outline = {"project_type": "metro"}
-            output_path = render_chapter_ppt("M1_M2", PROJECT, outline, temp_dir)
-            prs = Presentation(str(output_path))
-            first_slide = prs.slides[0]
-            first_text = ""
-            for shape in first_slide.shapes:
-                if hasattr(shape, "text") and shape.text:
-                    first_text += shape.text
-            self.assertIn("项目生成信息", first_text)
+            final_path = render_final_ppt(PROJECT, OUTLINES_FULL, temp_dir)
+            prs = Presentation(str(final_path))
+            first_text = "".join(
+                shape.text
+                for shape in prs.slides[0].shapes
+                if hasattr(shape, "text") and shape.text
+            )
             self.assertIn("某城市轨道交通声屏障改造项目", first_text)
             self.assertNotIn("{{project_name}}", first_text)
-
-    def test_move_project_info_slide_to_front_is_idempotent(self):
-        """连续调用两次 move_project_info_slide_to_front 不会产生重复页。"""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            outline = {"project_type": "metro"}
-            output_path = render_chapter_ppt("M1_M2", PROJECT, outline, temp_dir)
-            move_project_info_slide_to_front(output_path)
-            move_project_info_slide_to_front(output_path)
-            prs = Presentation(str(output_path))
-            # 统计包含"项目生成信息"的幻灯片数量（按 slide 计，非按文本出现次数）
-            slides_with_project_info = sum(
-                1 for slide in prs.slides
-                if any("项目生成信息" in shape.text for shape in slide.shapes
-                      if hasattr(shape, "text") and shape.text)
-            )
-            self.assertEqual(slides_with_project_info, 1)
-            # 第一页仍是"项目生成信息"
-            first_slide = prs.slides[0]
-            first_text = "".join(
-                shape.text for shape in first_slide.shapes if hasattr(shape, "text") and shape.text
-            )
-            self.assertIn("项目生成信息", first_text)
 
 
 if __name__ == "__main__":

@@ -267,6 +267,10 @@ class BackendApiTest(unittest.TestCase):
         detail = self.client.get(f"/api/projects/{project_id}").json()
         self.assertEqual(detail["confirmed_project_type"], "metro")
         self.assertTrue(Path(detail["final_ppt_path"]).exists())
+        self.assertFalse(detail["include_print_tail_page"])
+        chapters_dir = Path(detail["final_ppt_path"]).parent / "chapters"
+        self.assertTrue((chapters_dir / "TAIL_FIXED_固定尾页.pptx").exists())
+        self.assertFalse((chapters_dir / "TAIL_PRINT_尾页打印版.pptx").exists())
         self.assertTrue(detail["quality_report"]["passed"])
         self.assertIn(detail["quality_report"]["severity"], ["pass", "warning"])
         task_detail = self.client.get(f"/api/projects/{project_id}/task").json()
@@ -279,6 +283,49 @@ class BackendApiTest(unittest.TestCase):
         self.assertIn("南京地铁声屏障项目", final_text)
         self.assertNotIn("{{m3_", final_text)
         self.assertNotIn("工程量与施工周期测算", final_text)
+
+    def test_classification_review_can_request_print_tail_page(self):
+        project_id = self.client.post(
+            "/api/projects",
+            json={
+                "project_name": "打印版尾页确认项目",
+                "project_location": "南京",
+                "product_line": "轨道交通声屏障",
+            },
+        ).json()["project_id"]
+        self.client.post(
+            f"/api/projects/{project_id}/files",
+            files=[("files", ("南京地铁项目简介.pdf", b"metro line noise barrier", "application/pdf"))],
+        )
+        classification = self.client.post(f"/api/projects/{project_id}/analyze").json()
+
+        review_response = self.client.post(
+            f"/api/projects/{project_id}/classification/review",
+            json={
+                "confirmed_project_type": "metro",
+                "template_selection": classification["template_selection"],
+                "confirmed_case_id": None,
+                "include_print_tail_page": True,
+                "notes": "确认添加打印版尾页",
+            },
+        )
+        self.assertEqual(review_response.status_code, 200, review_response.text)
+
+        generate_response = self.client.post(f"/api/projects/{project_id}/generate")
+        self.assertEqual(generate_response.status_code, 202, generate_response.text)
+
+        detail = self.client.get(f"/api/projects/{project_id}").json()
+        self.assertTrue(detail["include_print_tail_page"])
+        final_path = Path(detail["final_ppt_path"])
+        chapters_dir = final_path.parent / "chapters"
+        fixed_tail = chapters_dir / "TAIL_FIXED_固定尾页.pptx"
+        print_tail = chapters_dir / "TAIL_PRINT_尾页打印版.pptx"
+        self.assertTrue(fixed_tail.exists())
+        self.assertTrue(print_tail.exists())
+        self.assertEqual(
+            len(Presentation(str(final_path)).slides),
+            sum(len(Presentation(str(path)).slides) for path in chapters_dir.glob("*.pptx")),
+        )
 
     def test_quality_review_reports_placeholders_and_pending_fields(self):
         with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parents[1] / "test_tmp") as tmp:
@@ -1098,7 +1145,12 @@ class BackendApiTest(unittest.TestCase):
         detail = self.client.get(f"/api/projects/{project_id}").json()
         final_path = Path(detail["final_ppt_path"])
         self.assertTrue(final_path.exists())
-        self.assertIn("M1_M2_M3_M6", final_path.name)
+        self.assertIn("HOME_M1_M2_M3_M6", final_path.name)
+        first_slide_text = " ".join(
+            shape.text for shape in Presentation(str(final_path)).slides[0].shapes
+            if hasattr(shape, "text") and shape.text
+        )
+        self.assertIn("端到端验收项目", first_slide_text)
         final_text = " ".join(
             shape.text for slide in Presentation(str(final_path)).slides
             for shape in slide.shapes
