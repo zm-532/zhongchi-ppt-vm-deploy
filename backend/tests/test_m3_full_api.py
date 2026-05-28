@@ -14,6 +14,9 @@ def _png_bytes() -> bytes:
     return buffer.getvalue()
 
 
+TABLE_TEMPLATE_ROOT = Path(__file__).resolve().parents[2] / "ppt_engine" / "templates" / "solution_fixed_modules" / "M3表格模板"
+
+
 class M3FullApiTest(unittest.TestCase):
     def setUp(self):
         test_tmp_root = Path(__file__).resolve().parents[1] / "test_tmp"
@@ -59,6 +62,35 @@ class M3FullApiTest(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200, response.text)
         self.assertEqual(response.json()["slide_count"], 10)
+
+    def test_m3_full_render_accepts_xlsx_table_and_image_upload(self):
+        response = self.client.post(
+            "/api/test/m3-full-render",
+            files=[
+                ("project_name", (None, "M3完整表格接口测试")),
+                ("descriptions", (None, "敏感点路段-1：敏感点图片说明")),
+                ("files", ("敏感点路段.xlsx", TABLE_TEMPLATE_ROOT.joinpath("敏感点路段.xlsx").read_bytes(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")),
+                ("files", ("敏感点路段-1.png", _png_bytes(), "image/png")),
+            ],
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        body = response.json()
+        self.assertEqual(body["slide_count"], 10)
+        self.assertEqual(body["image_summary"]["image:m3_sensitive_points"], 1)
+        self.assertEqual(body["table_summary"]["image:m3_sensitive_points"], 1)
+
+    def test_m3_full_render_rejects_corrupt_xlsx_table(self):
+        response = self.client.post(
+            "/api/test/m3-full-render",
+            files=[
+                ("project_name", (None, "M3完整损坏表格接口测试")),
+                ("files", ("敏感点路段.xlsx", b"not an xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")),
+            ],
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Excel 表格文件无效或已损坏", response.text)
 
     def test_m3_full_render_rejects_description_without_image(self):
         response = self.client.post(

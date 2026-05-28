@@ -218,20 +218,28 @@ class JsonStore:
         materials = project.get("m3_materials") or {}
         texts = materials.get("texts") or {}
         images = materials.get("images") or []
+        tables = materials.get("tables") or []
         page_texts = materials.get("page_texts") or {}
         image_summary: dict[str, int] = {}
         for image in images:
             purpose = image.get("purpose", "")
             image_summary[purpose] = image_summary.get(purpose, 0) + 1
+        table_summary: dict[str, int] = {}
+        for table in tables:
+            purpose = table.get("purpose", "")
+            table_summary[purpose] = table_summary.get(purpose, 0) + 1
         return {
             "project_id": project["project_id"],
             "texts": texts,
             "images": images,
+            "tables": tables,
             "page_texts": page_texts,
             "text_completed_count": sum(1 for value in texts.values() if isinstance(value, str) and value.strip()),
             "text_total_count": 9,
             "image_count": len(images),
             "image_summary": image_summary,
+            "table_count": len(tables),
+            "table_summary": table_summary,
         }
 
     def get_m3_materials(self, project_id: int) -> dict[str, Any] | None:
@@ -246,6 +254,7 @@ class JsonStore:
         project_id: int,
         texts: dict[str, str],
         images: list[dict[str, Any]],
+        tables: list[dict[str, Any]] | None = None,
         page_texts: dict[str, list[str]] | None = None,
     ) -> dict[str, Any] | None:
         with self._transaction() as state:
@@ -253,24 +262,24 @@ class JsonStore:
             if project is None:
                 return None
 
-            existing_materials = project.get("m3_materials") or {}
-            image_records: list[dict[str, Any]] = existing_materials.get("images") or []
-            if images:
-                materials_dir = self.uploads_dir / str(project_id) / "m3_materials"
-                if materials_dir.exists():
-                    shutil.rmtree(materials_dir)
-                materials_dir.mkdir(parents=True, exist_ok=True)
+            materials_dir = self.uploads_dir / str(project_id) / "m3_materials"
+            if materials_dir.exists():
+                shutil.rmtree(materials_dir)
+            materials_dir.mkdir(parents=True, exist_ok=True)
 
-                image_records = []
-                for index, image in enumerate(images, start=1):
-                    purpose = str(image.get("purpose", ""))
-                    filename = str(image.get("filename", "upload"))
-                    content_type = str(image.get("content_type", "application/octet-stream"))
-                    content = image.get("content", b"")
-                    safe_filename = Path(filename).name or "upload"
-                    stored_path = materials_dir / f"{index}_{safe_filename}"
-                    stored_path.write_bytes(content)
-                    image_records.append(
+            image_records: list[dict[str, Any]] = []
+            table_records: list[dict[str, Any]] = []
+            file_index = 1
+            for image in images:
+                purpose = str(image.get("purpose", ""))
+                filename = str(image.get("filename", "upload"))
+                content_type = str(image.get("content_type", "application/octet-stream"))
+                content = image.get("content", b"")
+                safe_filename = Path(filename).name or "upload"
+                stored_path = materials_dir / f"{file_index}_{safe_filename}"
+                file_index += 1
+                stored_path.write_bytes(content)
+                image_records.append(
                     {
                         "purpose": purpose,
                         "filename": safe_filename,
@@ -280,13 +289,32 @@ class JsonStore:
                         "page_index": int(image.get("page_index", 1)),
                     }
                 )
+            for table in tables or []:
+                purpose = str(table.get("purpose", ""))
+                filename = str(table.get("filename", "upload.xlsx"))
+                content_type = str(table.get("content_type", "application/octet-stream"))
+                content = table.get("content", b"")
+                safe_filename = Path(filename).name or "upload.xlsx"
+                stored_path = materials_dir / f"{file_index}_{safe_filename}"
+                file_index += 1
+                stored_path.write_bytes(content)
+                table_records.append(
+                    {
+                        "purpose": purpose,
+                        "filename": safe_filename,
+                        "content_type": content_type,
+                        "stored_path": str(stored_path),
+                        "page_index": int(table.get("page_index", 1)),
+                    }
+                )
 
-        project["m3_materials"] = {
-            "texts": texts,
-            "images": image_records,
-            "page_texts": page_texts or {},
-        }
-        return self._m3_materials_response(project)
+            project["m3_materials"] = {
+                "texts": texts,
+                "images": image_records,
+                "tables": table_records,
+                "page_texts": page_texts or {},
+            }
+            return self._m3_materials_response(project)
 
     def add_file(self, project_id: int, module_id: str, filename: str, content_type: str, content: bytes) -> dict[str, Any] | None:
         with self._transaction() as state:

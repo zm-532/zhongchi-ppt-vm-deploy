@@ -14,6 +14,11 @@ def _png_bytes(color=(20, 120, 200)) -> bytes:
     return buffer.getvalue()
 
 
+def _table_bytes(name: str = "现场勘查情况.xlsx") -> bytes:
+    template_root = Path(__file__).resolve().parents[2] / "ppt_engine" / "templates" / "solution_fixed_modules" / "M3表格模板"
+    return (template_root / name).read_bytes()
+
+
 class M3MaterialsApiTest(unittest.TestCase):
     def setUp(self):
         test_tmp_root = Path(__file__).resolve().parents[1] / "test_tmp"
@@ -66,6 +71,41 @@ class M3MaterialsApiTest(unittest.TestCase):
         self.assertEqual(saved["image_count"], 3)
         for image in saved["images"]:
             self.assertTrue(Path(image["stored_path"]).exists())
+
+    def test_save_and_get_m3_materials_with_xlsx_table(self):
+        response = self.client.post(
+            f"/api/projects/{self.project_id}/m3-materials",
+            files=[
+                ("files", ("现场勘查情况.xlsx", _table_bytes(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")),
+                ("files", ("现场勘察情况-1.png", _png_bytes(), "image/png")),
+            ],
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        body = response.json()
+        self.assertEqual(body["image_count"], 1)
+        self.assertEqual(body["table_count"], 1)
+        self.assertEqual(body["table_summary"]["image:m3_investigation"], 1)
+        self.assertEqual(body["tables"][0]["purpose"], "image:m3_investigation")
+        self.assertEqual(body["tables"][0]["filename"], "现场勘查情况.xlsx")
+        self.assertTrue(Path(body["tables"][0]["stored_path"]).exists())
+
+        get_response = self.client.get(f"/api/projects/{self.project_id}/m3-materials")
+        self.assertEqual(get_response.status_code, 200)
+        saved = get_response.json()
+        self.assertEqual(saved["table_count"], 1)
+        self.assertEqual(saved["table_summary"]["image:m3_investigation"], 1)
+
+    def test_m3_materials_rejects_xls_table(self):
+        response = self.client.post(
+            f"/api/projects/{self.project_id}/m3-materials",
+            files=[
+                ("files", ("现场勘查情况.xls", b"old excel", "application/vnd.ms-excel")),
+            ],
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("暂不支持旧版表格", response.text)
 
     def test_m3_materials_rejects_description_without_image(self):
         response = self.client.post(

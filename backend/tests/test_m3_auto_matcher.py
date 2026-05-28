@@ -40,6 +40,33 @@ class M3AutoMatcherTest(unittest.TestCase):
         self.assertEqual(payload.texts["m3_line_summary"], "")
         self.assertEqual(payload.page_texts["image:m3_line"], [""])
 
+    def test_groups_xlsx_tables_by_filename_prefix(self):
+        payload = build_m3_auto_render_payload(
+            filenames=[
+                "工程量统计-声屏障结构形式汇总表.xlsx",
+                "工程量统计-声屏障整体产品量汇总表.xlsx",
+                "工程量统计-1.png",
+            ],
+            blobs=[b"structure table", b"quantity table", b"image"],
+            descriptions="工程量统计-1：工程量图片说明",
+        )
+
+        self.assertEqual(
+            payload.tables_by_purpose["image:m3_quantity"],
+            [b"structure table", b"quantity table"],
+        )
+        self.assertEqual(payload.images_by_purpose["image:m3_quantity"], [b"image"])
+        self.assertEqual(payload.page_texts["image:m3_quantity"], ["工程量图片说明"])
+
+    def test_groups_xlsx_table_with_investigation_alias(self):
+        payload = build_m3_auto_render_payload(
+            filenames=["现场勘查情况.xlsx"],
+            blobs=[b"investigation table"],
+            descriptions="",
+        )
+
+        self.assertEqual(payload.tables_by_purpose["image:m3_investigation"], [b"investigation table"])
+
     def test_rejects_unknown_image_category(self):
         with self.assertRaisesRegex(ValueError, "无法识别图片分类"):
             build_m3_auto_render_payload(

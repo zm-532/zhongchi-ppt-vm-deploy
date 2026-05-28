@@ -197,11 +197,17 @@ async def save_project_m3_materials(
     blobs: list[bytes] = []
     content_types: dict[str, str] = {}
     for upload in files:
-        if not (upload.content_type or "").startswith("image/"):
-            raise HTTPException(status_code=400, detail=f"文件不是图片：{upload.filename}")
-        blob = await _read_file_with_size_limit(upload, upload.filename or "M3图片")
-        _validate_image_blob(blob)
         filename = upload.filename or "upload"
+        suffix = Path(filename).suffix.lower()
+        if suffix == ".xls":
+            raise HTTPException(status_code=400, detail=f"暂不支持旧版表格，请另存为 .xlsx 后上传：{filename}")
+        is_xlsx = suffix == ".xlsx"
+        is_image = (upload.content_type or "").startswith("image/")
+        if not is_xlsx and not is_image:
+            raise HTTPException(status_code=400, detail=f"文件不是图片或 .xlsx 表格：{filename}")
+        blob = await _read_file_with_size_limit(upload, filename)
+        if is_image:
+            _validate_image_blob(blob)
         filenames.append(filename)
         blobs.append(blob)
         content_types[filename] = upload.content_type or "application/octet-stream"
@@ -222,11 +228,22 @@ async def save_project_m3_materials(
         }
         for item in auto_payload.ordered_images
     ]
+    table_items = [
+        {
+            "purpose": item["purpose"],
+            "filename": item["filename"],
+            "content_type": content_types.get(str(item["filename"]), "application/octet-stream"),
+            "content": item["blob"],
+            "page_index": item["page_index"],
+        }
+        for item in auto_payload.ordered_tables
+    ]
 
     saved = get_store().save_m3_materials(
         project_id,
         auto_payload.texts,
         upload_items,
+        table_items,
         auto_payload.page_texts,
     )
     if saved is None:
@@ -526,7 +543,10 @@ async def m3_full_render_test(
     filenames: list[str] = []
     blobs: list[bytes] = []
     for upload in files:
-        if not (upload.content_type or "").startswith("image/"):
+        suffix = Path(upload.filename or "").suffix.lower()
+        if suffix == ".xls":
+            raise HTTPException(status_code=400, detail=f"M3完整测试暂不支持 .xls 旧版表格：{upload.filename}")
+        if suffix != ".xlsx" and not (upload.content_type or "").startswith("image/"):
             raise HTTPException(status_code=400, detail=f"文件不是图片：{upload.filename}")
         filenames.append(upload.filename or "upload")
         blobs.append(await _read_file_with_size_limit(upload, upload.filename or "M3图片"))
@@ -545,6 +565,7 @@ async def m3_full_render_test(
             auto_payload.images_by_purpose,
             output_dir,
             auto_payload.page_texts,
+            auto_payload.tables_by_purpose,
         )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=500, detail=f"M3 完整测试模板缺失：{exc}")
@@ -554,6 +575,7 @@ async def m3_full_render_test(
         raise HTTPException(status_code=500, detail=f"M3 完整测试渲染失败：{exc}")
 
     summary = {purpose: len(items) for purpose, items in auto_payload.images_by_purpose.items()}
+    table_summary = {purpose: len(items) for purpose, items in auto_payload.tables_by_purpose.items()}
     filename = pptx_path.name
     slide_count = len(Presentation(str(pptx_path)).slides)
     return {
@@ -562,6 +584,7 @@ async def m3_full_render_test(
         "download_url": f"/api/test/m3-full-render/download/{filename}",
         "slide_count": slide_count,
         "image_summary": summary,
+        "table_summary": table_summary,
     }
 
 

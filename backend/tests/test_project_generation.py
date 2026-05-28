@@ -15,6 +15,11 @@ def _png_bytes(color=(20, 120, 200)) -> bytes:
     return buffer.getvalue()
 
 
+def _table_bytes(name: str = "现场勘查情况.xlsx") -> bytes:
+    template_root = Path(__file__).resolve().parents[2] / "ppt_engine" / "templates" / "solution_fixed_modules" / "M3表格模板"
+    return (template_root / name).read_bytes()
+
+
 class ProjectGenerationM3MaterialsTest(unittest.TestCase):
     def setUp(self):
         test_tmp_root = Path(__file__).resolve().parents[1] / "test_tmp"
@@ -90,6 +95,50 @@ class ProjectGenerationM3MaterialsTest(unittest.TestCase):
         self.assertIn("正式线路图", m3_text)
         self.assertNotIn("{{m3_", m3_text)
         self.assertNotIn("{{image:m3_basic}}", m3_text)
+
+    def test_generate_uses_saved_m3_tables_before_images(self):
+        project_id = self.client.post(
+            "/api/projects",
+            json={"project_name": "M3正式表格生成项目", "project_location": "南京"},
+        ).json()["project_id"]
+        self._review_project(project_id)
+
+        save_response = self.client.post(
+            f"/api/projects/{project_id}/m3-materials",
+            files=[
+                ("files", ("现场勘查情况.xlsx", _table_bytes(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")),
+                ("files", ("现场勘察情况-1.png", _png_bytes(), "image/png")),
+            ],
+        )
+        self.assertEqual(save_response.status_code, 200, save_response.text)
+
+        generate_response = self.client.post(f"/api/projects/{project_id}/generate")
+        self.assertEqual(generate_response.status_code, 202, generate_response.text)
+
+        detail = self.client.get(f"/api/projects/{project_id}").json()
+        m3_module = next(module for module in detail["modules"] if module["module_id"] == "M3")
+        m3_path = Path(m3_module["chapter_ppt_path"])
+        self.assertTrue(m3_path.exists())
+
+        m3_prs = Presentation(str(m3_path))
+        self.assertEqual(len(m3_prs.slides), 10)
+        self.assertTrue(any(getattr(shape, "has_table", False) for shape in m3_prs.slides[6].shapes))
+        self.assertFalse(any(getattr(shape, "has_table", False) for shape in m3_prs.slides[7].shapes))
+        table_text = "\n".join(
+            cell.text
+            for shape in m3_prs.slides[6].shapes
+            if getattr(shape, "has_table", False)
+            for row in shape.table.rows
+            for cell in row.cells
+        )
+        self.assertIn("勘察小结", table_text)
+        slide_text = "\n".join(
+            shape.text
+            for slide in (m3_prs.slides[6], m3_prs.slides[7])
+            for shape in slide.shapes
+            if hasattr(shape, "text") and shape.text
+        )
+        self.assertNotIn("待补充", slide_text)
 
     def test_generate_without_m3_images_still_succeeds(self):
         project_id = self.client.post(

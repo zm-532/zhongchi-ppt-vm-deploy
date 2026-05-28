@@ -3,13 +3,17 @@ from copy import deepcopy
 from io import BytesIO
 import os
 import shutil
+import zipfile
 from pathlib import Path
 from typing import Any
+from xml.etree import ElementTree
 
 from PIL import Image
 from pptx import Presentation
 from pptx.dml.color import RGBColor
-from pptx.enum.text import PP_ALIGN
+from pptx.enum.text import MSO_VERTICAL_ANCHOR, PP_ALIGN
+from pptx.oxml.ns import qn
+from pptx.oxml.xmlchemy import OxmlElement
 from pptx.util import Inches, Pt
 
 
@@ -38,7 +42,7 @@ M5_TEMPLATE_FILENAME = "M5示例.pptx"
 M6_TEMPLATE_FILENAME = "中驰企业介绍合并初版（M6）.pptx"
 
 # 固定尾页模板文件名
-TAIL_FIXED_TEMPLATE_FILENAME = "固定尾页.pptx"
+TAIL_FIXED_TEMPLATE_FILENAME = "尾页.pptx"
 
 # 尾页打印版模板文件名
 TAIL_PRINT_TEMPLATE_FILENAME = "尾页-打印版.pptx"
@@ -66,6 +70,8 @@ M3_FULL_SECTIONS = [
 
 M3_FULL_IMAGE_FIELDS = {section["image_field"] for section in M3_FULL_SECTIONS}
 M3_FULL_TEXT_FIELDS = {section["text_field"] for section in M3_FULL_SECTIONS}
+M3_FULL_TABLE_MAX_ROWS = 60
+M3_FULL_TABLE_MAX_COLUMNS = 12
 
 # M3 占位符字段名列表（9个字段）
 M3_FIELD_NAMES = (
@@ -753,6 +759,7 @@ def render_chapter_ppt(
                 m3_materials.get("images_by_purpose") or {},
                 output_path,
                 m3_materials.get("page_texts") or None,
+                m3_materials.get("tables_by_purpose") or None,
             )
         return render_m3_module(project, outline.get("parsed_sources", []), output_path)
 
@@ -1062,7 +1069,6 @@ M3_OLD_PROJECT_KEYWORDS = [
     "宁波市人民政府",
 ]
 
-
 def validate_m3_template_placeholders(pptx_path: Path) -> list[str]:
     """校验 M3 模板包含 active M3 占位符，且每个占位符在其规定位置出现恰好一次。
 
@@ -1158,47 +1164,53 @@ def _find_shape_by_exact_text(prs: Presentation, marker: str):
 
 
 def validate_m3_full_template_placeholders(pptx_path: Path) -> list[str]:
-    """校验 M3 完整测试模板的 9 个文字槽和 9 个图片槽。"""
+    """校验 M3 完整测试模板包含 9 个 section 所需文字槽和图片槽。"""
     prs = Presentation(str(pptx_path))
     issues: list[str] = []
-    expected_by_slide: list[tuple[str, str]] = [
-        (section["text_field"], section["image_field"])
-        for section in M3_FULL_SECTIONS
-    ]
-
-    if len(prs.slides) != len(expected_by_slide):
-        issues.append(f"slide_count:{len(prs.slides)}")
 
     found: dict[str, int] = {}
     for _, _, _, shape in _iter_text_shapes(prs):
         for match in re.findall(r"\{\{([^{}]+)\}\}", shape.text):
             found[match] = found.get(match, 0) + 1
 
-    for slide_idx, (text_field, image_field) in enumerate(expected_by_slide):
-        if slide_idx >= len(prs.slides):
-            issues.extend([text_field, image_field])
-            continue
-        slide_text = "\n".join(
-            shape.text.strip()
-            for shape in prs.slides[slide_idx].shapes
-            if hasattr(shape, "text") and shape.text
-        )
-        if f"{{{{{text_field}}}}}" not in slide_text:
+    section_slide_indices: set[int] = set()
+    for section in M3_FULL_SECTIONS:
+        text_field = section["text_field"]
+        image_field = section["image_field"]
+        if found.get(text_field, 0) != 1:
             issues.append(text_field)
-        if f"{{{{{image_field}}}}}" not in slide_text:
+        if found.get(image_field, 0) != 1:
             issues.append(image_field)
+        matches = _find_m3_full_section_slide_indices(prs, text_field, image_field)
+        if len(matches) != 1:
+            issues.append(f"{text_field}/{image_field}")
+        section_slide_indices.update(matches)
+
+    if len(section_slide_indices) != len(M3_FULL_SECTIONS) or len(prs.slides) != len(M3_FULL_SECTIONS):
+        issues.append(f"slide_count:{len(prs.slides)}")
 
     expected = M3_FULL_TEXT_FIELDS | M3_FULL_IMAGE_FIELDS
-    for marker in sorted(expected):
-        if found.get(marker, 0) != 1:
-            if marker not in issues:
-                issues.append(marker)
     for marker in found:
         if marker.startswith("m3_") or marker.startswith("image:m3_"):
             if marker not in expected:
                 issues.append(marker)
 
     return issues
+
+
+def _find_m3_full_section_slide_indices(prs: Presentation, text_field: str, image_field: str) -> list[int]:
+    text_marker = f"{{{{{text_field}}}}}"
+    image_marker = f"{{{{{image_field}}}}}"
+    indices: list[int] = []
+    for slide_index, slide in enumerate(prs.slides):
+        slide_text = "\n".join(
+            shape.text.strip()
+            for shape in slide.shapes
+            if hasattr(shape, "text") and shape.text
+        )
+        if text_marker in slide_text and image_marker in slide_text:
+            indices.append(slide_index)
+    return indices
 
 
 def _validate_m3_full_image_inputs(images_by_purpose: dict[str, list[bytes]]) -> dict[str, list[bytes]]:
@@ -1279,6 +1291,247 @@ def replace_m3_full_text_on_slide(slide, text_field: str, value: str) -> None:
         raise ValueError(f"M3 完整测试模板缺少文字槽：{marker}")
 
 
+_XLSX_NS = {
+    "main": "http://schemas.openxmlformats.org/spreadsheetml/2006/main",
+    "rel": "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
+}
+
+
+def _column_number(column: str) -> int:
+    value = 0
+    for char in column:
+        value = value * 26 + (ord(char) - ord("A") + 1)
+    return value
+
+
+def _split_cell_ref(ref: str) -> tuple[int, int]:
+    match = re.match(r"^([A-Z]+)(\d+)$", ref)
+    if not match:
+        raise ValueError(f"无效单元格引用：{ref}")
+    return int(match.group(2)), _column_number(match.group(1))
+
+
+def _read_xlsx_shared_strings(archive: zipfile.ZipFile) -> list[str]:
+    if "xl/sharedStrings.xml" not in archive.namelist():
+        return []
+    root = ElementTree.fromstring(archive.read("xl/sharedStrings.xml"))
+    strings: list[str] = []
+    for item in root.findall("main:si", _XLSX_NS):
+        strings.append("".join(node.text or "" for node in item.iter(f"{{{_XLSX_NS['main']}}}t")))
+    return strings
+
+
+def _xlsx_cell_text(cell, shared_strings: list[str]) -> str:
+    cell_type = cell.get("t")
+    if cell_type == "inlineStr":
+        return "".join(node.text or "" for node in cell.iter(f"{{{_XLSX_NS['main']}}}t")).strip()
+    value = cell.find("main:v", _XLSX_NS)
+    if value is None or value.text is None:
+        return ""
+    if cell_type == "s":
+        try:
+            return shared_strings[int(value.text)].strip()
+        except (ValueError, IndexError):
+            return value.text.strip()
+    return value.text.strip()
+
+
+def _first_xlsx_worksheet_path(archive: zipfile.ZipFile) -> str:
+    workbook = ElementTree.fromstring(archive.read("xl/workbook.xml"))
+    relationships = ElementTree.fromstring(archive.read("xl/_rels/workbook.xml.rels"))
+    rel_targets = {rel.get("Id"): rel.get("Target", "") for rel in relationships}
+    first_sheet = workbook.find("main:sheets/main:sheet", _XLSX_NS)
+    if first_sheet is None:
+        raise ValueError("Excel 表格缺少工作表")
+    rel_id = first_sheet.get(f"{{{_XLSX_NS['rel']}}}id")
+    target = rel_targets.get(rel_id, "")
+    if not target:
+        raise ValueError("Excel 表格缺少工作表关系")
+    target = target.lstrip("/")
+    return target if target.startswith("xl/") else f"xl/{target}"
+
+
+def _read_xlsx_table(blob: bytes) -> tuple[list[list[str]], list[tuple[int, int, int, int]]]:
+    try:
+        with zipfile.ZipFile(BytesIO(blob)) as archive:
+            shared_strings = _read_xlsx_shared_strings(archive)
+            worksheet_path = _first_xlsx_worksheet_path(archive)
+            root = ElementTree.fromstring(archive.read(worksheet_path))
+    except (KeyError, zipfile.BadZipFile, ElementTree.ParseError) as exc:
+        raise ValueError("Excel 表格文件无效或已损坏") from exc
+
+    cells: dict[tuple[int, int], str] = {}
+    max_row = 0
+    max_col = 0
+    for cell in root.findall(".//main:c", _XLSX_NS):
+        ref = cell.get("r")
+        if not ref:
+            continue
+        row, col = _split_cell_ref(ref)
+        text = _xlsx_cell_text(cell, shared_strings).replace("\xa0", " ")
+        cells[(row, col)] = text
+        max_row = max(max_row, row)
+        max_col = max(max_col, col)
+
+    dimension = root.find("main:dimension", _XLSX_NS)
+    if dimension is not None and dimension.get("ref"):
+        refs = dimension.get("ref", "").split(":")
+        if refs:
+            row, col = _split_cell_ref(refs[-1])
+            max_row = max(max_row, row)
+            max_col = max(max_col, col)
+
+    if max_row <= 0 or max_col <= 0:
+        raise ValueError("Excel 表格没有可渲染内容")
+
+    if max_row > M3_FULL_TABLE_MAX_ROWS or max_col > M3_FULL_TABLE_MAX_COLUMNS:
+        raise ValueError(
+            f"Excel 表格超出可渲染范围：{max_row} 行 x {max_col} 列，"
+            f"最大支持 {M3_FULL_TABLE_MAX_ROWS} 行 x {M3_FULL_TABLE_MAX_COLUMNS} 列"
+        )
+
+    merges: list[tuple[int, int, int, int]] = []
+    merge_cells = root.find("main:mergeCells", _XLSX_NS)
+    if merge_cells is not None:
+        for merge in merge_cells.findall("main:mergeCell", _XLSX_NS):
+            ref = merge.get("ref", "")
+            if ":" not in ref:
+                continue
+            start, end = ref.split(":", 1)
+            start_row, start_col = _split_cell_ref(start)
+            end_row, end_col = _split_cell_ref(end)
+            merges.append((start_row, start_col, end_row, end_col))
+
+    rows = [
+        [cells.get((row_index, col_index), "") for col_index in range(1, max_col + 1)]
+        for row_index in range(1, max_row + 1)
+    ]
+    rows, kept_row_indices, kept_col_indices = _trim_empty_table_edges(rows)
+    if not rows:
+        raise ValueError("Excel 表格没有可渲染内容")
+    index_by_row = {original: current for current, original in enumerate(kept_row_indices, start=1)}
+    index_by_col = {original: current for current, original in enumerate(kept_col_indices, start=1)}
+    trimmed_merges: list[tuple[int, int, int, int]] = []
+    for start_row, start_col, end_row, end_col in merges:
+        if (
+            start_row in index_by_row
+            and end_row in index_by_row
+            and start_col in index_by_col
+            and end_col in index_by_col
+        ):
+            trimmed_merges.append(
+                (
+                    index_by_row[start_row],
+                    index_by_col[start_col],
+                    index_by_row[end_row],
+                    index_by_col[end_col],
+                )
+            )
+    return rows, trimmed_merges
+
+
+def _trim_empty_table_edges(rows: list[list[str]]) -> tuple[list[list[str]], list[int], list[int]]:
+    row_indices = [
+        index
+        for index, row in enumerate(rows, start=1)
+        if any(cell.strip() for cell in row)
+    ]
+    col_indices = [
+        index
+        for index in range(1, len(rows[0]) + 1)
+        if any(row[index - 1].strip() for row in rows)
+    ]
+    if not row_indices or not col_indices:
+        return [], [], []
+    trimmed = [
+        [rows[row_index - 1][col_index - 1] for col_index in col_indices]
+        for row_index in row_indices
+    ]
+    return trimmed, row_indices, col_indices
+
+
+def _set_table_cell_borders(cell, color: str = "666666", width_pt: float = 0.75) -> None:
+    tc_pr = cell._tc.get_or_add_tcPr()
+    for line_tag in ("lnL", "lnR", "lnT", "lnB"):
+        existing = tc_pr.find(qn(f"a:{line_tag}"))
+        if existing is not None:
+            tc_pr.remove(existing)
+        line = OxmlElement(f"a:{line_tag}")
+        line.set("w", str(int(Pt(width_pt))))
+        solid_fill = OxmlElement("a:solidFill")
+        srgb_clr = OxmlElement("a:srgbClr")
+        srgb_clr.set("val", color)
+        solid_fill.append(srgb_clr)
+        line.append(solid_fill)
+        prst_dash = OxmlElement("a:prstDash")
+        prst_dash.set("val", "solid")
+        line.append(prst_dash)
+        tc_pr.append(line)
+
+
+def replace_m3_full_table_on_slide(slide, image_field: str, blob: bytes) -> None:
+    marker = f"{{{{{image_field}}}}}"
+    matches = _find_shape_on_slide_by_exact_text(slide, marker)
+    if len(matches) != 1:
+        raise ValueError(f"M3 完整测试模板缺少唯一表格槽：{marker}")
+
+    rows, merges = _read_xlsx_table(blob)
+    shape = matches[0]
+    left, top, width, height = shape.left, shape.top, shape.width, shape.height
+    _remove_shape(shape)
+
+    row_count = len(rows)
+    col_count = len(rows[0])
+    table_shape = slide.shapes.add_table(row_count, col_count, left, top, width, height)
+    table = table_shape.table
+
+    if row_count:
+        row_height = int(height / row_count)
+        for row in table.rows:
+            row.height = row_height
+    if col_count:
+        col_width = int(width / col_count)
+        for col in table.columns:
+            col.width = col_width
+
+    skipped_cells: set[tuple[int, int]] = set()
+    for start_row, start_col, end_row, end_col in merges:
+        if start_row > row_count or start_col > col_count or end_row > row_count or end_col > col_count:
+            continue
+        if start_row == end_row and start_col == end_col:
+            continue
+        try:
+            table.cell(start_row - 1, start_col - 1).merge(table.cell(end_row - 1, end_col - 1))
+        except ValueError:
+            continue
+        for row_index in range(start_row - 1, end_row):
+            for col_index in range(start_col - 1, end_col):
+                if (row_index, col_index) != (start_row - 1, start_col - 1):
+                    skipped_cells.add((row_index, col_index))
+
+    font_size = Pt(8 if row_count > 15 or col_count > 6 else 10)
+    for row_index, values in enumerate(rows):
+        for col_index, value in enumerate(values):
+            if (row_index, col_index) in skipped_cells:
+                continue
+            cell = table.cell(row_index, col_index)
+            _set_table_cell_borders(cell)
+            cell.text = value
+            cell.margin_left = Pt(2)
+            cell.margin_right = Pt(2)
+            cell.margin_top = Pt(1)
+            cell.margin_bottom = Pt(1)
+            cell.vertical_anchor = MSO_VERTICAL_ANCHOR.MIDDLE
+            cell.fill.solid()
+            cell.fill.fore_color.rgb = RGBColor(18, 117, 181) if row_index == 0 else RGBColor(255, 255, 255)
+            for paragraph in cell.text_frame.paragraphs:
+                paragraph.alignment = PP_ALIGN.CENTER
+                for run in paragraph.runs:
+                    run.font.name = "Microsoft YaHei"
+                    run.font.size = font_size
+                    run.font.color.rgb = RGBColor(255, 255, 255) if row_index == 0 else RGBColor(0, 0, 0)
+
+
 def _render_m3_full_ppt(
     project_name: str,
     texts: dict[str, str],
@@ -1286,6 +1539,7 @@ def _render_m3_full_ppt(
     output_dir: str | Path,
     dest_filename: str,
     page_texts: dict[str, list[str]] | None = None,
+    tables_by_purpose: dict[str, list[bytes]] | None = None,
 ) -> Path:
     """渲染 M3 九部分文字 + 图片 PPTX，支持多图扩页。"""
     source_template = PPT_TEMPLATE_ROOT / M3_FULL_TEST_TEMPLATE_FILENAME
@@ -1297,6 +1551,10 @@ def _render_m3_full_ppt(
         raise ValueError(f"M3 完整模板占位槽异常：{issues}")
 
     normalized_images = _validate_m3_full_image_inputs(images_by_purpose)
+    normalized_tables = tables_by_purpose or {}
+    for purpose in normalized_tables:
+        if purpose not in M3_FULL_IMAGE_FIELDS:
+            raise ValueError(f"非法表格用途：{purpose}")
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
     dest_path = output_path / dest_filename
@@ -1306,33 +1564,51 @@ def _render_m3_full_ppt(
     target.slide_width = source.slide_width
     target.slide_height = source.slide_height
 
-    generated: list[tuple[int, str, str, int | None]] = []
-    for section_index, section in enumerate(M3_FULL_SECTIONS):
+    generated: list[tuple[int, str, str, str, int | None]] = []
+    for section in M3_FULL_SECTIONS:
         image_field = section["image_field"]
         text_field = section["text_field"]
+        section_slide_indices = _find_m3_full_section_slide_indices(source, text_field, image_field)
+        if not section_slide_indices:
+            raise ValueError(f"M3 完整模板缺少 section 模板页：{section['title']}")
+        section_template_slide = source.slides[section_slide_indices[0]]
         blobs = normalized_images.get(image_field, [])
-        repeat_count = max(1, len(blobs))
-        for image_index in range(repeat_count):
-            _append_slide(target, source.slides[section_index])
-            generated.append((len(target.slides) - 1, image_field, text_field, image_index if image_index < len(blobs) else None))
+        table_blobs = normalized_tables.get(image_field, [])
+        if table_blobs or blobs:
+            for table_index in range(len(table_blobs)):
+                _append_slide(target, section_template_slide)
+                generated.append((len(target.slides) - 1, image_field, text_field, "table", table_index))
+            for image_index in range(len(blobs)):
+                _append_slide(target, section_template_slide)
+                generated.append((len(target.slides) - 1, image_field, text_field, "image", image_index))
+            continue
+        else:
+            _append_slide(target, section_template_slide)
+            generated.append((len(target.slides) - 1, image_field, text_field, "empty", None))
 
     target.save(str(dest_path))
 
     rendered = Presentation(str(dest_path))
     section_titles = {section["text_field"]: section["title"] for section in M3_FULL_SECTIONS}
-    for slide_index, image_field, text_field, image_index in generated:
+    for slide_index, image_field, text_field, media_kind, media_index in generated:
         slide = rendered.slides[slide_index]
-        if page_texts is not None and image_index is not None:
+        if page_texts is not None and media_kind in {"table", "image"} and media_index is not None:
             values = page_texts.get(image_field, [])
-            text_value = values[image_index] if image_index < len(values) else ""
+            text_value = values[media_index] if media_index < len(values) else ""
         else:
             text_value = _safe_text(texts.get(text_field, ""), section_titles[text_field])
         replace_m3_full_text_on_slide(slide, text_field, text_value)
-        if image_index is not None:
+        if media_kind == "table" and media_index is not None:
+            replace_m3_full_table_on_slide(
+                slide,
+                image_field,
+                normalized_tables[image_field][media_index],
+            )
+        elif media_kind == "image" and media_index is not None:
             replace_m3_full_image_on_slide(
                 slide,
                 image_field,
-                normalized_images[image_field][image_index],
+                normalized_images[image_field][media_index],
             )
     rendered.save(str(dest_path))
     return dest_path
@@ -1344,6 +1620,7 @@ def render_m3_full_test_ppt(
     images_by_purpose: dict[str, list[bytes]],
     output_dir: str | Path,
     page_texts: dict[str, list[str]] | None = None,
+    tables_by_purpose: dict[str, list[bytes]] | None = None,
 ) -> Path:
     """渲染 M3 完整功能测试 PPTX：9 部分文字 + 图片，支持多图扩页。"""
     safe_name = _safe_pptx_filename(project_name)
@@ -1354,6 +1631,7 @@ def render_m3_full_test_ppt(
         output_dir,
         f"M3_完整测试_{safe_name}.pptx",
         page_texts,
+        tables_by_purpose,
     )
 
 
@@ -1363,6 +1641,7 @@ def render_m3_full_project_ppt(
     images_by_purpose: dict[str, list[bytes]],
     output_dir: str | Path,
     page_texts: dict[str, list[str]] | None = None,
+    tables_by_purpose: dict[str, list[bytes]] | None = None,
 ) -> Path:
     """渲染正式流程 M3 完整资料 PPTX。"""
     return _render_m3_full_ppt(
@@ -1372,6 +1651,7 @@ def render_m3_full_project_ppt(
         output_dir,
         "M3_项目深化方案.pptx",
         page_texts,
+        tables_by_purpose,
     )
 
 

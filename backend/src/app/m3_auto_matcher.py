@@ -16,8 +16,10 @@ class M3Section:
 class M3AutoRenderPayload:
     texts: dict[str, str]
     images_by_purpose: dict[str, list[bytes]]
+    tables_by_purpose: dict[str, list[bytes]]
     page_texts: dict[str, list[str]]
     ordered_images: list[dict[str, object]]
+    ordered_tables: list[dict[str, object]]
 
 
 M3_AUTO_SECTIONS = (
@@ -33,6 +35,9 @@ M3_AUTO_SECTIONS = (
 )
 
 _SECTIONS_BY_TITLE = {section.title: section for section in M3_AUTO_SECTIONS}
+_SECTION_TITLE_ALIASES = {
+    "现场勘查情况": "现场勘察情况",
+}
 _KEY_PATTERN = re.compile(r"^(?P<title>.+?)(?:-(?P<index>\d+))?$")
 _DESCRIPTION_PATTERN = re.compile(r"^(?P<key>[^:：]+)[:：](?P<text>.*)$")
 
@@ -58,6 +63,23 @@ def _parse_m3_key(raw_key: str, *, source_label: str) -> tuple[M3Section, int | 
     return section, int(index_text) if index_text else None
 
 
+def _parse_m3_table_key(raw_key: str) -> M3Section:
+    key = _normalize_key_text(raw_key)
+    for alias, canonical in _SECTION_TITLE_ALIASES.items():
+        normalized_alias = _normalize_key_text(alias)
+        normalized_canonical = _normalize_key_text(canonical)
+        if key == normalized_alias:
+            key = normalized_canonical
+            break
+        if key.startswith(f"{normalized_alias}-"):
+            key = f"{normalized_canonical}-{key[len(normalized_alias) + 1:]}"
+            break
+    for section in M3_AUTO_SECTIONS:
+        if key == section.title or key.startswith(f"{section.title}-"):
+            return section
+    raise ValueError(f"无法识别表格分类：{raw_key}")
+
+
 def _parse_description_lines(descriptions: str) -> dict[tuple[str, int | None], str]:
     parsed: dict[tuple[str, int | None], str] = {}
     for line_no, raw_line in enumerate((descriptions or "").splitlines(), start=1):
@@ -81,11 +103,17 @@ def build_m3_auto_render_payload(
     descriptions: str,
 ) -> M3AutoRenderPayload:
     if len(filenames) != len(blobs):
-        raise ValueError("图片文件数量和内容数量必须一致")
+        raise ValueError("文件数量和内容数量必须一致")
 
     grouped: dict[str, dict[int | None, tuple[str, bytes]]] = {}
+    grouped_tables: dict[str, list[tuple[str, bytes]]] = {}
     for filename, blob in zip(filenames, blobs):
+        suffix = Path(filename).suffix.lower()
         stem = Path(filename).stem
+        if suffix == ".xlsx":
+            section = _parse_m3_table_key(stem)
+            grouped_tables.setdefault(section.image_field, []).append((filename, blob))
+            continue
         section, index = _parse_m3_key(stem, source_label="图片")
         bucket = grouped.setdefault(section.image_field, {})
         if index is None and None in bucket:
@@ -110,10 +138,25 @@ def build_m3_auto_render_payload(
 
     texts = {section.text_field: "" for section in M3_AUTO_SECTIONS}
     images_by_purpose: dict[str, list[bytes]] = {}
+    tables_by_purpose: dict[str, list[bytes]] = {}
     page_texts: dict[str, list[str]] = {}
     ordered_images: list[dict[str, object]] = []
+    ordered_tables: list[dict[str, object]] = []
 
     for section in M3_AUTO_SECTIONS:
+        table_items = grouped_tables.get(section.image_field, [])
+        if table_items:
+            tables_by_purpose[section.image_field] = [blob for _, blob in table_items]
+            for position, (filename, blob) in enumerate(table_items, start=1):
+                ordered_tables.append(
+                    {
+                        "purpose": section.image_field,
+                        "filename": filename,
+                        "blob": blob,
+                        "page_index": position,
+                    }
+                )
+
         indexed_items = grouped.get(section.image_field, {})
         if not indexed_items:
             continue
@@ -139,6 +182,8 @@ def build_m3_auto_render_payload(
     return M3AutoRenderPayload(
         texts=texts,
         images_by_purpose=images_by_purpose,
+        tables_by_purpose=tables_by_purpose,
         page_texts=page_texts,
         ordered_images=ordered_images,
+        ordered_tables=ordered_tables,
     )

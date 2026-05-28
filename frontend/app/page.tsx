@@ -31,6 +31,9 @@ const M3_FULL_SECTIONS = [
   { title: "项目重难点分析", textField: "m3_risk_summary", imageField: "image:m3_risk" },
   { title: "重难点应对措施", textField: "m3_solution_summary", imageField: "image:m3_solution" },
 ];
+const M3_SECTION_TITLE_ALIASES: Record<string, string> = {
+  "现场勘查情况": "现场勘察情况",
+};
 
 function M3NamingHelpButton({ onOpen }: { onOpen: () => void }) {
   return (
@@ -88,18 +91,22 @@ type TaskState = { project_id: number; task_status: string; status_history: stri
 type ReviewForm = { projectType: string; m1m2Template: string; caseId?: string; m3Selection: string; includePrintTailPage: boolean; notes: string };
 type RecommendedCase = { case_id: number | string; title: string; match_reason?: string; matched_tags?: string[]; source_path?: string };
 type LlmTestResult = { ok: boolean; status_code: number; model: string; reply: string; error: string; configured: Record<string, boolean> };
-type M3FullTestResult = { ok: boolean; pptx_path: string; download_url: string; slide_count: number; image_summary: Record<string, number> };
+type M3FullTestResult = { ok: boolean; pptx_path: string; download_url: string; slide_count: number; image_summary: Record<string, number>; table_summary?: Record<string, number> };
 type CaseLibraryItem = { case_id: string | number; title: string; filename?: string; project_type?: string; source_path?: string; module_id?: string; source_type?: string };
 type M3MaterialImage = { purpose: string; filename: string; content_type?: string; stored_path: string; description?: string; page_index?: number };
+type M3MaterialTable = { purpose: string; filename: string; content_type?: string; stored_path: string; page_index?: number };
 type M3MaterialsResult = {
   project_id: number;
   texts: Record<string, string>;
   images: M3MaterialImage[];
+  tables?: M3MaterialTable[];
   page_texts?: Record<string, string[]>;
   text_completed_count: number;
   text_total_count: number;
   image_count: number;
   image_summary: Record<string, number>;
+  table_count?: number;
+  table_summary?: Record<string, number>;
 };
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8010";
@@ -109,7 +116,7 @@ const viewTitles: Record<ViewId, { title: string; description: string }> = {
   projects: { title: "我的项目", description: "创建项目、统一上传项目资料，并确认系统识别结果。" },
   create: { title: "新建项目", description: "填写基础信息后创建一个新的售前 PPT 项目。" },
   cases: { title: "案例库管理", description: "维护历史案例，供系统按项目标签推荐引用。" },
-  "project-m3-materials": { title: "M3资料上传", description: "按 M3 九部分维护项目深化方案文字和图片资料。" },
+  "project-m3-materials": { title: "M3资料上传", description: "按 M3 九部分维护项目深化方案文字、图片和 Excel 表格资料。" },
   "function-tests": { title: "功能测试", description: "开发过程验证入口，收纳内部功能测试页面，普通前端用户无需使用。" },
   "m1m2-test": { title: "M1/M2选择测试", description: "上传测试资料，根据文件名和解析文本识别项目类型并选择对应 M1/M2 固化模板。" },
   "m3-full-test": { title: "M3完整测试", description: "按 M3 九部分测试文字与图片占位符替换，多图自动扩页。" },
@@ -200,7 +207,7 @@ export default function HomePage() {
   const [m3MaterialBulkFiles, setM3MaterialBulkFiles] = useState<File[]>([]);
   const [m3MaterialDescriptions, setM3MaterialDescriptions] = useState("");
   const [m3MaterialsResult, setM3MaterialsResult] = useState<M3MaterialsResult | null>(null);
-  const [m3MaterialsMessage, setM3MaterialsMessage] = useState("进入页面后批量上传按九类命名的 M3 图片，并填写可选描述。");
+  const [m3MaterialsMessage, setM3MaterialsMessage] = useState("进入页面后批量上传按九类命名的 M3 图片或 Excel 表格，并填写可选描述。");
   const [m3NamingHelpOpen, setM3NamingHelpOpen] = useState(false);
 
   // PPT 预览
@@ -231,7 +238,7 @@ export default function HomePage() {
     : projects.slice(0, PROJECT_LIST_PREVIEW_LIMIT);
   const m3FullAutoPreview = useMemo(() => {
     const normalize = (value: string) => value.trim().replace(/\s+/g, "");
-    const parseKey = (value: string) => {
+    const parseImageKey = (value: string) => {
       const normalized = normalize(value);
       const match = normalized.match(/^(.+?)(?:-(\d+))?$/);
       if (!match) return null;
@@ -239,10 +246,24 @@ export default function HomePage() {
       if (!section) return null;
       return { title: section.title, imageField: section.imageField, order: match[2] ? Number(match[2]) : -1, label: normalized };
     };
+    const parseTableKey = (value: string) => {
+      const normalized = normalize(value);
+      const aliased = Object.entries(M3_SECTION_TITLE_ALIASES).reduce((current, [alias, canonical]) => {
+        const normalizedAlias = normalize(alias);
+        const normalizedCanonical = normalize(canonical);
+        if (current === normalizedAlias) return normalizedCanonical;
+        if (current.startsWith(`${normalizedAlias}-`)) return `${normalizedCanonical}-${current.slice(normalizedAlias.length + 1)}`;
+        return current;
+      }, normalized);
+      const section = M3_FULL_SECTIONS.find((item) => aliased === item.title || aliased.startsWith(`${item.title}-`));
+      if (!section) return null;
+      return { title: section.title, imageField: section.imageField, order: -1, label: normalized };
+    };
     const fileRows = m3FullTestBulkFiles.map((file) => {
       const nameWithoutExt = file.name.replace(/\.[^.]+$/, "");
-      const parsed = parseKey(nameWithoutExt);
-      return { filename: file.name, parsed };
+      const isTable = /\.xlsx$/i.test(file.name);
+      const parsed = isTable ? parseTableKey(nameWithoutExt) : parseImageKey(nameWithoutExt);
+      return { filename: file.name, parsed, isTable };
     });
     const descriptionRows = m3FullTestDescriptions
       .split(/\r?\n/)
@@ -250,16 +271,17 @@ export default function HomePage() {
       .filter(Boolean)
       .map((line) => {
         const match = line.match(/^([^:：]+)[:：](.*)$/);
-        const parsed = match ? parseKey(match[1]) : null;
+        const parsed = match ? parseImageKey(match[1]) : null;
         return { line, parsed, valid: Boolean(match && parsed) };
       });
     const grouped = M3_FULL_SECTIONS.map((section) => ({
       ...section,
       files: fileRows
-        .filter((row) => row.parsed?.imageField === section.imageField)
+        .filter((row) => row.parsed?.imageField === section.imageField && !row.isTable)
         .sort((a, b) => (a.parsed?.order ?? 0) - (b.parsed?.order ?? 0)),
+      tables: fileRows.filter((row) => row.parsed?.imageField === section.imageField && row.isTable),
       descriptions: descriptionRows.filter((row) => row.parsed?.imageField === section.imageField),
-    })).filter((section) => section.files.length || section.descriptions.length);
+    })).filter((section) => section.files.length || section.tables.length || section.descriptions.length);
     return {
       grouped,
       unknownFiles: fileRows.filter((row) => !row.parsed).map((row) => row.filename),
@@ -268,7 +290,7 @@ export default function HomePage() {
   }, [m3FullTestBulkFiles, m3FullTestDescriptions]);
   const m3MaterialAutoPreview = useMemo(() => {
     const normalize = (value: string) => value.trim().replace(/\s+/g, "");
-    const parseKey = (value: string) => {
+    const parseImageKey = (value: string) => {
       const normalized = normalize(value);
       const match = normalized.match(/^(.+?)(?:-(\d+))?$/);
       if (!match) return null;
@@ -276,10 +298,24 @@ export default function HomePage() {
       if (!section) return null;
       return { title: section.title, imageField: section.imageField, order: match[2] ? Number(match[2]) : -1, label: normalized };
     };
+    const parseTableKey = (value: string) => {
+      const normalized = normalize(value);
+      const aliased = Object.entries(M3_SECTION_TITLE_ALIASES).reduce((current, [alias, canonical]) => {
+        const normalizedAlias = normalize(alias);
+        const normalizedCanonical = normalize(canonical);
+        if (current === normalizedAlias) return normalizedCanonical;
+        if (current.startsWith(`${normalizedAlias}-`)) return `${normalizedCanonical}-${current.slice(normalizedAlias.length + 1)}`;
+        return current;
+      }, normalized);
+      const section = M3_FULL_SECTIONS.find((item) => aliased === item.title || aliased.startsWith(`${item.title}-`));
+      if (!section) return null;
+      return { title: section.title, imageField: section.imageField, order: -1, label: normalized };
+    };
     const fileRows = m3MaterialBulkFiles.map((file) => {
       const nameWithoutExt = file.name.replace(/\.[^.]+$/, "");
-      const parsed = parseKey(nameWithoutExt);
-      return { filename: file.name, parsed };
+      const isTable = /\.xlsx$/i.test(file.name);
+      const parsed = isTable ? parseTableKey(nameWithoutExt) : parseImageKey(nameWithoutExt);
+      return { filename: file.name, parsed, isTable };
     });
     const descriptionRows = m3MaterialDescriptions
       .split(/\r?\n/)
@@ -287,16 +323,17 @@ export default function HomePage() {
       .filter(Boolean)
       .map((line) => {
         const match = line.match(/^([^:：]+)[:：](.*)$/);
-        const parsed = match ? parseKey(match[1]) : null;
+        const parsed = match ? parseImageKey(match[1]) : null;
         return { line, parsed, valid: Boolean(match && parsed) };
       });
     const grouped = M3_FULL_SECTIONS.map((section) => ({
       ...section,
       files: fileRows
-        .filter((row) => row.parsed?.imageField === section.imageField)
+        .filter((row) => row.parsed?.imageField === section.imageField && !row.isTable)
         .sort((a, b) => (a.parsed?.order ?? 0) - (b.parsed?.order ?? 0)),
+      tables: fileRows.filter((row) => row.parsed?.imageField === section.imageField && row.isTable),
       descriptions: descriptionRows.filter((row) => row.parsed?.imageField === section.imageField),
-    })).filter((section) => section.files.length || section.descriptions.length);
+    })).filter((section) => section.files.length || section.tables.length || section.descriptions.length);
     return {
       grouped,
       unknownFiles: fileRows.filter((row) => !row.parsed).map((row) => row.filename),
@@ -391,7 +428,7 @@ export default function HomePage() {
           .filter(Boolean)
           .join("\n")
       );
-      setM3MaterialsMessage("M3资料已加载，如需替换请重新批量上传图片。");
+      setM3MaterialsMessage("M3资料已加载，如需替换请重新批量上传图片或 Excel 表格。");
     } catch (error) {
       setM3MaterialsResult(null);
       setM3MaterialBulkFiles([]);
@@ -412,12 +449,12 @@ export default function HomePage() {
 
   function updateM3MaterialBulkFiles(files: File[]) {
     setM3MaterialBulkFiles(files);
-    setM3MaterialsMessage("已选择新图片，保存后会替换已保存的 M3 图片。");
+    setM3MaterialsMessage("已选择新资料，保存后会替换已保存的 M3 图片和表格。");
   }
 
   async function saveM3Materials(returnToProjects = false) {
     if (!currentProject) return setM3MaterialsMessage("请先选择项目。");
-    if (m3MaterialBulkFiles.length === 0) return setM3MaterialsMessage("请先批量上传按九类命名的 M3 图片。");
+    if (m3MaterialBulkFiles.length === 0) return setM3MaterialsMessage("请先批量上传按九类命名的 M3 图片或 Excel 表格。");
     const formData = new FormData();
     formData.append("descriptions", m3MaterialDescriptions);
     m3MaterialBulkFiles.forEach((file) => formData.append("files", file));
@@ -440,7 +477,7 @@ export default function HomePage() {
           .filter(Boolean)
           .join("\n")
       );
-      setM3MaterialsMessage(`M3资料已保存：已填写 ${result.text_completed_count}/${result.text_total_count}，已上传 ${result.image_count} 张图片。`);
+      setM3MaterialsMessage(`M3资料已保存：已填写 ${result.text_completed_count}/${result.text_total_count}，已上传 ${result.image_count} 张图片、${result.table_count || 0} 个表格。`);
       if (returnToProjects) {
         setActiveView("projects");
         window.location.hash = "projects";
@@ -907,12 +944,12 @@ export default function HomePage() {
   function updateM3FullTestBulkFiles(files: File[]) {
     setM3FullTestBulkFiles(files);
     setM3FullTestResult(null);
-    setM3FullTestMessage("已选择批量图片，系统将按文件名自动分类。");
+    setM3FullTestMessage("已选择 M3 测试资料，系统将按文件名自动分类。");
   }
 
   async function runM3FullRenderTest() {
     if (!m3FullTestProjectName.trim()) return setM3FullTestMessage("请先填写项目名称。");
-    if (m3FullTestBulkFiles.length === 0) return setM3FullTestMessage("请先批量上传按九类命名的图片。");
+    if (m3FullTestBulkFiles.length === 0) return setM3FullTestMessage("请先批量上传按九类命名的 M3 图片或表格。");
     const formData = new FormData();
     formData.append("project_name", m3FullTestProjectName);
     formData.append("texts", JSON.stringify({}));
@@ -1331,27 +1368,30 @@ export default function HomePage() {
                 <div className="m3-material-page-header">
                   <div>
                     <strong>{currentProject.project_name}</strong>
-                    <span>已填写 {m3MaterialsResult?.text_completed_count ?? 0}/{m3MaterialsResult?.text_total_count ?? 9} 个部分，已上传 {m3MaterialsResult?.image_count ?? 0} 张图片</span>
+                    <span>已填写 {m3MaterialsResult?.text_completed_count ?? 0}/{m3MaterialsResult?.text_total_count ?? 9} 个部分，已上传 {m3MaterialsResult?.image_count ?? 0} 张图片 / {m3MaterialsResult?.table_count ?? 0} 个表格</span>
                   </div>
                   <a className="secondaryButton" href="#projects">返回我的项目</a>
                 </div>
                 <div className="evidenceItem">
                   <div>
-                    <strong>批量图片自动分类</strong>
-                    <span className="inlineTitle">文件名格式：项目基本情况-1.jpg / 项目基本情况-2.jpg <M3NamingHelpButton onOpen={() => setM3NamingHelpOpen(true)} /></span>
+                    <strong>批量 M3 资料自动分类</strong>
+                    <span className="inlineTitle">文件名格式：项目基本情况-1.jpg / 现场勘查情况.xlsx <M3NamingHelpButton onOpen={() => setM3NamingHelpOpen(true)} /></span>
                   </div>
                   <label className="uploadBox uploadBoxSpaced">
-                    <span>一次上传 M3 九类图片</span>
+                    <span>一次上传 M3 九类图片或 Excel 表格</span>
                     <input
                       name="project_m3_material_bulk_images"
                       type="file"
                       multiple
-                      accept=".png,.jpg,.jpeg,image/png,image/jpeg"
+                      accept=".xlsx,.png,.jpg,.jpeg,image/png,image/jpeg,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                       onChange={(event) => updateM3MaterialBulkFiles(Array.from(event.target.files ?? []))}
                     />
                   </label>
                   <div className="fileList">
-                    {(m3MaterialBulkFiles.length ? m3MaterialBulkFiles.map((file) => file.name) : (m3MaterialsResult?.images || []).map((image) => image.filename)).map((name) => (
+                    {(m3MaterialBulkFiles.length
+                      ? m3MaterialBulkFiles.map((file) => file.name)
+                      : [...(m3MaterialsResult?.tables || []).map((table) => table.filename), ...(m3MaterialsResult?.images || []).map((image) => image.filename)]
+                    ).map((name) => (
                       <span key={`project-m3-material-${name}`}>{name}</span>
                     ))}
                   </div>
@@ -1380,9 +1420,10 @@ export default function HomePage() {
                           <article className="evidenceItem" key={`project-m3-auto-${section.imageField}`}>
                             <div>
                               <strong>{section.title}</strong>
-                              <span>{section.files.length} 张图片 / {section.descriptions.length} 条描述</span>
+                              <span>{section.tables.length} 个表格 / {section.files.length} 张图片 / {section.descriptions.length} 条描述</span>
                             </div>
                             <div className="fileList">
+                              {section.tables.map((row) => <span key={`project-auto-table-${section.imageField}-${row.filename}`}>{row.filename}</span>)}
                               {section.files.map((row) => <span key={`project-auto-file-${section.imageField}-${row.filename}`}>{row.filename}</span>)}
                               {section.descriptions.map((row) => <span key={`project-auto-desc-${section.imageField}-${row.line}`}>{row.line}</span>)}
                             </div>
@@ -1390,23 +1431,25 @@ export default function HomePage() {
                         ))}
                       </div>
                     ) : (
-                      <p className="messageLine">尚未识别到可匹配的 M3 图片或描述。</p>
+                      <p className="messageLine">尚未识别到可匹配的 M3 表格、图片或描述。</p>
                     )}
-                    {m3MaterialAutoPreview.unknownFiles.length ? <p className="messageLine errorText">分类不明图片：{m3MaterialAutoPreview.unknownFiles.join("、")}</p> : null}
+                    {m3MaterialAutoPreview.unknownFiles.length ? <p className="messageLine errorText">分类不明文件：{m3MaterialAutoPreview.unknownFiles.join("、")}</p> : null}
                     {m3MaterialAutoPreview.invalidDescriptions.length ? <p className="messageLine errorText">描述格式或分类异常：{m3MaterialAutoPreview.invalidDescriptions.join("；")}</p> : null}
                   </div>
                 ) : null}
                 <div className="evidenceList">
                   {M3_FULL_SECTIONS.map((section) => {
                     const savedImages = (m3MaterialsResult?.images || []).filter((image) => image.purpose === section.imageField);
-                    if (!savedImages.length) return null;
+                    const savedTables = (m3MaterialsResult?.tables || []).filter((table) => table.purpose === section.imageField);
+                    if (!savedImages.length && !savedTables.length) return null;
                     return (
                       <article className="evidenceItem" key={`project-saved-${section.textField}`}>
                         <div>
                           <strong>{section.title}</strong>
-                          <span>{savedImages.length} 张已保存图片</span>
+                          <span>{savedTables.length} 个已保存表格 / {savedImages.length} 张已保存图片</span>
                         </div>
                         <div className="fileList">
+                          {savedTables.map((table) => <span key={`${section.imageField}-saved-table-${table.stored_path}`}>{table.filename}</span>)}
                           {savedImages.map((image) => <span key={`${section.imageField}-saved-${image.stored_path}`}>{image.filename}{image.description ? `：${image.description}` : ""}</span>)}
                         </div>
                       </article>
@@ -1967,16 +2010,16 @@ export default function HomePage() {
               </div>
               <div className="evidenceItem">
                 <div>
-                  <strong>批量图片自动分类</strong>
-                  <span className="inlineTitle">文件名格式：项目基本情况-1.jpg / 项目基本情况-2.jpg <M3NamingHelpButton onOpen={() => setM3NamingHelpOpen(true)} /></span>
+                  <strong>批量 M3 资料自动分类</strong>
+                  <span className="inlineTitle">文件名格式：项目基本情况-1.jpg / 敏感点路段.xlsx <M3NamingHelpButton onOpen={() => setM3NamingHelpOpen(true)} /></span>
                 </div>
                 <label className="uploadBox uploadBoxSpaced">
-                  <span>一次上传 M3 九类图片</span>
+                  <span>一次上传 M3 九类图片或 Excel 表格</span>
                   <input
                     name="m3_full_test_bulk_images"
                     type="file"
                     multiple
-                    accept=".png,.jpg,.jpeg,image/png,image/jpeg"
+                    accept=".xlsx,.png,.jpg,.jpeg,image/png,image/jpeg,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     onChange={(event) => updateM3FullTestBulkFiles(Array.from(event.target.files ?? []))}
                   />
                 </label>
@@ -2009,9 +2052,10 @@ export default function HomePage() {
                         <article className="evidenceItem" key={`m3-auto-${section.imageField}`}>
                           <div>
                             <strong>{section.title}</strong>
-                            <span>{section.files.length} 张图片 / {section.descriptions.length} 条描述</span>
+                            <span>{section.tables.length} 个表格 / {section.files.length} 张图片 / {section.descriptions.length} 条描述</span>
                           </div>
                           <div className="fileList">
+                            {section.tables.map((row) => <span key={`auto-table-${section.imageField}-${row.filename}`}>{row.filename}</span>)}
                             {section.files.map((row) => <span key={`auto-file-${section.imageField}-${row.filename}`}>{row.filename}</span>)}
                             {section.descriptions.map((row) => <span key={`auto-desc-${section.imageField}-${row.line}`}>{row.line}</span>)}
                           </div>
@@ -2019,9 +2063,9 @@ export default function HomePage() {
                       ))}
                     </div>
                   ) : (
-                    <p className="messageLine">尚未识别到可匹配的 M3 图片或描述。</p>
+                    <p className="messageLine">尚未识别到可匹配的 M3 表格、图片或描述。</p>
                   )}
-                  {m3FullAutoPreview.unknownFiles.length ? <p className="messageLine errorText">分类不明图片：{m3FullAutoPreview.unknownFiles.join("、")}</p> : null}
+                  {m3FullAutoPreview.unknownFiles.length ? <p className="messageLine errorText">分类不明文件：{m3FullAutoPreview.unknownFiles.join("、")}</p> : null}
                   {m3FullAutoPreview.invalidDescriptions.length ? <p className="messageLine errorText">描述格式或分类异常：{m3FullAutoPreview.invalidDescriptions.join("；")}</p> : null}
                 </div>
               ) : null}
@@ -2047,6 +2091,11 @@ export default function HomePage() {
                   <span>图片数量</span>
                   <strong>{Object.values(m3FullTestResult.image_summary || {}).reduce((sum, count) => sum + count, 0)} 张</strong>
                   <p>多张图片会自动扩展对应部分页面。</p>
+                </article>
+                <article className="resultCard">
+                  <span>表格数量</span>
+                  <strong>{Object.values(m3FullTestResult.table_summary || {}).reduce((sum, count) => sum + count, 0)} 个</strong>
+                  <p>同一部分内表格页会排在图片页之前。</p>
                 </article>
               </div>
             ) : null}

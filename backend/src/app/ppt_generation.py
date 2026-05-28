@@ -86,10 +86,25 @@ def render_project_ppt(project: dict[str, Any], output_dir: Path) -> tuple[Path,
             except OSError:
                 continue
             images_by_purpose.setdefault(purpose, []).append(blob)
+        tables_by_purpose: dict[str, list[bytes]] = {}
+        for table_record in m3_materials.get("tables", []):
+            purpose = table_record.get("purpose", "")
+            stored_path = table_record.get("stored_path", "")
+            if not purpose or not stored_path:
+                continue
+            path = Path(stored_path)
+            if not path.exists():
+                continue
+            try:
+                blob = path.read_bytes()
+            except OSError:
+                continue
+            tables_by_purpose.setdefault(purpose, []).append(blob)
         m3_outline["m3_materials"] = {
             "texts": m3_materials.get("texts") or {},
             "images_by_purpose": images_by_purpose,
             "page_texts": m3_materials.get("page_texts") or {},
+            "tables_by_purpose": tables_by_purpose,
         }
 
     # 构建 M5 case_data：fixed_m5_case 需要解析完整案例信息
