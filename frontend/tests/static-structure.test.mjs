@@ -275,13 +275,17 @@ test("[静态] page.tsx 支持多选项目管理删除功能", () => {
   ].forEach((text) => assert.match(source, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))));
 });
 
-test("[静态] 创建项目表单为单列布局且标注可选字段", () => {
+test("[静态] 创建项目表单为单列布局且必填项用星号标注", () => {
   const pageSourceText = pageSource();
   const styles = readFileSync(new URL("../app/styles.css", import.meta.url), "utf8");
 
-  assert.match(pageSourceText, /项目所在地（可选，建议填写）/);
-  assert.match(pageSourceText, /建设\/业主单位（可选，建议填写）/);
-  assert.match(pageSourceText, /产品线（可选，建议填写）/);
+  assert.match(pageSourceText, /项目名称\*/);
+  assert.match(pageSourceText, /项目所在地\*/);
+  assert.match(pageSourceText, /建设\/业主单位\*/);
+  assert.match(pageSourceText, /产品线\*/);
+  assert.doesNotMatch(pageSourceText, /项目所在地（可选，建议填写）/);
+  assert.doesNotMatch(pageSourceText, /建设\/业主单位（可选，建议填写）/);
+  assert.doesNotMatch(pageSourceText, /产品线（可选，建议填写）/);
   assert.match(styles, /\.projectForm\s*{\s*display: grid;\s*grid-template-columns: minmax\(0, 1fr\);/);
 });
 
@@ -369,7 +373,7 @@ test("[静态] page.tsx 包含 M3 完整测试视图的 UI 元素", () => {
     "runM3FullRenderTest",
     "/api/test/m3-full-render",
     "执行 M3 完整测试",
-    "批量图片自动分类",
+    "批量 M3 资料自动分类",
     "批量描述文本",
     "自动匹配预览",
     "m3NamingHelpOpen",
@@ -416,7 +420,7 @@ test("[静态] page.tsx 包含正式流程 M3资料上传独立页面", () => {
     "saveM3Materials",
     "/api/projects/${currentProject.project_id}/m3-materials",
     "project_m3_material_bulk_images",
-    "批量图片自动分类",
+    "批量 M3 资料自动分类",
     "批量描述文本",
     "自动匹配预览",
     "项目基本情况",
@@ -470,9 +474,15 @@ test("[静态] 人工确认表单支持选择尾页打印版", () => {
   const source = pageSource();
   assert.match(source, /includePrintTailPage: boolean/);
   assert.match(source, /includePrintTailPage: false/);
-  assert.match(source, /确认备注[\s\S]*添加尾页打印版/);
   assert.match(source, /type="checkbox"/);
   assert.match(source, /include_print_tail_page: reviewForm\.includePrintTailPage/);
+});
+
+test("[静态] 人工确认界面隐藏备注和向量库按钮", () => {
+  const source = pageSource();
+  assert.doesNotMatch(source, /确认备注/);
+  assert.doesNotMatch(source, /确认存入向量库/);
+  assert.match(source, /添加尾页打印版/);
 });
 
 test("[静态] analyzeProject 成功后重置 reviewForm 为新识别结果", () => {
@@ -481,6 +491,25 @@ test("[静态] analyzeProject 成功后重置 reviewForm 为新识别结果", ()
   assert.match(source, /async function analyzeProject[\s\S]*setReviewForm/);
   // 重置逻辑必须使用 recommended_cases 初始化 caseId
   assert.match(source, /recommended_cases[\s\S]*?caseId/);
+});
+
+test("[静态] M1/M2 人工确认默认优先使用新建项目产品线映射", () => {
+  const source = pageSource();
+  assert.match(source, /productLineProjectTypeMap/);
+  assert.match(source, /轨道交通声屏障["']:\s*["']metro/);
+  assert.match(source, /轨交既有线改造["']:\s*["']existing_rail_transit/);
+  assert.match(source, /公路声屏障["']:\s*["']highway/);
+  assert.match(source, /铁路声屏障["']:\s*["']railway/);
+  assert.match(source, /projectTypeFromProductLine\(currentProject\?\.product_line\)/);
+  assert.match(source, /preferredProjectType \|\| detectedType/);
+});
+
+test("[静态] 产品线和资料识别冲突时人工确认区显示提示", () => {
+  const source = pageSource();
+  assert.match(source, /productLineClassificationConflict/);
+  assert.match(source, /新建项目选择的产品线/);
+  assert.match(source, /资料识别结果为/);
+  assert.match(source, /已默认按产品线选择/);
 });
 
 test("[静态] styles.css 中解析结果卡片包含文本换行相关的 CSS 类", () => {

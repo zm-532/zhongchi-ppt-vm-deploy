@@ -18,6 +18,14 @@ const m1m2Templates = [
   { value: "railway", label: "铁路声屏障行业背景与技术发展（M1_&_M2）.pptx" },
 ];
 
+const productLineProjectTypeMap: Record<string, string> = {
+  "轨道交通声屏障": "metro",
+  "地铁声屏障": "metro",
+  "轨交既有线改造": "existing_rail_transit",
+  "公路声屏障": "highway",
+  "铁路声屏障": "railway",
+};
+
 const M5_DEMO_CASE = { case_id: "m5_demo", title: "M5示例案例", match_reason: "演示全流程使用的固定 M5 案例模板。" };
 
 const M3_FULL_SECTIONS = [
@@ -136,6 +144,10 @@ function labelForProjectType(value?: string) {
   return projectTypes.find((item) => item.value === value)?.label ?? value ?? "待识别";
 }
 
+function projectTypeFromProductLine(productLine?: string) {
+  return productLineProjectTypeMap[String(productLine || "").trim()] || "";
+}
+
 function firstTemplateName(item?: { template_path?: string; template_name?: string; template_key?: string; template_filename?: string }) {
   if (!item) return "待识别";
   return item.template_filename || item.template_name || item.template_path?.split(/[\\/]/).pop() || item.template_key || "待识别";
@@ -231,6 +243,16 @@ export default function HomePage() {
   const activeStatus = task?.task_status ?? currentProject?.task_status ?? "待上传";
   const recommendedCases = useMemo(() => classification?.case_selection?.recommended_cases ?? [], [classification]);
   const m5FixedCases = useMemo(() => caseLibraryItems.filter((item) => item.source_type === "fixed_m5" && item.module_id === "M5"), [caseLibraryItems]);
+  const productLineClassificationConflict = useMemo(() => {
+    const preferredProjectType = projectTypeFromProductLine(currentProject?.product_line);
+    const detectedProjectType = classification?.detected_project_type || "";
+    if (!preferredProjectType || !detectedProjectType || preferredProjectType === detectedProjectType) return null;
+    return {
+      productLine: currentProject?.product_line || "",
+      preferredProjectType,
+      detectedProjectType,
+    };
+  }, [classification?.detected_project_type, currentProject?.product_line]);
   const hasMoreProjects = projects.length > PROJECT_LIST_PREVIEW_LIMIT;
   const totalProjectPages = Math.ceil(projects.length / PROJECT_LIST_PAGE_SIZE);
   const visibleProjects = projectListExpanded
@@ -387,7 +409,9 @@ export default function HomePage() {
 
   useEffect(() => {
     const detectedType = classification?.confirmed_project_type || classification?.detected_project_type || "";
-    const templateKey = classification?.template_selection?.M1_M2?.template_key || detectedType;
+    const preferredProjectType = projectTypeFromProductLine(currentProject?.product_line);
+    const defaultProjectType = preferredProjectType || detectedType;
+    const templateKey = preferredProjectType || classification?.template_selection?.M1_M2?.template_key || detectedType;
     const confirmedCaseId = classification?.case_selection?.confirmed_case_id;
 
     setReviewForm((value) => {
@@ -404,14 +428,14 @@ export default function HomePage() {
 
       return {
         ...value,
-        projectType: value.projectType || detectedType || "",
+        projectType: value.projectType || defaultProjectType || "",
         m1m2Template: value.m1m2Template || templateKey || "",
         caseId: newCaseId,
         // m3Selection 不在 useEffect 中重置，保持用户选择或默认 "m3_template"
         m3Selection: value.m3Selection || "m3_template",
       };
     });
-  }, [classification, recommendedCases]);
+  }, [classification, currentProject?.product_line, recommendedCases]);
 
   const loadM3Materials = useCallback(async (projectId: number) => {
     try {
@@ -554,11 +578,13 @@ export default function HomePage() {
       setCurrentProject(await requestJson<Project>(`/api/projects/${currentProject.project_id}`));
       // 重置 reviewForm 为新识别结果，确保 M5 默认选中新推荐案例
       const detectedType = result.confirmed_project_type || result.detected_project_type || "";
-      const templateKey = result.template_selection?.M1_M2?.template_key || detectedType;
+      const preferredProjectType = projectTypeFromProductLine(currentProject?.product_line);
+      const defaultProjectType = preferredProjectType || detectedType;
+      const templateKey = preferredProjectType || result.template_selection?.M1_M2?.template_key || detectedType;
       const newCaseId = result.case_selection?.confirmed_case_id != null
         ? String(result.case_selection.confirmed_case_id)
         : (result.case_selection?.recommended_cases?.[0]?.case_id != null ? String(result.case_selection.recommended_cases[0].case_id) : "");
-      setReviewForm({ projectType: detectedType, m1m2Template: templateKey, caseId: newCaseId, m3Selection: "m3_template", includePrintTailPage: false, notes: "" });
+      setReviewForm({ projectType: defaultProjectType, m1m2Template: templateKey, caseId: newCaseId, m3Selection: "m3_template", includePrintTailPage: false, notes: "" });
       setMessage("识别结果已返回，请确认项目类型、模板与案例。");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "资料识别失败");
@@ -1297,18 +1323,19 @@ export default function HomePage() {
                           )}
                         </div>
                       ) : null}
+                      {productLineClassificationConflict ? (
+                        <p className="messageLine">
+                          新建项目选择的产品线“{productLineClassificationConflict.productLine}”对应{labelForProjectType(productLineClassificationConflict.preferredProjectType)}，资料识别结果为{labelForProjectType(productLineClassificationConflict.detectedProjectType)}。已默认按产品线选择 M1/M2；如资料判断更准确，请在下方人工确认中修改。
+                        </p>
+                      ) : null}
                                             <form className="confirmationGrid" onSubmit={(event) => { event.preventDefault(); submitClassificationReview(); }}>
-                        <label>确认项目类型<select aria-label="确认项目类型" value={reviewForm.projectType} onChange={(event) => setReviewForm((value) => ({ ...value, projectType: event.target.value }))}>{projectTypes.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
-                        <label>确认 M1/M2 模板<select aria-label="确认 M1/M2 模板" value={reviewForm.m1m2Template} onChange={(event) => setReviewForm((value) => ({ ...value, m1m2Template: event.target.value }))}>{m1m2Templates.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
+                        <label>确认项目类型<select aria-label="确认项目类型" value={reviewForm.projectType} onChange={(event) => { const nextType = event.target.value; setReviewForm((value) => ({ ...value, projectType: nextType, m1m2Template: nextType })); }}>{projectTypes.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
+                        <label>确认 M1/M2 模板<select aria-label="确认 M1/M2 模板" value={reviewForm.m1m2Template} onChange={(event) => { const nextType = event.target.value; setReviewForm((value) => ({ ...value, projectType: nextType, m1m2Template: nextType })); }}>{m1m2Templates.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
                         <label>确认 M3 模块<select aria-label="确认 M3 模块" value={reviewForm.m3Selection} onChange={(event) => setReviewForm((value) => ({ ...value, m3Selection: event.target.value }))}><option value="m3_template">M3模板</option><option value="m3_skip">暂不选择</option></select></label>
                         <label>确认 M5 案例<select aria-label="确认 M5 案例" value={reviewForm.caseId ?? ""} onChange={(event) => setReviewForm((value) => ({ ...value, caseId: event.target.value }))}>{recommendedCases[0] ? <option value={String(recommendedCases[0].case_id)}>{recommendedCases[0].title || recommendedCases[0].case_id}</option> : null}{m5FixedCases.filter((item) => String(item.case_id) !== String(recommendedCases[0]?.case_id)).map((item) => <option key={item.case_id} value={item.case_id}>{item.filename || item.title}</option>)}<option value="">暂不选择案例</option></select></label>
-                        <label>确认备注<input value={reviewForm.notes} onChange={(event) => setReviewForm((value) => ({ ...value, notes: event.target.value }))} placeholder="可填写模板或案例调整原因" /></label>
                         <label className="checkboxField"><input checked={reviewForm.includePrintTailPage} onChange={(event) => setReviewForm((value) => ({ ...value, includePrintTailPage: event.target.checked }))} type="checkbox" />添加尾页打印版</label>
                         <button className="primaryButton" disabled={busy} type="submit">提交人工确认</button>
                       </form>
-                      <div className="actions actionsSpaced">
-                        <button className="secondaryButton" disabled={busy} onClick={saveToVectorStore} type="button">确认存入向量库</button>
-                      </div>
                     </>
                   ) : (
                     <div className="emptyState compact"><h3>等待系统识别</h3><p>统一上传项目资料后，点击开始识别资料，即可在此确认项目类型、模板选择、案例选择和缺失字段。</p></div>
@@ -1473,10 +1500,10 @@ export default function HomePage() {
           <section id="create" className="section">
             <div className="sectionHeader"><h2>新建项目</h2><span className="badge">基础信息</span></div>
             <form className="projectForm" onSubmit={createProject}>
-              <label>项目名称<input name="project_name" placeholder="例如：某城市轨道交通声屏障改造项目" /></label>
-              <label>项目所在地（可选，建议填写）<input name="project_location" placeholder="例如：南京" /></label>
-              <label>建设/业主单位（可选，建议填写）<input name="owner_unit" placeholder="例如：某建设单位" /></label>
-              <label>产品线（可选，建议填写）<select aria-label="产品线" name="product_line" defaultValue="">
+              <label>项目名称*<input name="project_name" placeholder="例如：某城市轨道交通声屏障改造项目" /></label>
+              <label>项目所在地*<input name="project_location" placeholder="例如：南京" /></label>
+              <label>建设/业主单位*<input name="owner_unit" placeholder="例如：某建设单位" /></label>
+              <label>产品线*<select aria-label="产品线" name="product_line" defaultValue="">
                 <option value="">请选择产品线</option>
                 <option value="轨道交通声屏障">轨道交通声屏障</option>
                 <option value="轨交既有线改造">轨交既有线改造</option>
