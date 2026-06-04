@@ -36,7 +36,7 @@ uv run uvicorn app.main:app --host 127.0.0.1 --port 8010 --reload
 ```powershell
 cd D:\中驰股份\code\frontend
 npm install
-npm run dev -- --hostname 127.0.0.1 --port 3001
+npm run dev -- --hostname 0.0.0.1 --port 3001
 ```
 
 访问：
@@ -88,3 +88,11 @@ uv run python -m unittest tests.test_renderer -v
 - 大模型连接测试。
 
 功能测试使用独立输出目录或真实项目测试链路，具体边界见 `技术文档.md`。
+# 后端
+cd C:\Users\zcppt\Desktop\zc\zcppt\backend\src
+uv run uvicorn app.main:app --host 0.0.0.0 --port 8010 --env-file ..\..\.env
+
+# 前端
+cd C:\Users\zcppt\Desktop\zc\zcppt\frontend
+$env:NEXT_PUBLIC_API_BASE_URL="http://192.168.0.202:8010"
+npm run dev -- --hostname 0.0.0.0 --port 3001

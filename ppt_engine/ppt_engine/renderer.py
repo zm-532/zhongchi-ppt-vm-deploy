@@ -899,7 +899,6 @@ def _merge_pptx_with_powerpoint(chapter_paths: list[str | Path], output_path: st
 
     app = None
     target = None
-    opened_sources = []
     try:
         app = win32com.client.DispatchEx("PowerPoint.Application")
         target = app.Presentations.Add(WithWindow=False)
@@ -912,11 +911,7 @@ def _merge_pptx_with_powerpoint(chapter_paths: list[str | Path], output_path: st
         insert_index = 0
         for chapter_path in chapter_paths:
             source_path = str(Path(chapter_path).resolve())
-            source = app.Presentations.Open(source_path, ReadOnly=True, Untitled=False, WithWindow=False)
-            opened_sources.append(source)
-            slide_count = source.Slides.Count
-            source.Close()
-            opened_sources.pop()
+            slide_count = len(Presentation(source_path).slides)
             if slide_count == 0:
                 continue
             target.Slides.InsertFromFile(source_path, insert_index, 1, slide_count)
@@ -925,17 +920,14 @@ def _merge_pptx_with_powerpoint(chapter_paths: list[str | Path], output_path: st
         target.SaveAs(str(final_path))
         return True
     except Exception as exc:  # noqa: BLE001
-        # 吞掉真实异常并返回 False，按当前函数契约（返回 bool）能接受，
-        # 但后续排查 PowerPoint 合并失败会少掉真实原因。
-        # 后续应改为返回 (bool, str | None) 或抛出一个包装后的异常。
+        import logging
+        logging.getLogger("ppt_engine.merge").exception(
+            "PowerPoint COM 合并异常，合并路径=%s，输出=%s",
+            chapter_paths, output_path,
+        )
         _last_powerpoint_merge_error = str(exc)
         return False
     finally:
-        for source in reversed(opened_sources):
-            try:
-                source.Close()
-            except Exception:
-                pass
         if target is not None:
             try:
                 target.Close()
