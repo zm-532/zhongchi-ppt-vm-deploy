@@ -101,6 +101,7 @@ type RecommendedCase = { case_id: number | string; title: string; match_reason?:
 type LlmTestResult = { ok: boolean; status_code: number; model: string; reply: string; error: string; configured: Record<string, boolean> };
 type M3FullTestResult = { ok: boolean; pptx_path: string; download_url: string; slide_count: number; image_summary: Record<string, number>; table_summary?: Record<string, number> };
 type CaseLibraryItem = { case_id: string | number; title: string; filename?: string; project_type?: string; source_path?: string; module_id?: string; source_type?: string };
+type FullPptCaseItem = { case_id: string; project_id: number; title: string; filename: string; project_type?: string; source_path: string; source_type: "full_ppt"; stored_at: string; file_size: number; download_url: string };
 type M3MaterialImage = { purpose: string; filename: string; content_type?: string; stored_path: string; description?: string; page_index?: number };
 type M3MaterialTable = { purpose: string; filename: string; content_type?: string; stored_path: string; page_index?: number };
 type M3MaterialsResult = {
@@ -170,6 +171,19 @@ function qualityReportLabel(report?: QualityReport) {
   return "通过";
 }
 
+function formatStoredAt(value?: string) {
+  if (!value) return "未记录";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("zh-CN", { hour12: false });
+}
+
+function formatFileSize(bytes?: number) {
+  if (!bytes || bytes <= 0) return "未知大小";
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export default function HomePage() {
   const [activeView, setActiveView] = useState<ViewId>("projects");
   const [projects, setProjects] = useState<Project[]>([]);
@@ -179,8 +193,11 @@ export default function HomePage() {
   const [uploadedFiles, setUploadedFiles] = useState<StoredFile[]>([]);
   const [classification, setClassification] = useState<ClassificationResult | null>(null);
   const [showClassificationDetails, setShowClassificationDetails] = useState(false);
+  const [qualityReportExpanded, setQualityReportExpanded] = useState(false);
   const [reviewForm, setReviewForm] = useState<ReviewForm>({ projectType: "", m1m2Template: "", caseId: undefined, m3Selection: "m3_template", includePrintTailPage: false, notes: "" });
   const [caseLibraryItems, setCaseLibraryItems] = useState<CaseLibraryItem[]>([]);
+  const [fullPptCases, setFullPptCases] = useState<FullPptCaseItem[]>([]);
+  const [caseLibraryTab, setCaseLibraryTab] = useState<"m5" | "full-ppt">("m5");
   const [m1m2TestFiles, setM1m2TestFiles] = useState<File[]>([]);
   const [m1m2TestProjectName, setM1m2TestProjectName] = useState("M1/M2选择测试项目");
   const [m1m2TestResult, setM1m2TestResult] = useState<ClassificationResult | null>(null);
@@ -243,6 +260,7 @@ export default function HomePage() {
   const activeStatus = task?.task_status ?? currentProject?.task_status ?? "待上传";
   const recommendedCases = useMemo(() => classification?.case_selection?.recommended_cases ?? [], [classification]);
   const m5FixedCases = useMemo(() => caseLibraryItems.filter((item) => item.source_type === "fixed_m5" && item.module_id === "M5"), [caseLibraryItems]);
+  const canSaveFullPptCase = Boolean(currentProject?.final_ppt_path) && activeStatus === "完成";
   const productLineClassificationConflict = useMemo(() => {
     const preferredProjectType = projectTypeFromProductLine(currentProject?.product_line);
     const detectedProjectType = classification?.detected_project_type || "";
@@ -369,6 +387,15 @@ export default function HomePage() {
   );
   const qualityReport = task?.quality_report ?? currentProject?.quality_report;
 
+  const refreshFullPptCases = useCallback(async () => {
+    try {
+      const items = await requestJson<FullPptCaseItem[]>("/api/cases/full-ppt");
+      setFullPptCases(items);
+    } catch {
+      setFullPptCases([]);
+    }
+  }, []);
+
   useEffect(() => {
     function syncViewFromHash() {
       const nextView = window.location.hash.replace("#", "");
@@ -405,7 +432,8 @@ export default function HomePage() {
     requestJson<CaseLibraryItem[]>("/api/cases")
       .then((items) => setCaseLibraryItems(items))
       .catch(() => setCaseLibraryItems([]));
-  }, []);
+    refreshFullPptCases();
+  }, [refreshFullPptCases]);
 
   useEffect(() => {
     const detectedType = classification?.confirmed_project_type || classification?.detected_project_type || "";
@@ -635,6 +663,25 @@ export default function HomePage() {
       setMessage(`生成任务已启动，当前状态：${latest.task_status}`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "启动生成失败");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveFullPptCase() {
+    if (!currentProject) return setMessage("请先创建项目。");
+    if (!canSaveFullPptCase) return setMessage("请先完成 PPT 生成，再存入案例库。");
+    setBusy(true);
+    try {
+      const saved = await requestJson<FullPptCaseItem>(
+        `/api/projects/${currentProject.project_id}/full-ppt-case`,
+        { method: "POST" },
+      );
+      await refreshFullPptCases();
+      setCaseLibraryTab("full-ppt");
+      setMessage(`已存入完整PPT案例库：${saved.title || saved.filename}`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "存入案例库失败");
     } finally {
       setBusy(false);
     }
@@ -1348,36 +1395,58 @@ export default function HomePage() {
                   <div className="historyBox"><strong>状态历史</strong><span>{statusHistory}</span></div>
                   <p className="messageLine">{message}</p>
                   {qualityReport ? (
-                    <div className="evidencePanel spaced">
-                      <div className="sectionHeader">
-                        <h3>质量检查结果</h3>
-                        <span className="badge">QAReviewAgent</span>
-                      </div>
-                      <div className="resultGrid">
-                        <article className="resultCard">
-                          <span>检查状态</span>
+                    <div className="evidencePanel spaced qualityReportPanel">
+                      <button
+                        aria-expanded={qualityReportExpanded}
+                        className="qualityReportSummary"
+                        onClick={() => setQualityReportExpanded((value) => !value)}
+                        type="button"
+                      >
+                        <span className="qualityReportTitle">
+                          <strong>质量检查结果</strong>
+                          <span className="badge">QAReviewAgent</span>
+                        </span>
+                        <span className="qualityReportMeta">
                           <strong>{qualityReportLabel(qualityReport)}</strong>
-                          <p>第一版 QAReviewAgent 只做结果提示，不影响下载。</p>
-                        </article>
-                        <article className="resultCard">
-                          <span>检查时间</span>
-                          <strong>{qualityReport.checked_at || "未返回"}</strong>
-                          <p>passed：{String(Boolean(qualityReport.passed))}；severity：{qualityReport.severity || "unknown"}</p>
-                        </article>
-                        <article className="resultCard">
-                          <span>errors</span>
-                          <strong>{qualityReport.errors?.length ?? 0} 项</strong>
-                          <p>{(qualityReport.errors ?? []).slice(0, 3).join("；") || "未发现阻断级错误。"}</p>
-                        </article>
-                        <article className="resultCard">
-                          <span>warnings</span>
-                          <strong>{qualityReport.warnings?.length ?? 0} 项</strong>
-                          <p>{(qualityReport.warnings ?? []).slice(0, 3).join("；") || "未发现提示级风险。"}</p>
-                        </article>
-                      </div>
+                          <span>{qualityReport.errors?.length ?? 0} 错误 / {qualityReport.warnings?.length ?? 0} 风险</span>
+                        </span>
+                        <span className="qualityReportToggle">{qualityReportExpanded ? "收起" : "展开详情"}</span>
+                      </button>
+                      {qualityReportExpanded ? (
+                        <div className="qualityReportDetails">
+                          <div className="qualityReportActions">
+                            <button className="secondaryButton btn-xs" onClick={() => setQualityReportExpanded(false)} type="button">收起</button>
+                          </div>
+                          <div className="resultGrid">
+                            <article className="resultCard">
+                              <span>检查状态</span>
+                              <strong>{qualityReportLabel(qualityReport)}</strong>
+                              <p>第一版 QAReviewAgent 只做结果提示，不影响下载。</p>
+                            </article>
+                            <article className="resultCard">
+                              <span>检查时间</span>
+                              <strong>{qualityReport.checked_at || "未返回"}</strong>
+                              <p>passed：{String(Boolean(qualityReport.passed))}；severity：{qualityReport.severity || "unknown"}</p>
+                            </article>
+                            <article className="resultCard">
+                              <span>errors</span>
+                              <strong>{qualityReport.errors?.length ?? 0} 项</strong>
+                              <p>{(qualityReport.errors ?? []).slice(0, 3).join("；") || "未发现阻断级错误。"}</p>
+                            </article>
+                            <article className="resultCard">
+                              <span>warnings</span>
+                              <strong>{qualityReport.warnings?.length ?? 0} 项</strong>
+                              <p>{(qualityReport.warnings ?? []).slice(0, 3).join("；") || "未发现提示级风险。"}</p>
+                            </article>
+                          </div>
+                          <div className="qualityReportActions bottom">
+                            <button className="secondaryButton btn-xs" onClick={() => setQualityReportExpanded(false)} type="button">收起</button>
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
                   ) : null}
-                  <div className="downloadRow"><div><h3>最终文件</h3><p id="finalFileDesc">生成完成后可下载或预览 PPT</p></div><div className="downloadActions"><button className="secondaryButton btn-xs" disabled={busy || previewLoading} onClick={previewFinalPpt} type="button">{previewLoading ? "生成预览中..." : "预览 PPT"}</button><button className="secondaryButton btn-xs" disabled={busy} onClick={downloadFinal} type="button">下载最终 PPTX</button><span className="badge">{activeStatus}</span></div></div>
+                  <div className="downloadRow"><div><h3>最终文件</h3><p id="finalFileDesc">生成完成后可下载、预览或存入完整PPT案例库</p></div><div className="downloadActions"><button className="secondaryButton btn-xs" disabled={busy || !canSaveFullPptCase} onClick={saveFullPptCase} type="button">存入案例库</button><button className="secondaryButton btn-xs" disabled={busy || previewLoading} onClick={previewFinalPpt} type="button">{previewLoading ? "生成预览中..." : "预览 PPT"}</button><button className="secondaryButton btn-xs" disabled={busy} onClick={downloadFinal} type="button">下载最终 PPTX</button><span className="badge">{activeStatus}</span></div></div>
                 </section>
               </>
             ) : null}
@@ -1518,28 +1587,63 @@ export default function HomePage() {
         {activeView === "cases" ? (
           <section id="cases" className="section">
             <div className="sectionHeader"><h2>案例库管理</h2><button className="secondaryButton" disabled type="button">新增案例</button></div>
-            {m5FixedCases.length > 0 ? (
-              <div className="evidenceList">
-                {m5FixedCases.map((item) => (
-                  <article className="evidenceItem" key={item.case_id}>
-                    <div>
-                      <strong>{item.filename || item.title}</strong>
-                      <span>case_id: {String(item.case_id)}</span>
-                    </div>
-                    {item.project_type ? <p>项目类型：{item.project_type}</p> : null}
-                  </article>
-                ))}
-              </div>
-            ) : (
-              <div className="cases-empty-panel">
-                <h3 className="cases-empty-title">暂未发现 M5 案例文件</h3>
-                <p className="cases-empty-desc">请检查 ppt_engine/templates/solution_fixed_modules/M5 目录下是否存在 .pptx 案例文件。</p>
-                <div className="cases-capability-list">
-                  <div className="cases-capability-item">历史项目案例归档</div>
-                  <div className="cases-capability-item">项目标签与场景匹配</div>
-                  <div className="cases-capability-item">M5 推荐案例辅助生成</div>
+            <div className="caseLibraryTabs" role="tablist" aria-label="案例库分类">
+              <button className={caseLibraryTab === "m5" ? "caseLibraryTab active" : "caseLibraryTab"} onClick={() => setCaseLibraryTab("m5")} role="tab" type="button">M5案例库</button>
+              <button className={caseLibraryTab === "full-ppt" ? "caseLibraryTab active" : "caseLibraryTab"} onClick={() => setCaseLibraryTab("full-ppt")} role="tab" type="button">完整PPT案例库</button>
+            </div>
+            {caseLibraryTab === "m5" ? (
+              m5FixedCases.length > 0 ? (
+                <div className="evidenceList">
+                  {m5FixedCases.map((item) => (
+                    <article className="evidenceItem" key={item.case_id}>
+                      <div>
+                        <strong>{item.filename || item.title}</strong>
+                        <span>case_id: {String(item.case_id)}</span>
+                      </div>
+                      {item.project_type ? <p>项目类型：{item.project_type}</p> : null}
+                    </article>
+                  ))}
                 </div>
-              </div>
+              ) : (
+                <div className="cases-empty-panel">
+                  <h3 className="cases-empty-title">暂未发现 M5 案例文件</h3>
+                  <p className="cases-empty-desc">请检查 ppt_engine/templates/solution_fixed_modules/M5 目录下是否存在 .pptx 案例文件。</p>
+                  <div className="cases-capability-list">
+                    <div className="cases-capability-item">历史项目案例归档</div>
+                    <div className="cases-capability-item">项目标签与场景匹配</div>
+                    <div className="cases-capability-item">M5 推荐案例辅助生成</div>
+                  </div>
+                </div>
+              )
+            ) : (
+              fullPptCases.length > 0 ? (
+                <div className="evidenceList">
+                  {fullPptCases.map((caseItem) => (
+                    <article className="evidenceItem fullPptCaseItem" key={caseItem.case_id}>
+                      <div>
+                        <strong>{caseItem.title || caseItem.filename}</strong>
+                        <span>{caseItem.filename}</span>
+                        <span>{formatFileSize(caseItem.file_size)}</span>
+                      </div>
+                      <p>项目类型：{labelForProjectType(caseItem.project_type)}；存入时间：{formatStoredAt(caseItem.stored_at)}</p>
+                      <p className="sourcePath">case_id: {caseItem.case_id}</p>
+                      <div className="caseItemActions">
+                        <a className="secondaryButton btn-xs" href={`${API_BASE}/api/cases/full-ppt/${caseItem.case_id}/download`} download>下载 PPTX</a>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <div className="cases-empty-panel">
+                  <h3 className="cases-empty-title">暂未保存完整PPT案例</h3>
+                  <p className="cases-empty-desc">在项目完整生成后，点击最终文件区域的“存入案例库”，即可在这里查看和下载。</p>
+                  <div className="cases-capability-list">
+                    <div className="cases-capability-item">完整PPT归档</div>
+                    <div className="cases-capability-item">按项目保留最新版本</div>
+                    <div className="cases-capability-item">案例库下载复用</div>
+                  </div>
+                </div>
+              )
             )}
           </section>
         ) : null}

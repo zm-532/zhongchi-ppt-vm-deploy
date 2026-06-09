@@ -376,6 +376,19 @@ def download_project(project_id: int) -> FileResponse:
     return FileResponse(final_path, filename=Path(final_path).name)
 
 
+@app.post("/api/projects/{project_id}/full-ppt-case", status_code=status.HTTP_201_CREATED)
+def save_project_full_ppt_case(project_id: int) -> dict:
+    try:
+        saved = get_store().save_full_ppt_case(project_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if saved is None:
+        raise HTTPException(status_code=404, detail="项目不存在")
+    return saved
+
+
 @app.post("/api/projects/{project_id}/preview")
 def generate_project_preview(project_id: int) -> dict:
     """生成或复用项目 PPT 预览图片。"""
@@ -504,6 +517,34 @@ def get_file_parsed_text(project_id: int, file_id: int) -> dict:
 @app.get("/api/cases")
 def list_cases() -> list[dict]:
     return get_store().get_cases()
+
+
+@app.get("/api/cases/full-ppt")
+def list_full_ppt_cases() -> list[dict]:
+    return get_store().get_full_ppt_cases()
+
+
+@app.get("/api/cases/full-ppt/{case_id}/download")
+def download_full_ppt_case(case_id: str) -> FileResponse:
+    case = get_store().get_full_ppt_case(case_id)
+    if case is None:
+        raise HTTPException(status_code=404, detail="完整PPT案例不存在")
+
+    path = Path(str(case.get("source_path") or ""))
+    if not path.exists() or not path.is_file():
+        raise HTTPException(status_code=404, detail="完整PPT案例文件不存在")
+    if path.suffix.lower() != ".pptx":
+        raise HTTPException(status_code=400, detail="完整PPT案例文件格式无效")
+
+    library_root = (get_data_dir() / "full_ppt_case_library").resolve()
+    try:
+        resolved = path.resolve()
+        if not resolved.is_relative_to(library_root):
+            raise HTTPException(status_code=400, detail="完整PPT案例路径无效")
+    except (ValueError, OSError):
+        raise HTTPException(status_code=400, detail="完整PPT案例路径无效")
+
+    return FileResponse(resolved, filename=case.get("filename") or resolved.name)
 
 
 @app.post("/api/dev/llm-test", response_model=LlmTestResponse)

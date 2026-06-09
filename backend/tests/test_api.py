@@ -2124,6 +2124,86 @@ class BackendApiTest(unittest.TestCase):
         # 确认错误信息中包含提示
         self.assertIn("fixed_m5_case", m5_module["error_message"])
 
+    def _create_completed_project_with_final_pptx(self) -> tuple[int, Path]:
+        project_id = self.client.post(
+            "/api/projects",
+            json={
+                "project_name": "完整PPT案例归档项目",
+                "project_location": "南京",
+                "owner_unit": "某建设单位",
+                "product_line": "轨道交通声屏障",
+            },
+        ).json()["project_id"]
+
+        output_dir = Path(self.temp_dir.name) / "outputs" / f"project_{project_id}"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        final_path = output_dir / "完整PPT案例归档项目.pptx"
+        prs = Presentation()
+        slide = prs.slides.add_slide(prs.slide_layouts[5])
+        slide.shapes.title.text = "完整PPT案例归档项目"
+        prs.save(final_path)
+
+        from app.storage import get_store
+
+        store = get_store()
+        state = store.load()
+        project = next(item for item in state["projects"] if item["project_id"] == project_id)
+        project["task_status"] = "完成"
+        project["status_history"] = ["待生成", "生成中", "合并中", "完成"]
+        project["final_ppt_path"] = str(final_path)
+        project["confirmed_project_type"] = "metro"
+        store.save(state)
+        return project_id, final_path
+
+    def test_full_ppt_case_requires_generated_final_ppt(self):
+        """验证未生成最终 PPTX 时不能存入完整 PPT 案例库。"""
+        project_id = self.client.post("/api/projects", json={"project_name": "未生成项目"}).json()["project_id"]
+
+        response = self.client.post(f"/api/projects/{project_id}/full-ppt-case")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("最终PPTX", response.json()["detail"])
+
+    def test_save_full_ppt_case_lists_and_downloads_archived_pptx(self):
+        """验证生成后的完整 PPTX 可以归档、列表可见并可下载。"""
+        project_id, final_path = self._create_completed_project_with_final_pptx()
+
+        save_response = self.client.post(f"/api/projects/{project_id}/full-ppt-case")
+        self.assertEqual(save_response.status_code, 201, save_response.text)
+        saved = save_response.json()
+        self.assertEqual(saved["case_id"], f"full_ppt_case:{project_id}")
+        self.assertEqual(saved["project_id"], project_id)
+        self.assertEqual(saved["source_type"], "full_ppt")
+        self.assertEqual(saved["filename"], final_path.name)
+        self.assertGreater(saved["file_size"], 0)
+        self.assertIn(f"/api/cases/full-ppt/full_ppt_case:{project_id}/download", saved["download_url"])
+        self.assertNotEqual(Path(saved["source_path"]), final_path)
+        self.assertTrue(Path(saved["source_path"]).exists())
+
+        list_response = self.client.get("/api/cases/full-ppt")
+        self.assertEqual(list_response.status_code, 200)
+        listed = list_response.json()
+        self.assertEqual(len(listed), 1)
+        self.assertEqual(listed[0]["case_id"], saved["case_id"])
+
+        download_response = self.client.get(f"/api/cases/full-ppt/full_ppt_case:{project_id}/download")
+        self.assertEqual(download_response.status_code, 200)
+        self.assertTrue(download_response.content.startswith(b"PK"))
+
+    def test_save_full_ppt_case_overwrites_existing_project_case(self):
+        """验证同一项目重复存入完整 PPT 案例库时覆盖更新，不新增重复记录。"""
+        project_id, _ = self._create_completed_project_with_final_pptx()
+
+        first = self.client.post(f"/api/projects/{project_id}/full-ppt-case")
+        second = self.client.post(f"/api/projects/{project_id}/full-ppt-case")
+
+        self.assertEqual(first.status_code, 201)
+        self.assertEqual(second.status_code, 201)
+        self.assertEqual(first.json()["case_id"], second.json()["case_id"])
+        list_response = self.client.get("/api/cases/full-ppt")
+        self.assertEqual(list_response.status_code, 200)
+        self.assertEqual([item["project_id"] for item in list_response.json()], [project_id])
+
 
 class RemovedM3PartialRenderTest(unittest.TestCase):
     """验证 M3 文字/图片拆分测试接口已下线。"""

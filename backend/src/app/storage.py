@@ -4,6 +4,7 @@ import shutil
 import threading
 from contextlib import contextmanager
 from copy import deepcopy
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -76,6 +77,7 @@ def _initial_state() -> dict[str, Any]:
                 "tags": ["轨道交通", "声屏障", "改造"],
             }
         ],
+        "full_ppt_cases": [],
     }
 
 
@@ -94,7 +96,9 @@ class JsonStore:
             state = _initial_state()
             self._save_unlocked(state)
             return state
-        return json.loads(self.db_path.read_text(encoding="utf-8"))
+        state = json.loads(self.db_path.read_text(encoding="utf-8"))
+        state.setdefault("full_ppt_cases", [])
+        return state
 
     def _save_unlocked(self, state: dict[str, Any]) -> None:
         """原子写入：先写临时文件，再 os.replace 替换，避免写入中断导致文件损坏。"""
@@ -895,6 +899,60 @@ class JsonStore:
                 seen.add(cid)
                 merged.append(c)
         return merged
+
+    def save_full_ppt_case(self, project_id: int) -> dict[str, Any] | None:
+        """将项目生成后的最终 PPTX 归档到完整 PPT 案例库。
+
+        同一 project_id 使用稳定 case_id，重复保存覆盖同一条记录。
+        """
+        with self._transaction() as state:
+            project = next((item for item in state["projects"] if item["project_id"] == project_id), None)
+            if project is None:
+                return None
+
+            final_path_raw = str(project.get("final_ppt_path") or "")
+            if project.get("task_status") != "完成" or not final_path_raw:
+                raise ValueError("最终PPTX尚未生成，请先完成PPT生成")
+
+            final_path = Path(final_path_raw)
+            if not final_path.exists() or not final_path.is_file():
+                raise FileNotFoundError("最终PPTX文件不存在")
+            if final_path.suffix.lower() != ".pptx":
+                raise ValueError("最终文件不是 PPTX，无法存入完整PPT案例库")
+
+            case_id = f"full_ppt_case:{project_id}"
+            safe_filename = final_path.name or f"project_{project_id}.pptx"
+            archive_dir = self.data_dir / "full_ppt_case_library" / f"project_{project_id}"
+            archive_dir.mkdir(parents=True, exist_ok=True)
+            archived_path = archive_dir / safe_filename
+            shutil.copy2(final_path, archived_path)
+
+            case = {
+                "case_id": case_id,
+                "project_id": project_id,
+                "title": project.get("project_name") or safe_filename,
+                "filename": safe_filename,
+                "project_type": project.get("confirmed_project_type") or project.get("detected_project_type") or "",
+                "source_path": str(archived_path),
+                "source_type": "full_ppt",
+                "stored_at": datetime.now(timezone.utc).isoformat(),
+                "file_size": archived_path.stat().st_size,
+                "download_url": f"/api/cases/full-ppt/{case_id}/download",
+            }
+
+            cases = state.setdefault("full_ppt_cases", [])
+            existing_index = next((index for index, item in enumerate(cases) if item.get("case_id") == case_id), None)
+            if existing_index is None:
+                cases.append(case)
+            else:
+                cases[existing_index] = case
+            return case
+
+    def get_full_ppt_cases(self) -> list[dict[str, Any]]:
+        return deepcopy(self.load().get("full_ppt_cases", []))
+
+    def get_full_ppt_case(self, case_id: str) -> dict[str, Any] | None:
+        return next((case for case in self.get_full_ppt_cases() if case.get("case_id") == case_id), None)
 
     def index_project_vector(
         self,

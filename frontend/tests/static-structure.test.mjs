@@ -173,8 +173,12 @@ test("[静态] 生成状态区展示 QAReviewAgent 质量检查结果", () => {
   [
     "quality_report",
     "qualityReport",
+    "qualityReportExpanded",
+    "setQualityReportExpanded",
     "质量检查结果",
     "QAReviewAgent",
+    "展开详情",
+    "收起",
     "不影响下载",
     "检查失败",
     "有风险",
@@ -468,6 +472,22 @@ test("[静态] 人工确认表单中 M3 在 M5 前面且包含 M5 案例选择",
   assert.match(source, /暂不选择案例/);
   assert.match(source, /caseLibraryItems/);
   assert.match(source, /m5FixedCases/);
+});
+
+test("[静态] page.tsx 支持完整PPT存入案例库和案例库分组展示", () => {
+  const source = pageSource();
+  [
+    "存入案例库",
+    "完整PPT案例库",
+    "M5案例库",
+    "saveFullPptCase",
+    "refreshFullPptCases",
+    "fullPptCases",
+    "caseLibraryTab",
+    "/api/projects/${currentProject.project_id}/full-ppt-case",
+    "/api/cases/full-ppt",
+    "/api/cases/full-ppt/${caseItem.case_id}/download",
+  ].forEach((text) => assert.match(source, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))));
 });
 
 test("[静态] 人工确认表单支持选择尾页打印版", () => {

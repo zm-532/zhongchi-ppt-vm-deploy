@@ -429,6 +429,43 @@ input:disabled {
   font-weight: 500;
 }
 
+.caseLibraryTabs {
+  display: inline-flex;
+  gap: 6px;
+  margin: 18px 0 16px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.caseLibraryTab {
+  min-height: 32px;
+  padding: 0 13px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.caseLibraryTab.active {
+  border-color: var(--primary-line);
+  background: #ffffff;
+  color: var(--primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.caseItemActions {
+  justify-content: flex-end;
+}
+
+.fullPptCaseItem .secondaryButton {
+  width: auto;
+}
+
 .projectForm {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -927,6 +964,75 @@ textarea:focus-visible,
 
 .evidencePanel.spaced {
   margin-top: 16px;
+}
+
+.qualityReportPanel {
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.qualityReportSummary {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  min-height: 56px;
+  padding: 14px 18px;
+  border: 0;
+  color: var(--text);
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.qualityReportSummary:hover {
+  background: #f8fbff;
+}
+
+.qualityReportTitle,
+.qualityReportMeta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.qualityReportTitle strong,
+.qualityReportMeta strong {
+  color: var(--primary-dark);
+}
+
+.qualityReportMeta span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.qualityReportToggle {
+  padding: 7px 12px;
+  border: 1px solid var(--primary-line);
+  border-radius: 6px;
+  color: var(--primary);
+  background: #f4f8ff;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.qualityReportDetails {
+  display: grid;
+  gap: 12px;
+  padding: 0 18px 18px;
+}
+
+.qualityReportActions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.qualityReportActions.bottom {
+  padding-top: 2px;
 }
 
 .confirmationGrid {
@@ -1556,6 +1662,19 @@ button:disabled {
     flex-direction: column;
   }
 
+  .qualityReportSummary {
+    grid-template-columns: 1fr;
+  }
+
+  .qualityReportTitle,
+  .qualityReportMeta {
+    flex-wrap: wrap;
+  }
+
+  .qualityReportToggle {
+    width: fit-content;
+  }
+
   .projectForm,
   .confirmationGrid,
   .resultGrid,
@@ -1586,15 +1705,29 @@ button:disabled {
 
   .projectManageBar,
   .topbarActions,
-  .downloadActions {
+  .downloadActions,
+  .caseItemActions {
     align-items: stretch;
     flex-direction: column;
     width: 100%;
   }
 
+  .caseLibraryTabs {
+    display: flex;
+    width: 100%;
+  }
+
+  .caseLibraryTab {
+    flex: 1 1 0;
+  }
+
   .primaryButton,
   .secondaryButton,
   .dangerButton {
+    width: 100%;
+  }
+
+  .fullPptCaseItem .secondaryButton {
     width: 100%;
   }
 
