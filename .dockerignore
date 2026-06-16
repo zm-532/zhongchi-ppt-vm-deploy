@@ -1,0 +1,13 @@
+**/.git
+**/.venv
+**/node_modules
+**/__pycache__
+**/.next
+**/dist
+**/*.pyc
+.env
+**/.env
+**/output
+**/uploads
+**/parsed_text
+data/mock_db.json

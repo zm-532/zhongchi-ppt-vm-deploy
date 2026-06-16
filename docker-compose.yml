@@ -1,0 +1,35 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: zhongchi-backend
+    ports:
+      - "8010:8010"
+    env_file:
+      - .env
+    environment:
+      - ZHONGCHI_PPT_MERGE_ENGINE=python-pptx
+    volumes:
+      - zhongchi_data:/srv/zhongchi/data
+      - zhongchi_case_library:/srv/zhongchi/case_library
+      - zhongchi_templates:/srv/zhongchi/templates
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: http://backend:8010
+    container_name: zhongchi-frontend
+    ports:
+      - "3001:3001"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  zhongchi_data:
+  zhongchi_case_library:
+  zhongchi_templates:
