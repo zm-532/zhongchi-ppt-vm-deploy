@@ -7,12 +7,13 @@ interface CaseLibraryViewProps {
   setCaseLibraryTab: (tab: "m5" | "full-ppt") => void;
   m5FixedCases: CaseLibraryItem[];
   fullPptCases: FullPptCaseItem[];
+  onDeleteFullPptCase?: (caseId: string) => void;
 }
 
-export function CaseLibraryView({ caseLibraryTab, setCaseLibraryTab, m5FixedCases, fullPptCases }: CaseLibraryViewProps) {
+export function CaseLibraryView({ caseLibraryTab, setCaseLibraryTab, m5FixedCases, fullPptCases, onDeleteFullPptCase }: CaseLibraryViewProps) {
   return (
     <section id="cases" className="section">
-      <div className="sectionHeader"><h2>案例库管理</h2><button className="secondaryButton" disabled type="button">新增案例</button></div>
+      <div className="sectionHeader"><h2>案例库</h2></div>
       <div className="caseLibraryTabs" role="tablist" aria-label="案例库分类">
         <button className={caseLibraryTab === "m5" ? "caseLibraryTab active" : "caseLibraryTab"} onClick={() => setCaseLibraryTab("m5")} role="tab" type="button">M5案例库</button>
         <button className={caseLibraryTab === "full-ppt" ? "caseLibraryTab active" : "caseLibraryTab"} onClick={() => setCaseLibraryTab("full-ppt")} role="tab" type="button">完整PPT案例库</button>
@@ -26,7 +27,10 @@ export function CaseLibraryView({ caseLibraryTab, setCaseLibraryTab, m5FixedCase
                   <strong>{item.filename || item.title}</strong>
                   <span>case_id: {String(item.case_id)}</span>
                 </div>
-                {item.project_type ? <p>项目类型：{item.project_type}</p> : null}
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
+                  {item.project_type ? <span className="badge">{labelForProjectType(item.project_type)}</span> : null}
+                  {item.source_path ? <span className="sourcePath">{item.source_path}</span> : null}
+                </div>
               </article>
             ))}
           </div>
@@ -53,8 +57,11 @@ export function CaseLibraryView({ caseLibraryTab, setCaseLibraryTab, m5FixedCase
                 </div>
                 <p>项目类型：{labelForProjectType(caseItem.project_type)}；存入时间：{formatStoredAt(caseItem.stored_at)}</p>
                 <p className="sourcePath">case_id: {caseItem.case_id}</p>
-                <div className="caseItemActions">
+                <div className="caseItemActions" style={{ display: "flex", gap: 8 }}>
                   <a className="secondaryButton btn-xs" href={`${API_BASE}/api/cases/full-ppt/${caseItem.case_id}/download`} download>下载 PPTX</a>
+                  {onDeleteFullPptCase ? (
+                    <button className="dangerButton btn-xs" onClick={() => onDeleteFullPptCase(caseItem.case_id)} type="button">删除</button>
+                  ) : null}
                 </div>
               </article>
             ))}
@@ -62,7 +69,7 @@ export function CaseLibraryView({ caseLibraryTab, setCaseLibraryTab, m5FixedCase
         ) : (
           <div className="cases-empty-panel">
             <h3 className="cases-empty-title">暂未保存完整PPT案例</h3>
-            <p className="cases-empty-desc">在项目完整生成后，点击最终文件区域的"存入案例库"，即可在这里查看和下载。</p>
+            <p className="cases-empty-desc">在项目完整生成后，点击最终文件区域的&ldquo;存入案例库&rdquo;，即可在这里查看和下载。</p>
             <div className="cases-capability-list">
               <div className="cases-capability-item">完整PPT归档</div>
               <div className="cases-capability-item">按项目保留最新版本</div>

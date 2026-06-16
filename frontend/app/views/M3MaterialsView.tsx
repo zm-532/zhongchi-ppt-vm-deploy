@@ -1,6 +1,7 @@
 import { M3_FULL_SECTIONS } from "../constants";
 import type { M3MaterialsResult, Project } from "../constants";
 import type { M3AutoPreviewResult } from "../useM3AutoPreview";
+import { Breadcrumb } from "../components/Breadcrumb";
 
 function M3NamingHelpButton({ onOpen }: { onOpen: () => void }) {
   return (
@@ -37,6 +38,13 @@ export function M3MaterialsView({
 }: M3MaterialsViewProps) {
   return (
     <section id="project-m3-materials" className="section">
+      <Breadcrumb
+        items={[
+          { label: "我的项目", href: "#projects" },
+          ...(currentProject ? [{ label: currentProject.project_name, href: "#projects" }] : []),
+          { label: "M3资料上传" },
+        ]}
+      />
       <div className="sectionHeader">
         <h2>M3资料上传</h2>
         <span className="badge">正式流程</span>
@@ -45,8 +53,13 @@ export function M3MaterialsView({
         <div className="testPanel">
           <div className="m3-material-page-header">
             <div>
-              <strong>{currentProject.project_name}</strong>
-              <span>已填写 {m3MaterialsResult?.text_completed_count ?? 0}/{m3MaterialsResult?.text_total_count ?? 9} 个部分，已上传 {m3MaterialsResult?.image_count ?? 0} 张图片 / {m3MaterialsResult?.table_count ?? 0} 个表格</span>
+              <strong style={{ fontSize: 17 }}>{currentProject.project_name}</strong>
+              <span>
+                {currentProject.project_location ? `${currentProject.project_location} · ` : ""}
+                {currentProject.product_line || ""}
+                {currentProject.project_location || currentProject.product_line ? " · " : ""}
+                已填写 {m3MaterialsResult?.text_completed_count ?? 0}/{m3MaterialsResult?.text_total_count ?? 9} 个部分，已上传 {m3MaterialsResult?.image_count ?? 0} 张图片 / {m3MaterialsResult?.table_count ?? 0} 个表格
+              </span>
             </div>
             <a className="secondaryButton" href="#projects">返回我的项目</a>
           </div>

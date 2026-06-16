@@ -49,7 +49,7 @@ export const PROJECT_LIST_PAGE_SIZE = 10;
 export const viewTitles: Record<ViewId, { title: string; description: string }> = {
   projects: { title: "我的项目", description: "创建项目、统一上传项目资料，并确认系统识别结果。" },
   create: { title: "新建项目", description: "填写基础信息后创建一个新的售前 PPT 项目。" },
-  cases: { title: "案例库管理", description: "维护历史案例，供系统按项目标签推荐引用。" },
+  cases: { title: "案例库", description: "浏览历史案例，供系统按项目标签推荐引用。" },
   "project-m3-materials": { title: "M3资料上传", description: "按 M3 九部分维护项目深化方案文字、图片和 Excel 表格资料。" },
   "function-tests": { title: "功能测试", description: "开发过程验证入口，收纳内部功能测试页面，普通前端用户无需使用。" },
   "m1m2-test": { title: "M1/M2选择测试", description: "上传测试资料，根据文件名和解析文本识别项目类型并选择对应 M1/M2 固化模板。" },

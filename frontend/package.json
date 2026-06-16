@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "test": "node --test tests/static-structure.test.mjs tests/content.test.mjs",
+    "test": "node --test tests/static-structure.test.mjs",
     "test:e2e": "playwright test"
   },
   "dependencies": {

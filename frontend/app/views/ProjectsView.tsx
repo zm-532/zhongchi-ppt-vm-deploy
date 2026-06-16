@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { projectTypes, m1m2Templates, M3_FULL_SECTIONS, M3_SECTION_TITLE_ALIASES, PROJECT_LIST_PREVIEW_LIMIT, PROJECT_LIST_PAGE_SIZE } from "../constants";
 import type { Project, ClassificationResult, CaseLibraryItem, CaseSelection, QualityReport, M3MaterialsResult, TaskState, ReviewForm, StoredFile } from "../constants";
 import { labelForProjectType, firstTemplateName, getProjectStatusClass, qualityReportLabel, projectTypeFromProductLine } from "../utils";
 import type { M3AutoPreviewResult } from "../useM3AutoPreview";
+import { WorkflowStepper } from "../components/WorkflowStepper";
 
 function M3NamingHelpButton({ onOpen }: { onOpen: () => void }) {
   return (
@@ -81,8 +83,24 @@ export function ProjectsView(props: ProjectsViewProps) {
     saveFullPptCase, previewFinalPpt, downloadFinal, updateProjectBasicInfo,
   } = props;
 
+  const [editingCard, setEditingCard] = useState<string | null>(null);
+
+  const hasUploadedFiles = uploadedFiles.length > 0;
+  const hasClassificationResult = classification !== null;
+  const isConfirmed = classification?.confirmed_project_type !== undefined && classification?.confirmed_project_type !== "";
+  const canAnalyze = hasUploadedFiles || selectedFiles.length > 0;
+  const canGenerate = hasClassificationResult;
+
   return (
     <>
+      {currentProject ? (
+        <WorkflowStepper
+          activeStatus={activeStatus}
+          hasClassification={hasClassificationResult}
+          hasConfirmed={isConfirmed}
+        />
+      ) : null}
+
       <section id="projects" className="section">
         <div className="sectionHeader"><h2>项目列表</h2><span className="badge">{projects.length ? `${projects.length} 个项目` : "Demo 数据"}</span></div>
         {projects.length === 0 ? <div className="emptyState"><div className="emptyIcon" aria-hidden="true">+</div><h3>还没有任何项目</h3><p>点击右上角新建项目，填写基础信息后即可进入资料上传。</p><a className="secondaryButton" href="#create">创建第一个项目</a></div> : (
@@ -121,7 +139,7 @@ export function ProjectsView(props: ProjectsViewProps) {
 
       {currentProject ? (
         <>
-          <section className="section">
+          <section id="section-upload" className="section">
             <div className="sectionHeader"><h2>统一资料上传</h2><span className="badge">支持多文件</span></div>
             <div className="uploadPanel">
               <div>
@@ -204,37 +222,105 @@ export function ProjectsView(props: ProjectsViewProps) {
             {uploadSuccess && <div className="uploadSuccess">上传成功</div>}
             <div className="upload-actions-bar">
               <button className="primaryButton" disabled={busy} onClick={uploadProjectFiles} type="button">统一上传项目资料</button>
-              <button className="secondaryButton" disabled={busy} onClick={analyzeProject} type="button">开始识别资料</button>
+              <div>
+                <button
+                  className={`secondaryButton${uploadSuccess && !hasClassificationResult ? " pulse-highlight" : ""}`}
+                  disabled={busy || !canAnalyze}
+                  onClick={analyzeProject}
+                  type="button"
+                >
+                  开始识别资料
+                </button>
+                {!hasUploadedFiles && selectedFiles.length === 0 ? (
+                  <span className="button-hint">请先上传项目资料</span>
+                ) : null}
+              </div>
             </div>
           </section>
 
-          <section className="section">
+          <section id="section-classification" className={`section${hasClassificationResult && !isConfirmed ? " highlight-border" : ""}`}>
             <div className="sectionHeader"><h2>识别结果确认</h2><span className="badge">确认项目类型与模板</span></div>
             {classification ? (
               <>
                 <div className="resultGrid">
-                  <article className="resultCard">
+                  <article className={`resultCard${editingCard === "projectType" ? " resultCard-editable" : ""}`}>
                     <span>项目类型</span>
-                    <strong>{labelForProjectType(classification.detected_project_type)}</strong>
+                    {editingCard === "projectType" ? (
+                      <select
+                        value={reviewForm.projectType}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setReviewForm((prev) => ({ ...prev, projectType: v, m1m2Template: v }));
+                        }}
+                        onBlur={() => setEditingCard(null)}
+                        autoFocus
+                      >
+                        {projectTypes.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                      </select>
+                    ) : (
+                      <strong onClick={() => setEditingCard("projectType")} style={{ cursor: "pointer" }}>{labelForProjectType(reviewForm.projectType || classification.detected_project_type)}</strong>
+                    )}
                     <p>置信度：{classification.confidence ? `${Math.round(classification.confidence * 100)}%` : "待返回"}；关键词：{classification.matched_keywords?.join("、") || "暂无"}</p>
+                    {editingCard !== "projectType" ? (
+                      <button className="editable-trigger" onClick={() => setEditingCard("projectType")} type="button">修改</button>
+                    ) : null}
                   </article>
-                  <article className="resultCard">
+
+                  <article className={`resultCard${editingCard === "m1m2" ? " resultCard-editable" : ""}`}>
                     <span>M1/M2 选用模板</span>
-                    <strong>{firstTemplateName(classification.template_selection?.M1_M2)}</strong>
+                    {editingCard === "m1m2" ? (
+                      <select
+                        value={reviewForm.m1m2Template}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setReviewForm((prev) => ({ ...prev, projectType: v, m1m2Template: v }));
+                        }}
+                        onBlur={() => setEditingCard(null)}
+                        autoFocus
+                      >
+                        {m1m2Templates.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                      </select>
+                    ) : (
+                      <strong onClick={() => setEditingCard("m1m2")} style={{ cursor: "pointer" }}>{firstTemplateName(classification.template_selection?.M1_M2)}</strong>
+                    )}
                     <p>用于行业背景、技术标准、项目概况与现场挑战的固化模板字段替换。</p>
-                    <button className="secondaryButton btn-xs" onClick={() => setShowClassificationDetails(!showClassificationDetails)} type="button">{showClassificationDetails ? "收起分析依据" : "查看分析依据"}</button>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {editingCard !== "m1m2" ? (
+                        <button className="editable-trigger" onClick={() => setEditingCard("m1m2")} type="button">修改</button>
+                      ) : null}
+                      <button className="editable-trigger" onClick={() => setShowClassificationDetails(!showClassificationDetails)} type="button">{showClassificationDetails ? "收起依据" : "查看依据"}</button>
+                    </div>
                   </article>
-                  <article className="resultCard">
+
+                  <article className={`resultCard${editingCard === "m5" ? " resultCard-editable" : ""}`}>
                     <span>M5 推荐案例</span>
-                    <strong>{recommendedCases[0]?.title || recommendedCases[0]?.source_path?.split(/[\\/]/).pop() || "暂无推荐案例"}</strong>
+                    {editingCard === "m5" ? (
+                      <select
+                        value={reviewForm.caseId ?? ""}
+                        onChange={(e) => setReviewForm((prev) => ({ ...prev, caseId: e.target.value }))}
+                        onBlur={() => setEditingCard(null)}
+                        autoFocus
+                      >
+                        {recommendedCases[0] ? <option value={String(recommendedCases[0].case_id)}>{recommendedCases[0].title || recommendedCases[0].case_id}</option> : null}
+                        {m5FixedCases.filter((item) => String(item.case_id) !== String(recommendedCases[0]?.case_id)).map((item) => <option key={item.case_id} value={item.case_id}>{item.filename || item.title}</option>)}
+                        <option value="">暂不选择案例</option>
+                      </select>
+                    ) : (
+                      <strong onClick={() => setEditingCard("m5")} style={{ cursor: "pointer" }}>{recommendedCases[0]?.title || recommendedCases[0]?.source_path?.split(/[\\/]/).pop() || "暂无推荐案例"}</strong>
+                    )}
                     <p>{recommendedCases[0]?.match_reason ?? "暂无推荐案例，可在下方人工确认中选择 M5 案例或暂不选择。"}</p>
+                    {editingCard !== "m5" ? (
+                      <button className="editable-trigger" onClick={() => setEditingCard("m5")} type="button">修改</button>
+                    ) : null}
                   </article>
+
                   <article className="resultCard">
                     <span>M6 固定模板</span>
                     <strong>{firstTemplateName(classification.template_selection?.M6)}</strong>
                     <p>默认使用企业背书与荣誉固定模板，可由后端补充替换字段。</p>
                   </article>
                 </div>
+
                 {showClassificationDetails ? (
                   <div className="evidencePanel">
                     <div className="sectionHeader">
@@ -250,7 +336,7 @@ export function ProjectsView(props: ProjectsViewProps) {
                       <article className="resultCard">
                         <span>对应 PPT 模板</span>
                         <strong>{firstTemplateName(classification.template_selection?.M1_M2)}</strong>
-                        <p>只选择既有 M1/M2 固化模板，不动态生成整章内容。</p>
+                        <p>只选择既有 M1/M2 固化模板，不动态生成 M1/M2 内容。</p>
                       </article>
                       <article className="resultCard">
                         <span>confidence</span>
@@ -294,11 +380,13 @@ export function ProjectsView(props: ProjectsViewProps) {
                     )}
                   </div>
                 ) : null}
+
                 {productLineClassificationConflict ? (
                   <p className="messageLine">
-                    新建项目选择的产品线"{productLineClassificationConflict.productLine}"对应{labelForProjectType(productLineClassificationConflict.preferredProjectType)}，资料识别结果为{labelForProjectType(productLineClassificationConflict.detectedProjectType)}。已默认按产品线选择 M1/M2；如资料判断更准确，请在下方人工确认中修改。
+                    新建项目选择的产品线&ldquo;{productLineClassificationConflict.productLine}&rdquo;对应{labelForProjectType(productLineClassificationConflict.preferredProjectType)}，资料识别结果为{labelForProjectType(productLineClassificationConflict.detectedProjectType)}。已默认按产品线选择 M1/M2；如资料判断更准确，请点击上方卡片修改。
                   </p>
                 ) : null}
+
                 <form className="confirmationGrid" onSubmit={(event) => { event.preventDefault(); submitClassificationReview(); }}>
                   <label>确认项目类型<select aria-label="确认项目类型" value={reviewForm.projectType} onChange={(event) => { const nextType = event.target.value; setReviewForm((value) => ({ ...value, projectType: nextType, m1m2Template: nextType })); }}>{projectTypes.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
                   <label>确认 M1/M2 模板<select aria-label="确认 M1/M2 模板" value={reviewForm.m1m2Template} onChange={(event) => { const nextType = event.target.value; setReviewForm((value) => ({ ...value, projectType: nextType, m1m2Template: nextType })); }}>{m1m2Templates.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
@@ -313,8 +401,13 @@ export function ProjectsView(props: ProjectsViewProps) {
             )}
           </section>
 
-          <section className="section statusSection">
-            <div className="sectionHeader"><h2>生成状态</h2><div className="actions"><button className="primaryButton btn-xs" disabled={busy} onClick={generate} type="button">启动生成</button></div></div>
+          <section id="section-generation" className="section statusSection">
+            <div className="sectionHeader"><h2>生成状态</h2><div className="actions">
+              <div>
+                <button className="primaryButton btn-xs" disabled={busy || !canGenerate} onClick={generate} type="button">启动生成</button>
+                {!canGenerate ? <span className="button-hint">请先完成识别与确认</span> : null}
+              </div>
+            </div></div>
             <ol className="statusList">{["待上传", "资料解析中", "类型识别中", "案例匹配中", "待确认", "生成中", "合并中", "完成"].map((status, index) => <li className={status === activeStatus ? "current" : (["待上传", "资料解析中", "类型识别中", "案例匹配中", "待确认", "生成中", "合并中", "完成"].indexOf(status) < ["待上传", "资料解析中", "类型识别中", "案例匹配中", "待确认", "生成中", "合并中", "完成"].indexOf(activeStatus) ? "completed" : "pending")} key={status}><span>{index + 1}</span>{status}</li>)}</ol>
             <div className="historyBox"><strong>状态历史</strong><span>{statusHistory}</span></div>
             <p className="messageLine">{message}</p>

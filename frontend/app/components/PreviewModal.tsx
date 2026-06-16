@@ -1,5 +1,6 @@
 import { API_BASE } from "../constants";
 import type { Project } from "../constants";
+import { useState } from "react";
 
 interface PreviewModalProps {
   slides: { index: number; image_url: string }[];
@@ -11,6 +12,18 @@ interface PreviewModalProps {
 }
 
 export function PreviewModal({ slides, currentIndex, onIndexChange, onClose, error, currentProject }: PreviewModalProps) {
+  const [jumpPage, setJumpPage] = useState("");
+
+  function handleJump(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter" && jumpPage.trim()) {
+      const page = parseInt(jumpPage, 10);
+      if (page >= 1 && page <= slides.length) {
+        onIndexChange(page - 1);
+        setJumpPage("");
+      }
+    }
+  }
+
   return (
     <div className="modalBackdrop" role="presentation" onMouseDown={onClose}>
       <div aria-modal="true" className="previewModalPanel" role="dialog" onMouseDown={(event) => event.stopPropagation()}>
@@ -54,6 +67,22 @@ export function PreviewModal({ slides, currentIndex, onIndexChange, onClose, err
               <span>{slide.index}</span>
             </button>
           ))}
+          {slides.length > 5 ? (
+            <div className="previewPageJump">
+              <span>跳转</span>
+              <input
+                className="previewPageInput"
+                type="number"
+                min={1}
+                max={slides.length}
+                value={jumpPage}
+                onChange={(e) => setJumpPage(e.target.value)}
+                onKeyDown={handleJump}
+                placeholder="#"
+              />
+              <span>/ {slides.length} 页</span>
+            </div>
+          ) : null}
         </div>
         <div className="previewFooter">
           <a className="primaryButton btn-xs" href={`${API_BASE}/api/projects/${currentProject?.project_id}/download`} download>下载 PPTX</a>

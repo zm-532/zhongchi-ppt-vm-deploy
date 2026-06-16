@@ -9,7 +9,7 @@
 - `ppt_engine/`：PPTX 模板复制、字段替换、章节渲染和合并。
 - `asset_tools/`：案例和素材扫描、标签提取、索引辅助工具。
 - `workflow/`：后续可替换为 LangGraph 的工作流骨架。
-- `docker/`：PostgreSQL、pgvector 等本地开发配置。
+- `docker-compose.yml`：定义 backend 和 frontend 两个服务（pgvector 为可选外部依赖，通过 `ZHONGCHI_VECTOR_DSN` 连接，未内置在 compose 中）。
 - `data/`：本地上传、解析文本、输出 PPTX 和案例库数据。
 
 ## 当前正式流程

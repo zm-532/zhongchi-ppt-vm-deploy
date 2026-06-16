@@ -25,6 +25,8 @@ import type {
 import { requestJson, labelForProjectType, projectTypeFromProductLine } from "./utils";
 import { useM3AutoPreview } from "./useM3AutoPreview";
 
+import { ToastProvider, useToast } from "./components/Toast";
+import { ConfirmDialog } from "./components/ConfirmDialog";
 import { M3NamingHelpModal } from "./components/M3NamingHelpModal";
 import { PreviewModal } from "./components/PreviewModal";
 import { ProjectsView } from "./views/ProjectsView";
@@ -38,7 +40,10 @@ import { M5TestView } from "./views/M5TestView";
 import { DocParseTestView } from "./views/DocParseTestView";
 import { LlmTestView } from "./views/LlmTestView";
 
-export default function HomePage() {
+const FUNCTION_TEST_VIEWS: ViewId[] = ["m1m2-test", "m3-full-test", "m5-test", "document-parse-test", "llm-test"];
+
+function AppShell() {
+  const toast = useToast();
   const [activeView, setActiveView] = useState<ViewId>("projects");
   const [projects, setProjects] = useState<Project[]>([]);
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
@@ -102,6 +107,8 @@ export default function HomePage() {
   const [projectListPage, setProjectListPage] = useState(1);
   const [isManagingProjects, setIsManagingProjects] = useState(false);
   const [selectedProjectIds, setSelectedProjectIds] = useState<number[]>([]);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [navTestExpanded, setNavTestExpanded] = useState(false);
 
   const activeStatus = task?.task_status ?? currentProject?.task_status ?? "待上传";
   const recommendedCases = useMemo(() => classification?.case_selection?.recommended_cases ?? [], [classification]);
@@ -140,12 +147,8 @@ export default function HomePage() {
   useEffect(() => {
     function syncViewFromHash() {
       const nextView = window.location.hash.replace("#", "");
-      setActiveView(
-        nextView === "create" || nextView === "cases" || nextView === "project-m3-materials" ||
-        nextView === "function-tests" || nextView === "m1m2-test" || nextView === "m5-test" ||
-        nextView === "document-parse-test" || nextView === "m3-full-test" || nextView === "llm-test"
-          ? nextView : "projects"
-      );
+      const validViews: ViewId[] = ["create", "cases", "project-m3-materials", "function-tests", ...FUNCTION_TEST_VIEWS];
+      setActiveView(validViews.includes(nextView as ViewId) ? nextView as ViewId : "projects");
     }
     syncViewFromHash();
     window.addEventListener("hashchange", syncViewFromHash);
@@ -153,9 +156,15 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
+    if (FUNCTION_TEST_VIEWS.includes(activeView)) {
+      setNavTestExpanded(true);
+    }
+  }, [activeView]);
+
+  useEffect(() => {
     requestJson<Project[]>("/api/projects")
       .then((items) => { setProjects(items); if (items[0]) setCurrentProject(items[0]); })
-      .catch(() => setMessage("后端未连接，请确认 FastAPI 运行在 127.0.0.1:8010。"));
+      .catch(() => toast.error("后端未连接，请确认 FastAPI 运行在 127.0.0.1:8010。"));
   }, []);
 
   useEffect(() => {
@@ -218,8 +227,8 @@ export default function HomePage() {
   }
 
   async function saveM3Materials(returnToProjects = false) {
-    if (!currentProject) return setM3MaterialsMessage("请先选择项目。");
-    if (m3MaterialBulkFiles.length === 0) return setM3MaterialsMessage("请先批量上传按九类命名的 M3 图片或 Excel 表格。");
+    if (!currentProject) return toast.error("请先选择项目。");
+    if (m3MaterialBulkFiles.length === 0) return toast.error("请先批量上传按九类命名的 M3 图片或 Excel 表格。");
     const formData = new FormData();
     formData.append("descriptions", m3MaterialDescriptions);
     m3MaterialBulkFiles.forEach((file) => formData.append("files", file));
@@ -234,14 +243,15 @@ export default function HomePage() {
           return section ? `${section.title}-${image.page_index || 1}：${image.description}` : "";
         }).filter(Boolean).join("\n")
       );
-      setM3MaterialsMessage(`M3资料已保存：已填写 ${result.text_completed_count}/${result.text_total_count}，已上传 ${result.image_count} 张图片、${result.table_count || 0} 个表格。`);
-      if (returnToProjects) { setActiveView("projects"); window.location.hash = "projects"; setMessage("M3资料已保存，可继续识别、确认或生成。"); }
+      toast.success(`M3资料已保存：已填写 ${result.text_completed_count}/${result.text_total_count}，已上传 ${result.image_count} 张图片、${result.table_count || 0} 个表格。`);
+      if (returnToProjects) { setActiveView("projects"); window.location.hash = "projects"; toast.info("M3资料已保存，可继续识别、确认或生成。"); }
     } catch (error) {
-      setM3MaterialsMessage(error instanceof Error ? error.message : "M3资料保存失败");
+      toast.error(error instanceof Error ? error.message : "M3资料保存失败");
     } finally { setBusy(false); }
   }
 
-  async function createProject(event: FormEvent<HTMLFormElement>) {
+  async function createProject(event: FormEvent<HTMLFormElement>, isValid: boolean) {
+    if (!isValid) return;
     event.preventDefault();
     setBusy(true);
     try {
@@ -255,13 +265,13 @@ export default function HomePage() {
       setClassification(null); setShowClassificationDetails(false);
       setReviewForm({ projectType: "", m1m2Template: "", caseId: undefined, m3Selection: "m3_template", includePrintTailPage: false, notes: "" });
       setActiveView("projects"); window.location.hash = "projects";
-      setMessage(`项目已创建：${project.project_name}`);
-    } catch (error) { setMessage(error instanceof Error ? error.message : "创建项目失败"); } finally { setBusy(false); }
+      toast.success(`项目已创建：${project.project_name}`);
+    } catch (error) { toast.error(error instanceof Error ? error.message : "创建项目失败"); } finally { setBusy(false); }
   }
 
   async function uploadProjectFiles() {
-    if (!currentProject) return setMessage("请先创建项目。");
-    if (selectedFiles.length === 0) return setMessage("请先选择需要上传的项目资料。");
+    if (!currentProject) return toast.error("请先创建项目。");
+    if (selectedFiles.length === 0) return toast.error("请先选择需要上传的项目资料。");
     setBusy(true);
     try {
       const body = new FormData();
@@ -270,12 +280,12 @@ export default function HomePage() {
       setUploadedFiles(Array.isArray(stored) ? stored : [stored]);
       setCurrentProject(await requestJson<Project>(`/api/projects/${currentProject.project_id}`));
       setSelectedFiles([]); setUploadSuccess(true);
-      setMessage("项目资料已统一上传，可点击开始识别资料。");
-    } catch (error) { setMessage(error instanceof Error ? error.message : "统一上传失败"); } finally { setBusy(false); }
+      toast.success("项目资料已统一上传，可点击开始识别资料。");
+    } catch (error) { toast.error(error instanceof Error ? error.message : "统一上传失败"); } finally { setBusy(false); }
   }
 
   async function analyzeProject() {
-    if (!currentProject) return setMessage("请先创建项目。");
+    if (!currentProject) return toast.error("请先创建项目。");
     setBusy(true);
     try {
       await requestJson(`/api/projects/${currentProject.project_id}/analyze`, { method: "POST" });
@@ -288,12 +298,12 @@ export default function HomePage() {
       const templateKey = preferredProjectType || result.template_selection?.M1_M2?.template_key || detectedType;
       const newCaseId = result.case_selection?.confirmed_case_id != null ? String(result.case_selection.confirmed_case_id) : (result.case_selection?.recommended_cases?.[0]?.case_id != null ? String(result.case_selection.recommended_cases[0].case_id) : "");
       setReviewForm({ projectType: defaultProjectType, m1m2Template: templateKey, caseId: newCaseId, m3Selection: "m3_template", includePrintTailPage: false, notes: "" });
-      setMessage("识别结果已返回，请确认项目类型、模板与案例。");
-    } catch (error) { setMessage(error instanceof Error ? error.message : "资料识别失败"); } finally { setBusy(false); }
+      toast.success("识别结果已返回，请确认项目类型、模板与案例。");
+    } catch (error) { toast.error(error instanceof Error ? error.message : "资料识别失败"); } finally { setBusy(false); }
   }
 
   async function submitClassificationReview() {
-    if (!currentProject) return setMessage("请先创建项目。");
+    if (!currentProject) return toast.error("请先创建项目。");
     setBusy(true);
     try {
       await requestJson(`/api/projects/${currentProject.project_id}/classification/review`, {
@@ -303,37 +313,43 @@ export default function HomePage() {
       const latest = await requestJson<ClassificationResult>(`/api/projects/${currentProject.project_id}/classification`);
       setClassification(latest);
       const caseMsg = reviewForm.caseId ? "" : "（本次不使用 M5 案例）";
-      setMessage(`人工确认已提交${caseMsg}，可启动最终生成。`);
-    } catch (error) { setMessage(error instanceof Error ? error.message : "人工确认失败"); } finally { setBusy(false); }
+      toast.success(`人工确认已提交${caseMsg}，可启动最终生成。`);
+    } catch (error) { toast.error(error instanceof Error ? error.message : "人工确认失败"); } finally { setBusy(false); }
   }
 
   async function generate() {
-    if (!currentProject) return setMessage("请先创建项目。");
+    if (!currentProject) return toast.error("请先创建项目。");
     setBusy(true);
     try {
       await requestJson<TaskState>(`/api/projects/${currentProject.project_id}/generate`, { method: "POST" });
       const latest = await requestJson<TaskState>(`/api/projects/${currentProject.project_id}/task`);
       setTask(latest); setCurrentProject(await requestJson<Project>(`/api/projects/${currentProject.project_id}`));
-      setMessage(`生成任务已启动，当前状态：${latest.task_status}`);
-    } catch (error) { setMessage(error instanceof Error ? error.message : "启动生成失败"); } finally { setBusy(false); }
+      toast.success(`生成任务已启动，当前状态：${latest.task_status}`);
+    } catch (error) { toast.error(error instanceof Error ? error.message : "启动生成失败"); } finally { setBusy(false); }
   }
 
   async function saveFullPptCase() {
-    if (!currentProject) return setMessage("请先创建项目。");
-    if (!canSaveFullPptCase) return setMessage("请先完成 PPT 生成，再存入案例库。");
+    if (!currentProject) return toast.error("请先创建项目。");
+    if (!canSaveFullPptCase) return toast.error("请先完成 PPT 生成，再存入案例库。");
     setBusy(true);
     try {
       const saved = await requestJson<FullPptCaseItem>(`/api/projects/${currentProject.project_id}/full-ppt-case`, { method: "POST" });
       await refreshFullPptCases(); setCaseLibraryTab("full-ppt");
-      setMessage(`已存入完整PPT案例库：${saved.title || saved.filename}`);
-    } catch (error) { setMessage(error instanceof Error ? error.message : "存入案例库失败"); } finally { setBusy(false); }
+      toast.success(`已存入完整PPT案例库：${saved.title || saved.filename}`);
+    } catch (error) { toast.error(error instanceof Error ? error.message : "存入案例库失败"); } finally { setBusy(false); }
   }
 
   function toggleProjectManagement() { setIsManagingProjects((value) => !value); setSelectedProjectIds([]); }
   function toggleProjectSelection(projectId: number) { setSelectedProjectIds((ids) => (ids.includes(projectId) ? ids.filter((id) => id !== projectId) : [...ids, projectId])); }
 
+  function requestDeleteProjects() {
+    if (selectedProjectIds.length === 0) return toast.error("请先选择要删除的项目。");
+    setConfirmDeleteOpen(true);
+  }
+
   async function deleteSelectedProjects() {
-    if (selectedProjectIds.length === 0) return setMessage("请先选择要删除的项目。");
+    setConfirmDeleteOpen(false);
+    if (selectedProjectIds.length === 0) return;
     setBusy(true);
     try {
       const idsToDelete = [...selectedProjectIds];
@@ -343,8 +359,8 @@ export default function HomePage() {
       const newTotalPages = Math.ceil(remainingProjects.length / PROJECT_LIST_PAGE_SIZE);
       if (projectListPage > newTotalPages) setProjectListPage(Math.max(1, newTotalPages));
       if (currentProject && idsToDelete.includes(currentProject.project_id)) { setCurrentProject(remainingProjects[0] ?? null); setTask(null); setClassification(null); }
-      setMessage(`已删除 ${idsToDelete.length} 个项目。`);
-    } catch (error) { setMessage(error instanceof Error ? error.message : "删除项目失败"); } finally { setBusy(false); }
+      toast.success(`已删除 ${idsToDelete.length} 个项目。`);
+    } catch (error) { toast.error(error instanceof Error ? error.message : "删除项目失败"); } finally { setBusy(false); }
   }
 
   async function updateProjectBasicInfo() {
@@ -353,8 +369,8 @@ export default function HomePage() {
     try {
       const updated = await requestJson<Project>(`/api/projects/${currentProject.project_id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(editForm) });
       setCurrentProject(updated); setProjects((items) => items.map((p) => (p.project_id === updated.project_id ? updated : p)));
-      setIsEditingProject(false); setMessage("项目信息已更新，若已生成 PPT，请重新启动生成以应用最新字段。");
-    } catch (error) { setMessage(error instanceof Error ? error.message : "更新项目信息失败"); } finally { setBusy(false); }
+      setIsEditingProject(false); toast.success("项目信息已更新，若已生成 PPT，请重新启动生成以应用最新字段。");
+    } catch (error) { toast.error(error instanceof Error ? error.message : "更新项目信息失败"); } finally { setBusy(false); }
   }
 
   async function runM1M2TemplateTest() {
@@ -474,24 +490,58 @@ export default function HomePage() {
   }
 
   function downloadFinal() {
-    if (!currentProject) return setMessage("请先创建项目。");
+    if (!currentProject) return toast.error("请先创建项目。");
     window.location.href = `${API_BASE}/api/projects/${currentProject.project_id}/download`;
   }
 
   async function previewFinalPpt() {
-    if (!currentProject) return setMessage("请先创建项目。");
+    if (!currentProject) return toast.error("请先创建项目。");
     setPreviewLoading(true); setPreviewError("");
     try {
       const result = await requestJson<{slide_count: number; slides: {index: number; image_url: string}[]}>(`/api/projects/${currentProject.project_id}/preview`, { method: "POST" });
       setPreviewSlides(result.slides); setPreviewCurrentIndex(0); setPreviewOpen(true);
-    } catch (error) { const msg = error instanceof Error ? error.message : "预览生成失败"; setPreviewError(msg); setMessage(msg); } finally { setPreviewLoading(false); }
+    } catch (error) { const msg = error instanceof Error ? error.message : "预览生成失败"; setPreviewError(msg); toast.error(msg); } finally { setPreviewLoading(false); }
+  }
+
+  async function handleSelectProject(project: Project) {
+    setCurrentProject(project);
+    setTask(null); setClassification(null); setShowClassificationDetails(false);
+    setReviewForm({ projectType: "", m1m2Template: "", caseId: undefined, m3Selection: "m3_template", includePrintTailPage: false, notes: "" });
+    setUploadSuccess(false);
+    try {
+      const [cls, taskState] = await Promise.allSettled([
+        requestJson<ClassificationResult>(`/api/projects/${project.project_id}/classification`),
+        requestJson<TaskState>(`/api/projects/${project.project_id}/task`),
+      ]);
+      if (cls.status === "fulfilled") {
+        setClassification(cls.value);
+        const detectedType = cls.value.confirmed_project_type || cls.value.detected_project_type || "";
+        const preferredProjectType = projectTypeFromProductLine(project.product_line);
+        const defaultProjectType = preferredProjectType || detectedType;
+        const templateKey = preferredProjectType || cls.value.template_selection?.M1_M2?.template_key || detectedType;
+        const confirmedCaseId = cls.value.case_selection?.confirmed_case_id;
+        const newCaseId = confirmedCaseId != null ? String(confirmedCaseId) : (cls.value.case_selection?.recommended_cases?.[0]?.case_id != null ? String(cls.value.case_selection.recommended_cases[0].case_id) : "");
+        setReviewForm({ projectType: defaultProjectType, m1m2Template: templateKey, caseId: newCaseId, m3Selection: "m3_template", includePrintTailPage: false, notes: "" });
+      }
+      if (taskState.status === "fulfilled") setTask(taskState.value);
+    } catch { /* silent */ }
   }
 
   const pageTitle = viewTitles[activeView];
-  const isFunctionTestView = activeView === "function-tests" || activeView === "m1m2-test" || activeView === "m3-full-test" || activeView === "m5-test" || activeView === "document-parse-test" || activeView === "llm-test";
+  const isFunctionTestView = activeView === "function-tests" || FUNCTION_TEST_VIEWS.includes(activeView);
 
   return (
     <main className="shell">
+      {confirmDeleteOpen ? (
+        <ConfirmDialog
+          title="确认删除项目"
+          message={`确定要删除选中的 ${selectedProjectIds.length} 个项目吗？此操作不可撤销。`}
+          confirmText="确认删除"
+          danger
+          onConfirm={deleteSelectedProjects}
+          onCancel={() => setConfirmDeleteOpen(false)}
+        />
+      ) : null}
       {m3NamingHelpOpen ? <M3NamingHelpModal onClose={() => setM3NamingHelpOpen(false)} /> : null}
       {previewOpen ? <PreviewModal slides={previewSlides} currentIndex={previewCurrentIndex} onIndexChange={setPreviewCurrentIndex} onClose={() => setPreviewOpen(false)} error={previewError} currentProject={currentProject} /> : null}
       <aside className="sidebar" aria-label="主导航">
@@ -499,14 +549,26 @@ export default function HomePage() {
         <nav className="sidebar-nav">
           <a className={activeView === "projects" ? "navItem active" : "navItem"} href="#projects">我的项目</a>
           <a className={activeView === "create" ? "navItem active" : "navItem"} href="#create">新建项目</a>
-          <a className={activeView === "cases" ? "navItem active" : "navItem"} href="#cases">案例库管理</a>
-          <a className={isFunctionTestView ? "navItem active" : "navItem"} href="#function-tests">功能测试</a>
+          <a className={activeView === "cases" ? "navItem active" : "navItem"} href="#cases">案例库</a>
+          <a className={`navItem navItem-expandable${isFunctionTestView ? " active" : ""}`} onClick={() => setNavTestExpanded(!navTestExpanded)} style={{ cursor: "pointer" }}>
+            功能测试
+            <span className={`nav-arrow${navTestExpanded ? " expanded" : ""}`}>&rsaquo;</span>
+          </a>
+          {navTestExpanded ? (
+            <div className="navSubList">
+              <a className={`navSubItem${activeView === "m1m2-test" ? " active" : ""}`} href="#m1m2-test">M1/M2选择测试</a>
+              <a className={`navSubItem${activeView === "m3-full-test" ? " active" : ""}`} href="#m3-full-test">M3完整测试</a>
+              <a className={`navSubItem${activeView === "m5-test" ? " active" : ""}`} href="#m5-test">M5选择测试</a>
+              <a className={`navSubItem${activeView === "document-parse-test" ? " active" : ""}`} href="#document-parse-test">文档解析测试</a>
+              <a className={`navSubItem${activeView === "llm-test" ? " active" : ""}`} href="#llm-test">大模型测试</a>
+            </div>
+          ) : null}
         </nav>
       </aside>
       <section className="content">
         <header className="topbar"><div className="topbar-title-area"><h1>{pageTitle.title}</h1><p>{pageTitle.description}</p></div>{activeView === "projects" ? <div className="topbarActions"><button className="secondaryButton" onClick={toggleProjectManagement} type="button">{isManagingProjects ? "取消管理" : "管理项目"}</button><a className="primaryButton" href="#create">新建项目</a></div> : null}</header>
 
-        {activeView === "projects" ? <ProjectsView projects={projects} currentProject={currentProject} setCurrentProject={setCurrentProject} task={task} setTask={setTask} classification={classification} setClassification={setClassification} showClassificationDetails={showClassificationDetails} setShowClassificationDetails={setShowClassificationDetails} qualityReportExpanded={qualityReportExpanded} setQualityReportExpanded={setQualityReportExpanded} reviewForm={reviewForm} setReviewForm={setReviewForm} recommendedCases={recommendedCases} m5FixedCases={m5FixedCases} canSaveFullPptCase={canSaveFullPptCase} productLineClassificationConflict={productLineClassificationConflict} hasMoreProjects={hasMoreProjects} totalProjectPages={totalProjectPages} visibleProjects={visibleProjects} projectListExpanded={projectListExpanded} setProjectListExpanded={setProjectListExpanded} projectListPage={projectListPage} setProjectListPage={setProjectListPage} isManagingProjects={isManagingProjects} selectedProjectIds={selectedProjectIds} activeStatus={activeStatus} statusHistory={statusHistory} qualityReport={qualityReport} message={message} busy={busy} uploadSuccess={uploadSuccess} selectedFiles={selectedFiles} setSelectedFiles={setSelectedFiles} uploadedFiles={uploadedFiles} isEditingProject={isEditingProject} setIsEditingProject={setIsEditingProject} editForm={editForm} setEditForm={setEditForm} m3MaterialsResult={m3MaterialsResult} previewLoading={previewLoading} m3MaterialAutoPreview={m3MaterialAutoPreview} toggleProjectManagement={toggleProjectManagement} toggleProjectSelection={toggleProjectSelection} deleteSelectedProjects={deleteSelectedProjects} uploadProjectFiles={uploadProjectFiles} analyzeProject={analyzeProject} submitClassificationReview={submitClassificationReview} generate={generate} saveFullPptCase={saveFullPptCase} previewFinalPpt={previewFinalPpt} downloadFinal={downloadFinal} updateProjectBasicInfo={updateProjectBasicInfo} setM3NamingHelpOpen={setM3NamingHelpOpen} /> : null}
+        {activeView === "projects" ? <ProjectsView projects={projects} currentProject={currentProject} setCurrentProject={handleSelectProject} task={task} setTask={setTask} classification={classification} setClassification={setClassification} showClassificationDetails={showClassificationDetails} setShowClassificationDetails={setShowClassificationDetails} qualityReportExpanded={qualityReportExpanded} setQualityReportExpanded={setQualityReportExpanded} reviewForm={reviewForm} setReviewForm={setReviewForm} recommendedCases={recommendedCases} m5FixedCases={m5FixedCases} canSaveFullPptCase={canSaveFullPptCase} productLineClassificationConflict={productLineClassificationConflict} hasMoreProjects={hasMoreProjects} totalProjectPages={totalProjectPages} visibleProjects={visibleProjects} projectListExpanded={projectListExpanded} setProjectListExpanded={setProjectListExpanded} projectListPage={projectListPage} setProjectListPage={setProjectListPage} isManagingProjects={isManagingProjects} selectedProjectIds={selectedProjectIds} activeStatus={activeStatus} statusHistory={statusHistory} qualityReport={qualityReport} message={message} busy={busy} uploadSuccess={uploadSuccess} selectedFiles={selectedFiles} setSelectedFiles={setSelectedFiles} uploadedFiles={uploadedFiles} isEditingProject={isEditingProject} setIsEditingProject={setIsEditingProject} editForm={editForm} setEditForm={setEditForm} m3MaterialsResult={m3MaterialsResult} previewLoading={previewLoading} m3MaterialAutoPreview={m3MaterialAutoPreview} toggleProjectManagement={toggleProjectManagement} toggleProjectSelection={toggleProjectSelection} deleteSelectedProjects={requestDeleteProjects} uploadProjectFiles={uploadProjectFiles} analyzeProject={analyzeProject} submitClassificationReview={submitClassificationReview} generate={generate} saveFullPptCase={saveFullPptCase} previewFinalPpt={previewFinalPpt} downloadFinal={downloadFinal} updateProjectBasicInfo={updateProjectBasicInfo} setM3NamingHelpOpen={setM3NamingHelpOpen} /> : null}
 
         {activeView === "project-m3-materials" ? <M3MaterialsView currentProject={currentProject} m3MaterialsResult={m3MaterialsResult} m3MaterialBulkFiles={m3MaterialBulkFiles} m3MaterialDescriptions={m3MaterialDescriptions} setM3MaterialDescriptions={setM3MaterialDescriptions} m3MaterialsMessage={m3MaterialsMessage} m3MaterialAutoPreview={m3MaterialAutoPreview} busy={busy} updateM3MaterialBulkFiles={updateM3MaterialBulkFiles} saveM3Materials={saveM3Materials} setM3NamingHelpOpen={setM3NamingHelpOpen} /> : null}
 
@@ -528,5 +590,13 @@ export default function HomePage() {
 
       </section>
     </main>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <ToastProvider>
+      <AppShell />
+    </ToastProvider>
   );
 }

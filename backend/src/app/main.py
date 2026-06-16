@@ -371,9 +371,22 @@ def download_project(project_id: int) -> FileResponse:
     if project is None:
         raise HTTPException(status_code=404, detail="项目不存在")
     final_path = project.get("final_ppt_path")
-    if not final_path or not Path(final_path).exists():
+    if not final_path:
         raise HTTPException(status_code=404, detail="最终PPTX尚未生成")
-    return FileResponse(final_path, filename=Path(final_path).name)
+
+    # 路径穿越防护：final_ppt_path 必须落在数据目录的 outputs 下
+    # （与 preview/slides、m3-full-render/download 端点保持一致）
+    safe_dir = (get_data_dir() / "outputs").resolve()
+    try:
+        resolved = Path(final_path).resolve()
+        if not resolved.is_relative_to(safe_dir):
+            raise HTTPException(status_code=400, detail="无效的文件路径")
+    except (ValueError, OSError):
+        raise HTTPException(status_code=400, detail="无效的文件路径")
+
+    if not resolved.exists():
+        raise HTTPException(status_code=404, detail="最终PPTX尚未生成")
+    return FileResponse(resolved, filename=resolved.name)
 
 
 @app.post("/api/projects/{project_id}/full-ppt-case", status_code=status.HTTP_201_CREATED)

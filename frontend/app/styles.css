@@ -2164,7 +2164,7 @@ button:disabled {
 
 .previewImage {
   max-width: 100%;
-  max-height: 60vh;
+  max-height: 75vh;
   object-fit: contain;
   border: 1px solid var(--line);
   border-radius: 4px;
@@ -2258,4 +2258,515 @@ button:disabled {
   border: 1px solid #fca5a5;
   border-radius: 6px;
   font-size: 13px;
+}
+
+/* ==========================================================================
+   Toast 通知系统
+   ========================================================================== */
+.toast-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 420px;
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12), 0 2px 6px rgba(15, 23, 42, 0.06);
+  font-size: 13px;
+  font-weight: 500;
+  pointer-events: auto;
+  animation: toast-slide-in 0.3s var(--ease-standard) both;
+  backdrop-filter: blur(8px);
+}
+
+.toast-exit {
+  animation: toast-slide-out 0.28s var(--ease-standard) both;
+}
+
+.toast-success {
+  color: #065f46;
+  background: rgba(236, 253, 245, 0.95);
+  border-color: #a7f3d0;
+}
+
+.toast-error {
+  color: #991b1b;
+  background: rgba(254, 242, 242, 0.95);
+  border-color: #fca5a5;
+}
+
+.toast-info {
+  color: var(--primary-dark);
+  background: rgba(239, 246, 255, 0.95);
+  border-color: #bfdbfe;
+}
+
+.toast-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.toast-success .toast-icon {
+  background: #10b981;
+  color: #fff;
+}
+
+.toast-error .toast-icon {
+  background: #ef4444;
+  color: #fff;
+}
+
+.toast-info .toast-icon {
+  background: var(--primary);
+  color: #fff;
+}
+
+.toast-message {
+  flex: 1;
+  line-height: 1.45;
+}
+
+.toast-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  opacity: 0.5;
+  cursor: pointer;
+  font-size: 16px;
+  flex-shrink: 0;
+  transition: opacity 0.15s;
+}
+
+.toast-close:hover {
+  opacity: 1;
+}
+
+@keyframes toast-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes toast-slide-out {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+}
+
+/* ==========================================================================
+   Workflow Stepper 步骤引导条
+   ========================================================================== */
+.workflow-stepper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 20px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  box-shadow: var(--shadow-sm);
+}
+
+.stepper-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.18s var(--ease-standard), border-color 0.18s var(--ease-standard), color 0.18s var(--ease-standard), box-shadow 0.18s var(--ease-standard);
+  white-space: nowrap;
+}
+
+.stepper-step:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.stepper-step:not(:disabled):hover {
+  border-color: var(--primary-line);
+  background: var(--primary-soft);
+}
+
+.stepper-dot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.stepper-pending .stepper-dot {
+  background: var(--line-strong);
+  color: #fff;
+}
+
+.stepper-current {
+  color: var(--primary-dark);
+  border-color: #93c5fd;
+  background: #dbeafe;
+  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.08);
+}
+
+.stepper-current .stepper-dot {
+  background: var(--primary);
+  color: #fff;
+}
+
+.stepper-done {
+  color: #065f46;
+  border-color: #a7f3d0;
+  background: #ecfdf5;
+}
+
+.stepper-done .stepper-dot {
+  background: #10b981;
+  color: #fff;
+}
+
+.stepper-label {
+  line-height: 1;
+}
+
+@media (max-width: 860px) {
+  .workflow-stepper {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .stepper-step {
+    flex: 1 1 auto;
+    justify-content: center;
+    min-width: calc(50% - 8px);
+  }
+}
+
+/* ==========================================================================
+   操作按钮时序引导
+   ========================================================================== */
+.button-hint {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+@keyframes pulse-highlight {
+  0%, 100% {
+    box-shadow: 0 2px 4px rgba(37, 99, 235, 0.12), 0 8px 18px rgba(37, 99, 235, 0.08);
+  }
+  50% {
+    box-shadow: 0 2px 4px rgba(37, 99, 235, 0.25), 0 8px 24px rgba(37, 99, 235, 0.2);
+  }
+}
+
+.pulse-highlight {
+  animation: pulse-highlight 1.8s ease-in-out infinite;
+}
+
+.highlight-border {
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12), var(--shadow-sm) !important;
+}
+
+/* ==========================================================================
+   表单校验
+   ========================================================================== */
+.field-error {
+  margin: 0;
+  color: #dc2626;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.input-error {
+  border-color: #f87171 !important;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.08) !important;
+}
+
+/* ==========================================================================
+   确认弹窗（ConfirmDialog）
+   ========================================================================== */
+.confirmDialogPanel {
+  width: min(440px, 100%);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.22);
+  outline: none;
+}
+
+.confirmDialogHeader {
+  padding: 18px 20px 0;
+}
+
+.confirmDialogHeader h3 {
+  margin: 0;
+  font-size: 17px;
+  color: var(--text);
+  font-weight: 700;
+}
+
+.confirmDialogBody {
+  padding: 12px 20px 4px;
+}
+
+.confirmDialogBody p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.confirmDialogActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 20px 18px;
+}
+
+/* ==========================================================================
+   面包屑导航
+   ========================================================================== */
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-bottom: 14px;
+  font-size: 13px;
+}
+
+.breadcrumb-item {
+  display: inline-flex;
+  align-items: center;
+}
+
+.breadcrumb-separator {
+  margin: 0 6px;
+  color: var(--line-strong);
+  font-size: 12px;
+}
+
+.breadcrumb-link {
+  color: var(--primary);
+  font-weight: 500;
+  transition: color 0.15s;
+}
+
+.breadcrumb-link:hover {
+  color: #1d4ed8;
+  text-decoration: underline;
+}
+
+.breadcrumb-current {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+/* ==========================================================================
+   项目切换 loading 遮罩
+   ========================================================================== */
+.project-loading-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 8px;
+  z-index: 5;
+}
+
+.project-loading-overlay::after {
+  content: "";
+  width: 24px;
+  height: 24px;
+  border: 3px solid var(--line);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ==========================================================================
+   可编辑结果卡片
+   ========================================================================== */
+.resultCard-editable {
+  cursor: pointer;
+}
+
+.resultCard-editable:hover {
+  border-color: var(--primary-line);
+}
+
+.resultCard-modified {
+  border-color: #fbbf24;
+  background: linear-gradient(180deg, #fffbeb 0%, #ffffff 100%);
+}
+
+.resultCard-modified::after {
+  content: "已修改";
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 11px;
+  font-weight: 700;
+  border: 1px solid #fcd34d;
+}
+
+.resultCard {
+  position: relative;
+}
+
+.editable-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--surface-soft);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+  margin-top: 6px;
+}
+
+.editable-trigger:hover {
+  border-color: var(--primary-line);
+  color: var(--primary);
+  background: var(--primary-soft);
+}
+
+/* ==========================================================================
+   可折叠侧边栏导航
+   ========================================================================== */
+.navItem-expandable {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.nav-arrow {
+  font-size: 10px;
+  transition: transform 0.2s var(--ease-standard);
+  margin-left: auto;
+}
+
+.nav-arrow.expanded {
+  transform: rotate(90deg);
+}
+
+.navSubList {
+  display: grid;
+  gap: 2px;
+  margin: 2px 0 6px;
+  padding-left: 16px;
+}
+
+.navSubItem {
+  display: block;
+  min-height: 34px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  transition: color 0.18s var(--ease-standard), background-color 0.18s var(--ease-standard);
+}
+
+.navSubItem:hover {
+  color: var(--primary);
+  background: var(--surface-hover);
+}
+
+.navSubItem.active {
+  color: var(--primary);
+  background: var(--primary-soft);
+  border-color: #dbeafe;
+  font-weight: 600;
+}
+
+/* ==========================================================================
+   PPT 预览页码跳转
+   ========================================================================== */
+.previewPageJump {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  margin-right: 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.previewPageInput {
+  width: 52px;
+  min-height: 30px;
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  text-align: center;
+  font-size: 13px;
+}
+
+.previewPageInput:focus {
+  border-color: var(--primary);
+  box-shadow: var(--focus-ring);
 }
