@@ -109,6 +109,7 @@ function AppShell() {
   const [selectedProjectIds, setSelectedProjectIds] = useState<number[]>([]);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [navTestExpanded, setNavTestExpanded] = useState(false);
+  const [deleteFullPptCaseId, setDeleteFullPptCaseId] = useState<string | null>(null);
 
   const activeStatus = task?.task_status ?? currentProject?.task_status ?? "待上传";
   const recommendedCases = useMemo(() => classification?.case_selection?.recommended_cases ?? [], [classification]);
@@ -339,6 +340,20 @@ function AppShell() {
     } catch (error) { toast.error(error instanceof Error ? error.message : "存入案例库失败"); } finally { setBusy(false); }
   }
 
+  async function handleDeleteFullPptCase() {
+    if (!deleteFullPptCaseId) return;
+    const caseId = deleteFullPptCaseId;
+    setDeleteFullPptCaseId(null);
+    setBusy(true);
+    try {
+      await requestJson(`/api/cases/full-ppt/${caseId}`, { method: "DELETE" });
+      setFullPptCases((prev) => prev.filter((c) => c.case_id !== caseId));
+      toast.success("案例已从完整PPT案例库删除。");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "删除案例失败");
+    } finally { setBusy(false); }
+  }
+
   function toggleProjectManagement() { setIsManagingProjects((value) => !value); setSelectedProjectIds([]); }
   function toggleProjectSelection(projectId: number) { setSelectedProjectIds((ids) => (ids.includes(projectId) ? ids.filter((id) => id !== projectId) : [...ids, projectId])); }
 
@@ -542,6 +557,16 @@ function AppShell() {
           onCancel={() => setConfirmDeleteOpen(false)}
         />
       ) : null}
+      {deleteFullPptCaseId ? (
+        <ConfirmDialog
+          title="确认删除案例"
+          message="确定要从完整PPT案例库中删除此案例吗？此操作不可撤销。"
+          confirmText="确认删除"
+          danger
+          onConfirm={handleDeleteFullPptCase}
+          onCancel={() => setDeleteFullPptCaseId(null)}
+        />
+      ) : null}
       {m3NamingHelpOpen ? <M3NamingHelpModal onClose={() => setM3NamingHelpOpen(false)} /> : null}
       {previewOpen ? <PreviewModal slides={previewSlides} currentIndex={previewCurrentIndex} onIndexChange={setPreviewCurrentIndex} onClose={() => setPreviewOpen(false)} error={previewError} currentProject={currentProject} /> : null}
       <aside className="sidebar" aria-label="主导航">
@@ -574,7 +599,7 @@ function AppShell() {
 
         {activeView === "create" ? <CreateProjectView busy={busy} onSubmit={createProject} /> : null}
 
-        {activeView === "cases" ? <CaseLibraryView caseLibraryTab={caseLibraryTab} setCaseLibraryTab={setCaseLibraryTab} m5FixedCases={m5FixedCases} fullPptCases={fullPptCases} /> : null}
+        {activeView === "cases" ? <CaseLibraryView caseLibraryTab={caseLibraryTab} setCaseLibraryTab={setCaseLibraryTab} m5FixedCases={m5FixedCases} fullPptCases={fullPptCases} onDeleteFullPptCase={setDeleteFullPptCaseId} /> : null}
 
         {activeView === "function-tests" ? <FunctionTestsView /> : null}
 
