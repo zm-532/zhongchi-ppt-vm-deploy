@@ -7,7 +7,6 @@ from typing import Any
 
 from pptx import Presentation
 
-
 PLACEHOLDER_RE = re.compile(r"\{\{[^{}]+\}\}")
 PENDING_FIELD_RE = re.compile(r"\[待补充[:：][^\]]+\]")
 

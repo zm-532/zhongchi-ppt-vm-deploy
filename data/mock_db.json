@@ -1,6 +1,6 @@
 {
   "counters": {
-    "project_id": 46,
+    "project_id": 53,
     "file_id": 121,
     "case_id": 1
   },
@@ -11163,6 +11163,88 @@
           }
         ]
       }
+    },
+    {
+      "project_name": "南京地铁3号线既有线声屏障改造工程",
+      "project_location": "",
+      "owner_unit": "",
+      "product_line": "轨道交通声屏障",
+      "project_fields": {},
+      "project_id": 46,
+      "task_status": "待生成",
+      "status_history": [
+        "待生成"
+      ],
+      "modules": [
+        {
+          "module_id": "M1",
+          "status": "pending",
+          "status_history": [
+            "pending"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {},
+          "chapter_ppt_path": "",
+          "error_message": ""
+        },
+        {
+          "module_id": "M2",
+          "status": "pending",
+          "status_history": [
+            "pending"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {},
+          "chapter_ppt_path": "",
+          "error_message": ""
+        },
+        {
+          "module_id": "M3",
+          "status": "pending",
+          "status_history": [
+            "pending"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {},
+          "chapter_ppt_path": "",
+          "error_message": ""
+        },
+        {
+          "module_id": "M5",
+          "status": "pending",
+          "status_history": [
+            "pending"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {},
+          "chapter_ppt_path": "",
+          "error_message": ""
+        },
+        {
+          "module_id": "M6",
+          "status": "pending",
+          "status_history": [
+            "pending"
+          ],
+          "uploaded_file_ids": [],
+          "matched_asset_ids": [],
+          "outline": {},
+          "chapter_ppt_path": "",
+          "error_message": ""
+        }
+      ],
+      "final_ppt_path": "",
+      "detected_project_type": null,
+      "confirmed_project_type": null,
+      "classification_status": "pending",
+      "template_selection": {},
+      "case_selection": {},
+      "include_print_tail_page": false,
+      "quality_report": {}
     }
   ],
   "files": [
@@ -12963,6 +13045,66 @@
       "stored_at": "2026-06-10T05:32:56.304328+00:00",
       "file_size": 20756545,
       "download_url": "/api/cases/full-ppt/full_ppt_case:3/download"
+    },
+    {
+      "case_id": "full_ppt_case:48",
+      "project_id": 48,
+      "title": "上海小昆山声屏障项目",
+      "filename": "上海小昆山声屏障项目解决方案ppt.pptx",
+      "project_type": "railway",
+      "source_path": "D:\\中驰股份\\PPT售前助手\\vm-ppt-code\\data\\full_ppt_case_library\\上海小昆山声屏障项目解决方案ppt.pptx",
+      "source_type": "full_ppt",
+      "stored_at": "2026-06-22T00:00:00.000000+00:00",
+      "file_size": 27480,
+      "download_url": "/api/cases/full-ppt/full_ppt_case:48/download"
+    },
+    {
+      "case_id": "full_ppt_case:49",
+      "project_id": 49,
+      "title": "中山至开平高速公路中山段绿化环保2标声屏障",
+      "filename": "中山至开平高速公路中山段绿化环保2标声屏障解决方案ppt.pptx",
+      "project_type": "highway",
+      "source_path": "D:\\中驰股份\\PPT售前助手\\vm-ppt-code\\data\\full_ppt_case_library\\中山至开平高速公路中山段绿化环保2标声屏障解决方案ppt.pptx",
+      "source_type": "full_ppt",
+      "stored_at": "2026-06-22T00:00:00.000000+00:00",
+      "file_size": 27480,
+      "download_url": "/api/cases/full-ppt/full_ppt_case:49/download"
+    },
+    {
+      "case_id": "full_ppt_case:50",
+      "project_id": 50,
+      "title": "广州市广汕路北绕线全封闭声屏障",
+      "filename": "广州市广汕路北绕线全封闭声屏障解决方案ppt.pptx",
+      "project_type": "highway",
+      "source_path": "D:\\中驰股份\\PPT售前助手\\vm-ppt-code\\data\\full_ppt_case_library\\广州市广汕路北绕线全封闭声屏障解决方案ppt.pptx",
+      "source_type": "full_ppt",
+      "stored_at": "2026-06-22T00:00:00.000000+00:00",
+      "file_size": 27480,
+      "download_url": "/api/cases/full-ppt/full_ppt_case:50/download"
+    },
+    {
+      "case_id": "full_ppt_case:51",
+      "project_id": 51,
+      "title": "广湛高铁狮山段全封闭声屏障工程",
+      "filename": "广湛高铁狮山段全封闭声屏障工程解决方案ppt.pptx",
+      "project_type": "railway",
+      "source_path": "D:\\中驰股份\\PPT售前助手\\vm-ppt-code\\data\\full_ppt_case_library\\广湛高铁狮山段全封闭声屏障工程解决方案ppt.pptx",
+      "source_type": "full_ppt",
+      "stored_at": "2026-06-22T00:00:00.000000+00:00",
+      "file_size": 27480,
+      "download_url": "/api/cases/full-ppt/full_ppt_case:51/download"
+    },
+    {
+      "case_id": "full_ppt_case:52",
+      "project_id": 52,
+      "title": "宁西二线声屏障项目",
+      "filename": "宁西二线声屏障项目解决方案ppt.pptx",
+      "project_type": "existing_rail_transit",
+      "source_path": "D:\\中驰股份\\PPT售前助手\\vm-ppt-code\\data\\full_ppt_case_library\\宁西二线声屏障项目解决方案ppt.pptx",
+      "source_type": "full_ppt",
+      "stored_at": "2026-06-22T00:00:00.000000+00:00",
+      "file_size": 27480,
+      "download_url": "/api/cases/full-ppt/full_ppt_case:52/download"
     }
   ]
 }

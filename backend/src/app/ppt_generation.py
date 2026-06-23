@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import sys
 import shutil
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -43,7 +43,6 @@ def render_project_ppt(project: dict[str, Any], output_dir: Path) -> tuple[Path,
     # 兜底：旧流程（如直接 review 而未经 classify_review）可能没有 confirmed_project_type
     confirmed_project_type = project.get("confirmed_project_type") or "highway"
     case_selection = project.get("case_selection", {})
-    confirmed_case_id = case_selection.get("confirmed_case_id")
 
     # 只有明确选择了案例才生成 M5；否则跳过 M5
     # confirmed_case_id 必须是有效非空值（不是 None、不是空字符串、不是 "null" 等）

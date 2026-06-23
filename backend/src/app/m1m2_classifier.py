@@ -10,7 +10,6 @@ import httpx
 from .constants import M1_M2_TEMPLATE_FILENAMES, PROJECT_TYPES
 from .llm import ENV_API_KEY, ENV_BASE_URL, ENV_MODEL, get_configured_env
 
-
 MIN_LLM_CONFIDENCE = 0.6
 MAX_SOURCE_CHARS = 12000
 

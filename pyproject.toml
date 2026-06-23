@@ -1,0 +1,32 @@
+# 根项目配置（仅用于共享 lint/工具配置）。
+# backend/ 和 ppt_engine/ 各自有独立的 pyproject.toml 管理运行时依赖，
+# 此文件不声明任何运行时依赖，仅供 ruff / CI 使用。
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+# 同时检查后端与渲染引擎源码（不含各自 tests 目录，测试宽松处理）
+extend-exclude = [
+    ".venv",
+    "node_modules",
+    "backend/.venv",
+    "ppt_engine/.venv",
+    "data",
+]
+
+[tool.ruff.lint]
+# 分层策略：
+#   - F (pyflakes)：逻辑错误（未定义名、未用 import/变量）——强制阻断
+#   - E9 (pycodestyle fatal)：语法错误、缩进错误——强制阻断
+#   - I (isort)：import 排序——强制阻断（可自动修复）
+# 风格类规则（E501 行长、W292 尾换行等）暂不启用，作为后续收紧目标，
+# 避免一次性引入大量历史告警噪音。可用 `ruff check --select E,W` 查看基线。
+select = ["F", "E9", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+# 测试代码允许较宽松：长行、import 顺序自由、未用变量（常为调试残留）
+"backend/tests/*" = ["E501", "I001", "F841"]
+"ppt_engine/tests/*" = ["E501", "I001", "F841"]
+# 脚本工具允许宽松
+"ppt_engine/scripts/*" = ["E501"]
+"asset_tools/*" = ["E501", "I001"]

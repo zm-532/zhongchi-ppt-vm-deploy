@@ -1,15 +1,13 @@
 """Tests for vector store."""
 
 import os
-import tempfile
 import unittest
-from pathlib import Path
 from unittest.mock import patch
 
 # Set up environment before imports
 os.environ["ZHONGCHI_VECTOR_DSN"] = ""  # Disable vector store by default
 
-from app.vector_service import ChunkMetadata, PgVectorConfig, PgVectorStore, get_vector_store
+from app.vector_service import ChunkMetadata, PgVectorConfig, PgVectorStore
 
 
 class PgVectorStoreDisabledTest(unittest.TestCase):

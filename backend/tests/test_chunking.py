@@ -2,7 +2,7 @@
 
 import unittest
 
-from app.chunking import chunk_text, CHUNK_MAX_SIZE, CHUNK_MIN_SIZE, CHUNK_OVERLAP
+from app.chunking import chunk_text, CHUNK_MAX_SIZE, CHUNK_MIN_SIZE
 
 
 class ChunkingTest(unittest.TestCase):

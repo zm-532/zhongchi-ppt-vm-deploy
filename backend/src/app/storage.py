@@ -8,14 +8,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-# 进程内锁，保护 load/save 的读-改-写流程，防止并发请求导致数据损坏
-_db_lock = threading.Lock()
-
 from .case_matcher import (
     extract_project_tags,
     load_case_index,
 )
-from .m5_case_scanner import get_m5_case_by_id, recommend_m5_case, scan_m5_cases
 from .constants import (
     ALLOWED_MODULE_IDS,
     INITIAL_TASK_STATUS,
@@ -27,8 +23,12 @@ from .constants import (
 )
 from .document_analysis import analyze_document
 from .m1m2_classifier import M1M2Classification, classify_m1_m2_project
+from .m5_case_scanner import get_m5_case_by_id, recommend_m5_case, scan_m5_cases
 from .ppt_generation import render_project_ppt
 from .quality_review import quality_review_failed_report, review_project_quality
+
+# 进程内锁，保护 load/save 的读-改-写流程，防止并发请求导致数据损坏
+_db_lock = threading.Lock()
 
 
 def get_data_dir() -> Path:

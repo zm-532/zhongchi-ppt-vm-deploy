@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "typecheck": "tsc --noEmit",
     "test": "node --test tests/static-structure.test.mjs",
     "test:e2e": "playwright test"
   },

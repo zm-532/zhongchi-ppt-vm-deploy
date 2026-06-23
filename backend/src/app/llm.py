@@ -8,7 +8,6 @@ from typing import Any
 
 import httpx
 
-
 ENV_BASE_URL = "ZHONGCHI_LLM_BASE_URL"
 ENV_API_KEY = "ZHONGCHI_LLM_API_KEY"
 ENV_MODEL = "ZHONGCHI_LLM_MODEL"

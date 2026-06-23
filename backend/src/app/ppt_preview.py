@@ -5,7 +5,6 @@ import tempfile
 import time
 from pathlib import Path
 
-
 POWERPOINT_RETRY_ATTEMPTS = 3
 POWERPOINT_RETRY_DELAY_SECONDS = 0.8
 

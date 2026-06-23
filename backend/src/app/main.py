@@ -1,20 +1,35 @@
 import os
+import sys as _sys
 from pathlib import Path
+
+# 在模块加载时将 ppt_engine 路径注入 sys.path（供 TestClient 共享）
+# 必须在任何依赖 ppt_engine 的 import 之前执行。
+_ppt_engine_root = Path(__file__).resolve().parents[3] / "ppt_engine"
+if str(_ppt_engine_root) not in _sys.path:
+    _sys.path.insert(0, str(_ppt_engine_root))
+del _sys, _ppt_engine_root
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
 from .constants import ALLOWED_EXTENSIONS, ALLOWED_MODULE_IDS, PROJECT_TYPES
-from .schemas import ClassificationResult, ClassificationReviewRequest, LlmTestRequest, LlmTestResponse, M3FullRenderTestResponse, M3MaterialsResponse, Project, ProjectCreate, ProjectUpdate, ReviewRequest, StoredFile, VectorIndexRequest, VectorIndexResponse
+from .schemas import (
+    ClassificationResult,
+    ClassificationReviewRequest,
+    LlmTestRequest,
+    LlmTestResponse,
+    M3FullRenderTestResponse,
+    M3MaterialsResponse,
+    Project,
+    ProjectCreate,
+    ProjectUpdate,
+    ReviewRequest,
+    StoredFile,
+    VectorIndexRequest,
+    VectorIndexResponse,
+)
 from .storage import get_data_dir, get_store
-
-# 在模块加载时将 ppt_engine 路径注入 sys.path（供 TestClient 共享）
-import sys as _sys
-_ppt_engine_root = Path(__file__).resolve().parents[3] / "ppt_engine"
-if str(_ppt_engine_root) not in _sys.path:
-    _sys.path.insert(0, str(_ppt_engine_root))
-del _sys, _ppt_engine_root
 
 
 def _get_m3_full_test_output_dir() -> Path:
@@ -569,7 +584,6 @@ def dev_llm_test(payload: LlmTestRequest) -> dict:
 
 def _ensure_ppt_engine_path() -> None:
     import sys
-    from pathlib import Path as PP
 
     code_dir = Path(__file__).resolve().parents[3]
     ppt_engine_dir = code_dir / "ppt_engine"
@@ -586,8 +600,9 @@ async def m3_full_render_test(
 ) -> dict:
     """M3 完整独立测试接口：9 部分文字 + 图片替换，支持多图扩页。"""
     _ensure_ppt_engine_path()
-    from pptx import Presentation
-    from ppt_engine.renderer import render_m3_full_test_ppt
+    # 延迟导入，避免模块加载时强制依赖 pptx/ppt_engine
+    from ppt_engine.renderer import render_m3_full_test_ppt  # noqa: E402
+    from pptx import Presentation  # noqa: E402
 
     if not project_name or not project_name.strip():
         raise HTTPException(status_code=400, detail="project_name 不能为空")

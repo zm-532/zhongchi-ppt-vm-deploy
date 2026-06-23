@@ -69,7 +69,6 @@ class M3RendererTest(unittest.TestCase):
 
     def test_validate_m3_template_placeholders_reports_missing(self):
         """校验函数能检测缺失的占位符（占位符必须在规定位置才算存在）。"""
-        import re
         # 创建一个临时 PPTX，只在 slide 0 Shape 2 放一个占位符
         with tempfile.TemporaryDirectory() as tmp:
             prs = Presentation()

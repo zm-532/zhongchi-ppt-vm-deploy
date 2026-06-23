@@ -1,9 +1,9 @@
-import re
-from copy import deepcopy
-from io import BytesIO
 import os
+import re
 import shutil
 import zipfile
+from copy import deepcopy
+from io import BytesIO
 from pathlib import Path
 from typing import Any
 from xml.etree import ElementTree
@@ -15,7 +15,6 @@ from pptx.enum.text import MSO_VERTICAL_ANCHOR, PP_ALIGN
 from pptx.oxml.ns import qn
 from pptx.oxml.xmlchemy import OxmlElement
 from pptx.util import Inches, Pt
-
 
 # =============================================================================
 # 模板路径配置（统一入口，禁止散落硬编码）

@@ -1284,7 +1284,6 @@ class BackendApiTest(unittest.TestCase):
         self.assertIn("不支持", results[0]["error_message"])
 
     def test_document_parse_test_does_not_create_project_or_write_to_main_flow(self):
-        import json
         list_before = self.client.get("/api/projects").json()
 
         response = self.client.post(
@@ -1701,7 +1700,6 @@ class BackendApiTest(unittest.TestCase):
 
     def test_llm_confidence_nan_falls_back_to_rules(self):
         """验证 LLM 返回 confidence=NaN 时 fallback。"""
-        import math
         from app.m1m2_classifier import _normalize_llm_result
 
         data = {

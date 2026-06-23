@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-
 # Minimum and maximum chunk size in characters
 CHUNK_MIN_SIZE = 500
 CHUNK_MAX_SIZE = 800
