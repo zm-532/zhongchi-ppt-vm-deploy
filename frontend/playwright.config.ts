@@ -19,7 +19,7 @@ export default defineConfig({
       command: "npm run dev -- --hostname 127.0.0.1 --port 3101",
       cwd: ".",
       env: {
-        NEXT_PUBLIC_API_BASE_URL: "http://127.0.0.1:8100",
+        BACKEND_URL: "http://127.0.0.1:8100",
       },
       url: "http://127.0.0.1:3101",
       reuseExistingServer: false,

@@ -42,7 +42,7 @@ export const M3_SECTION_TITLE_ALIASES: Record<string, string> = {
   "现场勘查情况": "现场勘察情况",
 };
 
-export const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8010";
+export const API_BASE = "";
 export const PROJECT_LIST_PREVIEW_LIMIT = 5;
 export const PROJECT_LIST_PAGE_SIZE = 10;
 

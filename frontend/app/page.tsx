@@ -165,7 +165,7 @@ function AppShell() {
   useEffect(() => {
     requestJson<Project[]>("/api/projects")
       .then((items) => { setProjects(items); if (items[0]) setCurrentProject(items[0]); })
-      .catch(() => toast.error("后端未连接，请确认 FastAPI 运行在 127.0.0.1:8010。"));
+      .catch(() => toast.error("后端未连接，请确认 FastAPI 正在运行。"));
   }, []);
 
   useEffect(() => {

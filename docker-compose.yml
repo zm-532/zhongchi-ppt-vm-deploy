@@ -20,13 +20,13 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-      args:
-        NEXT_PUBLIC_API_BASE_URL: http://backend:8010
     container_name: zhongchi-frontend
     ports:
       - "3001:3001"
     depends_on:
       - backend
+    environment:
+      - BACKEND_URL=http://backend:8010
     restart: unless-stopped
 
 volumes:

@@ -250,16 +250,16 @@ test("[静态] page.tsx 调用了所需的 backend API 端点字符串", () => {
     "/task",
     "/download",
     "/m3-materials",
-    "NEXT_PUBLIC_API_BASE_URL",
+    "API_BASE",
     "fetch(",
     // M3 完整测试接口
     "/api/test/m3-full-render",
   ].forEach((text) => assert.match(source, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))));
 });
 
-test("[静态] page.tsx 保留 case_id 为字符串格式和默认端口配置", () => {
+test("[静态] page.tsx 保留 case_id 为字符串格式和 API_BASE 配置", () => {
   const source = allSourceCached;
-  assert.match(source, /http:\/\/127\.0\.0\.1:8010/);
+  assert.match(source, /API_BASE/);
   assert.doesNotMatch(source, /Number\(reviewForm\.caseId\)/);
   assert.match(source, /confirmed_case_id: reviewForm\.caseId \|\| null/);
   assert.match(source, /caseId: undefined/);
