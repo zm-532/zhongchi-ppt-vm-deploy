@@ -22,7 +22,7 @@ import type {
   TaskState,
   ViewId,
 } from "./constants";
-import { requestJson, labelForProjectType, projectTypeFromProductLine } from "./utils";
+import { requestJson, directUpload, labelForProjectType, projectTypeFromProductLine } from "./utils";
 import { useM3AutoPreview } from "./useM3AutoPreview";
 
 import { ToastProvider, useToast } from "./components/Toast";
@@ -235,7 +235,7 @@ function AppShell() {
     m3MaterialBulkFiles.forEach((file) => formData.append("files", file));
     setBusy(true);
     try {
-      const result = await requestJson<M3MaterialsResult>(`/api/projects/${currentProject.project_id}/m3-materials`, { method: "POST", body: formData });
+      const result = await directUpload<M3MaterialsResult>(`/api/projects/${currentProject.project_id}/m3-materials`, formData);
       setM3MaterialsResult(result);
       setM3MaterialBulkFiles([]);
       setM3MaterialDescriptions(
@@ -277,7 +277,7 @@ function AppShell() {
     try {
       const body = new FormData();
       selectedFiles.forEach((file) => body.append("files", file));
-      const stored = await requestJson<StoredFile[] | StoredFile>(`/api/projects/${currentProject.project_id}/files`, { method: "POST", body });
+      const stored = await directUpload<StoredFile[] | StoredFile>(`/api/projects/${currentProject.project_id}/files`, body);
       setUploadedFiles(Array.isArray(stored) ? stored : [stored]);
       setCurrentProject(await requestJson<Project>(`/api/projects/${currentProject.project_id}`));
       setSelectedFiles([]); setUploadSuccess(true);
@@ -394,7 +394,7 @@ function AppShell() {
     try {
       const project = await requestJson<Project>("/api/projects", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ project_name: m1m2TestProjectName || "M1/M2选择测试项目", project_location: "", owner_unit: "", product_line: "" }) });
       const body = new FormData(); m1m2TestFiles.forEach((file) => body.append("files", file));
-      const stored = await requestJson<StoredFile[]>(`/api/projects/${project.project_id}/files`, { method: "POST", body });
+      const stored = await directUpload<StoredFile[]>(`/api/projects/${project.project_id}/files`, body);
       setM1m2TestUploadedFiles(stored);
       const result = await requestJson<ClassificationResult>(`/api/projects/${project.project_id}/analyze`, { method: "POST" });
       setM1m2TestResult(result); setProjects((items) => [project, ...items]);
@@ -421,7 +421,7 @@ function AppShell() {
     try {
       const project = await requestJson<Project>("/api/projects", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ project_name: m5TestProjectName || "M5案例匹配测试项目", project_location: "", owner_unit: "", product_line: "" }) });
       const body = new FormData(); m5TestFiles.forEach((file) => body.append("files", file));
-      const stored = await requestJson<StoredFile[]>(`/api/projects/${project.project_id}/files`, { method: "POST", body });
+      const stored = await directUpload<StoredFile[]>(`/api/projects/${project.project_id}/files`, body);
       setM5TestUploadedFiles(stored);
       const result = await requestJson<ClassificationResult>(`/api/projects/${project.project_id}/analyze`, { method: "POST" });
       setM5TestResult(result); setProjects((items) => [project, ...items]);
@@ -451,7 +451,7 @@ function AppShell() {
       const project = await requestJson<Project>("/api/projects", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ project_name: "文档解析测试项目", project_location: "", owner_unit: "", product_line: "" }) });
       setDocParseTestProjectId(project.project_id);
       const body = new FormData(); docParseTestFiles.forEach((file) => body.append("files", file));
-      await requestJson(`/api/projects/${project.project_id}/files`, { method: "POST", body });
+      await directUpload(`/api/projects/${project.project_id}/files`, body);
       const result = await requestJson<ClassificationResult>(`/api/projects/${project.project_id}/analyze`, { method: "POST" });
       setDocParseTestResult(result);
       const parsedFiles = result.files ?? [];
@@ -499,7 +499,7 @@ function AppShell() {
     m3FullTestBulkFiles.forEach((file) => formData.append("files", file));
     setBusy(true); setM3FullTestResult(null);
     try {
-      const result = await requestJson<M3FullTestResult>("/api/test/m3-full-render", { method: "POST", body: formData });
+      const result = await directUpload<M3FullTestResult>("/api/test/m3-full-render", formData);
       setM3FullTestResult(result); setM3FullTestMessage(result.ok ? "M3 完整测试 PPTX 已生成，点击下载链接获取文件。" : "M3 完整测试失败。");
     } catch (error) { setM3FullTestMessage(error instanceof Error ? error.message : "M3 完整测试失败"); } finally { setBusy(false); }
   }

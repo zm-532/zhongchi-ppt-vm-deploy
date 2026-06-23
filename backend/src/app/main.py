@@ -40,20 +40,7 @@ app = FastAPI(title="中驰智能PPT Demo API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:3001",
-        "http://127.0.0.1:3101",
-        "http://127.0.0.1:3102",
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "http://localhost:3101",
-        "http://localhost:3102",
-        "http://192.168.0.202:3001",
-        "http://192.168.0.202:8010",
-        "http://192.168.20.218:3001",
-    ],
-    allow_credentials=True,
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )

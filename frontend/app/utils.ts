@@ -8,6 +8,18 @@ export async function requestJson<T>(path: string, init?: RequestInit): Promise<
   return response.json() as Promise<T>;
 }
 
+/**
+ * 文件上传专用 —— 直接发到后端（绕过 Next.js dev server 的 body 大小限制）。
+ * 从当前页面 hostname 推导后端地址，本机/内网都能通。
+ */
+export async function directUpload<T>(path: string, formData: FormData): Promise<T> {
+  const hostname = typeof window !== "undefined" ? window.location.hostname : "127.0.0.1";
+  const response = await fetch(`http://${hostname}:8010${path}`, { method: "POST", body: formData });
+  if (!response.ok) throw new Error(await response.text());
+  if (response.status === 204) return undefined as T;
+  return response.json() as Promise<T>;
+}
+
 export function labelForProjectType(value?: string) {
   return projectTypes.find((item) => item.value === value)?.label ?? value ?? "待识别";
 }
