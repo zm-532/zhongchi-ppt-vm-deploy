@@ -458,6 +458,27 @@ input:disabled {
   box-shadow: var(--shadow-sm);
 }
 
+.filterButton {
+  min-height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.filterButton:hover {
+  border-color: var(--primary-line);
+  color: var(--primary);
+}
+.filterButton.active {
+  border-color: var(--primary-line);
+  background: var(--primary);
+  color: #ffffff;
+}
+
 .caseItemActions {
   justify-content: flex-end;
 }

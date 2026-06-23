@@ -1,6 +1,15 @@
+import { useState } from "react";
 import { API_BASE } from "../constants";
 import type { CaseLibraryItem, FullPptCaseItem } from "../constants";
 import { labelForProjectType, formatFileSize, formatStoredAt } from "../utils";
+
+const CASE_TYPE_FILTERS = [
+  { label: "全部", value: "all" },
+  { label: "公路", value: "highway" },
+  { label: "铁路", value: "railway" },
+  { label: "轨道交通", value: "metro" },
+  { label: "既有线", value: "existing_rail_transit" },
+] as const;
 
 interface CaseLibraryViewProps {
   caseLibraryTab: "m5" | "full-ppt";
@@ -11,6 +20,11 @@ interface CaseLibraryViewProps {
 }
 
 export function CaseLibraryView({ caseLibraryTab, setCaseLibraryTab, m5FixedCases, fullPptCases, onDeleteFullPptCase }: CaseLibraryViewProps) {
+  const [caseTypeFilter, setCaseTypeFilter] = useState<string>("all");
+  const filteredCases = caseTypeFilter === "all"
+    ? m5FixedCases
+    : m5FixedCases.filter((item) => item.project_type === caseTypeFilter);
+
   return (
     <section id="cases" className="section">
       <div className="sectionHeader"><h2>案例库</h2></div>
@@ -19,9 +33,20 @@ export function CaseLibraryView({ caseLibraryTab, setCaseLibraryTab, m5FixedCase
         <button className={caseLibraryTab === "full-ppt" ? "caseLibraryTab active" : "caseLibraryTab"} onClick={() => setCaseLibraryTab("full-ppt")} role="tab" type="button">完整PPT案例库</button>
       </div>
       {caseLibraryTab === "m5" ? (
-        m5FixedCases.length > 0 ? (
+        <>
+          <div className="caseTypeFilterBar" style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+            {CASE_TYPE_FILTERS.map((f) => (
+              <button
+                key={f.value}
+                className={caseTypeFilter === f.value ? "filterButton active" : "filterButton"}
+                onClick={() => setCaseTypeFilter(f.value)}
+                type="button"
+              >{f.label}</button>
+            ))}
+          </div>
+          {filteredCases.length > 0 ? (
           <div className="evidenceList">
-            {m5FixedCases.map((item) => (
+            {filteredCases.map((item) => (
               <article className="evidenceItem" key={item.case_id}>
                 <div>
                   <strong>{item.filename || item.title}</strong>
@@ -34,6 +59,11 @@ export function CaseLibraryView({ caseLibraryTab, setCaseLibraryTab, m5FixedCase
               </article>
             ))}
           </div>
+        ) : m5FixedCases.length > 0 ? (
+          <div className="cases-empty-panel">
+            <h3 className="cases-empty-title">该类型下暂无案例</h3>
+            <p className="cases-empty-desc">当前筛选条件没有匹配的案例，请尝试其他项目类型。</p>
+          </div>
         ) : (
           <div className="cases-empty-panel">
             <h3 className="cases-empty-title">暂未发现 M5 案例文件</h3>
@@ -44,7 +74,8 @@ export function CaseLibraryView({ caseLibraryTab, setCaseLibraryTab, m5FixedCase
               <div className="cases-capability-item">M5 推荐案例辅助生成</div>
             </div>
           </div>
-        )
+        )}
+        </>
       ) : (
         fullPptCases.length > 0 ? (
           <div className="evidenceList">
