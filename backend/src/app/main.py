@@ -670,6 +670,9 @@ def m3_full_render_download(filename: str) -> FileResponse:
 
 
 def main() -> None:
+    import os
     import uvicorn
 
-    uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=True)
+    host = os.environ.get("ZHONGCHI_BACKEND_HOST", "0.0.0.0")
+    port = int(os.environ.get("ZHONGCHI_BACKEND_PORT", "8010"))
+    uvicorn.run("app.main:app", host=host, port=port, reload=True)
