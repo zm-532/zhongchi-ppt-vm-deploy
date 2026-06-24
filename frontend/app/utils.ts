@@ -9,15 +9,45 @@ export async function requestJson<T>(path: string, init?: RequestInit): Promise<
 }
 
 /**
- * 文件上传专用 —— 直接发到后端（绕过 Next.js dev server 的 body 大小限制）。
- * 从当前页面 hostname 推导后端地址，本机/内网都能通。
+ * 文件上传专用 —— 优先直连后端 8010（绕过 Next.js dev server 的 body 大小限制），
+ * 失败时回退到同源 /api proxy（覆盖外部设备访问 VM 时的端口映射场景）。
  */
 export async function directUpload<T>(path: string, formData: FormData): Promise<T> {
   const hostname = typeof window !== "undefined" ? window.location.hostname : "127.0.0.1";
-  const response = await fetch(`http://${hostname}:8010${path}`, { method: "POST", body: formData });
-  if (!response.ok) throw new Error(await response.text());
-  if (response.status === 204) return undefined as T;
-  return response.json() as Promise<T>;
+  const isLoopback = hostname === "127.0.0.1" || hostname === "localhost" || hostname === "::1";
+  const directUrl = `http://${hostname}:8010${path}`;
+  const proxyUrl = `/api${path.replace(/^\/api/, "")}`;
+
+  // 本机访问：直接走 8010，跳过 proxy 的 body 限制
+  if (isLoopback) {
+    return postOnce<T>(directUrl, formData);
+  }
+
+  // 外部设备访问：先试直连 8010（部分场景下路由器已映射 8010）
+  // 失败/超时/被 RST 时回退到 Next.js proxy（同源 3001 → 8010）
+  try {
+    return await postOnce<T>(directUrl, formData, 4000);
+  } catch (err) {
+    console.warn(`[directUpload] 直连 8010 失败，回退到 proxy:`, err);
+    return postOnce<T>(proxyUrl, formData);
+  }
+}
+
+async function postOnce<T>(url: string, formData: FormData, timeoutMs = 0): Promise<T> {
+  const controller = new AbortController();
+  const timer = timeoutMs > 0 ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      body: formData,
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error(await response.text());
+    if (response.status === 204) return undefined as T;
+    return (await response.json()) as Promise<T>;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 export function labelForProjectType(value?: string) {
