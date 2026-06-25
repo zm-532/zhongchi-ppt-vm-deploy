@@ -111,6 +111,7 @@ def _export_slides_to_png(pptx_path: Path, preview_dir: Path) -> tuple[int, list
         raise RuntimeError("PPT 预览仅支持 Windows 系统（需要 PowerPoint）。仍可下载 PPTX。")
 
     try:
+        import pythoncom  # type: ignore[import-not-found]
         import win32com.client  # type: ignore[import-not-found]
     except ImportError:
         raise RuntimeError("预览生成需要安装 pywin32 (pip install pywin32)。仍可下载 PPTX。")
@@ -123,6 +124,7 @@ def _export_slides_to_png(pptx_path: Path, preview_dir: Path) -> tuple[int, list
     app = None
     presentation = None
     try:
+        pythoncom.CoInitialize()
         app = _call_powerpoint_with_retry(
             lambda: win32com.client.DispatchEx("PowerPoint.Application")
         )
@@ -163,6 +165,10 @@ def _export_slides_to_png(pptx_path: Path, preview_dir: Path) -> tuple[int, list
             except Exception:
                 pass
         shutil.rmtree(work_dir, ignore_errors=True)
+        try:
+            pythoncom.CoUninitialize()
+        except Exception:
+            pass
 
 
 def _is_powerpoint_rejected_call(exc: Exception) -> bool:

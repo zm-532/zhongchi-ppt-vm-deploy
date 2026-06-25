@@ -889,6 +889,7 @@ def _merge_pptx_with_powerpoint(chapter_paths: list[str | Path], output_path: st
         return False
 
     try:
+        import pythoncom  # type: ignore[import-not-found]
         import win32com.client  # type: ignore[import-not-found]
     except ImportError:
         return False
@@ -899,6 +900,7 @@ def _merge_pptx_with_powerpoint(chapter_paths: list[str | Path], output_path: st
     app = None
     target = None
     try:
+        pythoncom.CoInitialize()
         app = win32com.client.DispatchEx("PowerPoint.Application")
         target = app.Presentations.Add(WithWindow=False)
 
@@ -937,6 +939,10 @@ def _merge_pptx_with_powerpoint(chapter_paths: list[str | Path], output_path: st
                 app.Quit()
             except Exception:
                 pass
+        try:
+            pythoncom.CoUninitialize()
+        except Exception:
+            pass
 
 
 def merge_pptx(chapter_paths: list[str | Path], output_path: str | Path) -> Path:
