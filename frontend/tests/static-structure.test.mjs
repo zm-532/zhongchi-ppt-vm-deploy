@@ -507,11 +507,13 @@ test("[静态] page.tsx 支持完整PPT存入案例库和案例库分组展示",
   ].forEach((text) => assert.match(source, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))));
 });
 
-test("[静态] M5案例库不展示路径和case_id", () => {
+test("[静态] M5案例库和完整PPT案例库均不展示case_id", () => {
   const source = caseLibraryViewSource();
   const m5Start = source.indexOf('{caseLibraryTab === "m5" ? (');
   const fullPptStart = source.indexOf("fullPptCases.length > 0 ? (", m5Start);
   const m5Section = source.slice(m5Start, fullPptStart);
+  const fullPptEnd = source.indexOf("</section>", fullPptStart);
+  const fullPptSection = source.slice(fullPptStart, fullPptEnd);
 
   assert.notEqual(m5Start, -1);
   assert.notEqual(fullPptStart, -1);
@@ -520,6 +522,7 @@ test("[静态] M5案例库不展示路径和case_id", () => {
   assert.doesNotMatch(m5Section, /ppt_engine\/templates\/solution_fixed_modules\/M5/);
   assert.match(m5Section, /item\.filename \|\| item\.title/);
   assert.match(m5Section, /labelForProjectType\(item\.project_type\)/);
+  assert.doesNotMatch(fullPptSection, /case_id:/);
 });
 test("[静态] 人工确认表单支持选择尾页打印版", () => {
   const source = allSourceCached;

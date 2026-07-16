@@ -85,7 +85,6 @@ export function CaseLibraryView({ caseLibraryTab, setCaseLibraryTab, m5FixedCase
                   <span>{formatFileSize(caseItem.file_size)}</span>
                 </div>
                 <p>项目类型：{labelForProjectType(caseItem.project_type)}；存入时间：{formatStoredAt(caseItem.stored_at)}</p>
-                <p className="sourcePath">case_id: {caseItem.case_id}</p>
                 <div className="caseItemActions" style={{ display: "flex", gap: 8 }}>
                   <a className="secondaryButton btn-xs" href={`${API_BASE}/api/cases/full-ppt/${caseItem.case_id}/download`} download>下载 PPTX</a>
                   {onDeleteFullPptCase ? (

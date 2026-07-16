@@ -34,6 +34,7 @@ data/uploads/
 data/outputs/
 data/previews/
 data/parsed_text/
+data/full_ppt_case_library/__demo__/
 
 # OS / editor
 .DS_Store

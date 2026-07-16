@@ -2181,8 +2181,16 @@ class BackendApiTest(unittest.TestCase):
         list_response = self.client.get("/api/cases/full-ppt")
         self.assertEqual(list_response.status_code, 200)
         listed = list_response.json()
-        self.assertEqual(len(listed), 1)
-        self.assertEqual(listed[0]["case_id"], saved["case_id"])
+        # 真实存入的案例必须在列表中
+        listed_case_ids = {item["case_id"] for item in listed}
+        self.assertIn(saved["case_id"], listed_case_ids)
+        saved_listed = next(item for item in listed if item["case_id"] == saved["case_id"])
+        self.assertFalse(saved_listed.get("is_mock", False))
+        # 预置数据若存在（取决于 __demo__/mock_cases.json 是否被部署），不应与真实存入互斥
+        # 测试环境通常不带这份 JSON，因此这里只做软断言：若有 mock 条目，其 is_mock 必须为 True
+        for item in listed:
+            if item.get("is_mock"):
+                self.assertTrue(item["is_mock"])
 
         download_response = self.client.get(f"/api/cases/full-ppt/full_ppt_case:{project_id}/download")
         self.assertEqual(download_response.status_code, 200)
@@ -2200,7 +2208,14 @@ class BackendApiTest(unittest.TestCase):
         self.assertEqual(first.json()["case_id"], second.json()["case_id"])
         list_response = self.client.get("/api/cases/full-ppt")
         self.assertEqual(list_response.status_code, 200)
-        self.assertEqual([item["project_id"] for item in list_response.json()], [project_id])
+        listed = list_response.json()
+        # 真实存入的案例在列表中应只出现 1 次（同名 case_id 视为同一条）
+        saved_project_ids = [
+            item["project_id"]
+            for item in listed
+            if item.get("case_id") == first.json()["case_id"]
+        ]
+        self.assertEqual(saved_project_ids, [project_id])
 
 
 class RemovedM3PartialRenderTest(unittest.TestCase):

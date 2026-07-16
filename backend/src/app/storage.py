@@ -81,6 +81,7 @@ def _initial_state() -> dict[str, Any]:
     }
 
 
+
 class JsonStore:
     def __init__(self, data_dir: Path | None = None):
         self.data_dir = data_dir or get_data_dir()
@@ -949,10 +950,15 @@ class JsonStore:
             return case
 
     def get_full_ppt_cases(self) -> list[dict[str, Any]]:
+        """返回完整 PPT 案例库列表（仅真实存入的案例）。"""
         return deepcopy(self.load().get("full_ppt_cases", []))
 
     def get_full_ppt_case(self, case_id: str) -> dict[str, Any] | None:
-        return next((case for case in self.get_full_ppt_cases() if case.get("case_id") == case_id), None)
+        """按 case_id 查找完整 PPT 案例（仅查询真实存入的案例）。"""
+        return next(
+            (case for case in self.get_full_ppt_cases() if case.get("case_id") == case_id),
+            None,
+        )
 
     def index_project_vector(
         self,
