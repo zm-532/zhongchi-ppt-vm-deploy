@@ -27,6 +27,7 @@ import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
 const pageSource = () => readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
+const caseLibraryViewSource = () => readFileSync(new URL("../app/views/CaseLibraryView.tsx", import.meta.url), "utf8");
 const repoRoot = new URL("../../", import.meta.url);
 
 // Read all .ts/.tsx files under app/ for cross-file checks
@@ -506,6 +507,20 @@ test("[静态] page.tsx 支持完整PPT存入案例库和案例库分组展示",
   ].forEach((text) => assert.match(source, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))));
 });
 
+test("[静态] M5案例库不展示路径和case_id", () => {
+  const source = caseLibraryViewSource();
+  const m5Start = source.indexOf('{caseLibraryTab === "m5" ? (');
+  const fullPptStart = source.indexOf("fullPptCases.length > 0 ? (", m5Start);
+  const m5Section = source.slice(m5Start, fullPptStart);
+
+  assert.notEqual(m5Start, -1);
+  assert.notEqual(fullPptStart, -1);
+  assert.doesNotMatch(m5Section, /case_id:/);
+  assert.doesNotMatch(m5Section, /item\.source_path/);
+  assert.doesNotMatch(m5Section, /ppt_engine\/templates\/solution_fixed_modules\/M5/);
+  assert.match(m5Section, /item\.filename \|\| item\.title/);
+  assert.match(m5Section, /labelForProjectType\(item\.project_type\)/);
+});
 test("[静态] 人工确认表单支持选择尾页打印版", () => {
   const source = allSourceCached;
   assert.match(source, /includePrintTailPage: boolean/);

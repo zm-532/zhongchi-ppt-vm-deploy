@@ -50,11 +50,9 @@ export function CaseLibraryView({ caseLibraryTab, setCaseLibraryTab, m5FixedCase
               <article className="evidenceItem" key={item.case_id}>
                 <div>
                   <strong>{item.filename || item.title}</strong>
-                  <span>case_id: {String(item.case_id)}</span>
                 </div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
                   {item.project_type ? <span className="badge">{labelForProjectType(item.project_type)}</span> : null}
-                  {item.source_path ? <span className="sourcePath">{item.source_path}</span> : null}
                 </div>
               </article>
             ))}
@@ -67,7 +65,7 @@ export function CaseLibraryView({ caseLibraryTab, setCaseLibraryTab, m5FixedCase
         ) : (
           <div className="cases-empty-panel">
             <h3 className="cases-empty-title">暂未发现 M5 案例文件</h3>
-            <p className="cases-empty-desc">请检查 ppt_engine/templates/solution_fixed_modules/M5 目录下是否存在 .pptx 案例文件。</p>
+            <p className="cases-empty-desc">当前案例库暂无可用案例，请联系管理员导入案例文件。</p>
             <div className="cases-capability-list">
               <div className="cases-capability-item">历史项目案例归档</div>
               <div className="cases-capability-item">项目标签与场景匹配</div>
